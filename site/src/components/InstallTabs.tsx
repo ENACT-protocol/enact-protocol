@@ -40,7 +40,7 @@ function CursorPanel({ tab }: { tab: TabConfig }) {
     const name = Object.keys(tab.cursorConfig)[0] ?? 'enact';
     const serverConfig = tab.cursorConfig[name];
     const b64 = btoa(JSON.stringify(serverConfig));
-    return `https://cursor.com/en/install-mcp?name=${encodeURIComponent(name)}&config=${encodeURIComponent(b64)}`;
+    return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(name)}&config=${b64}`;
   }, [tab.cursorConfig]);
 
   return (
@@ -58,11 +58,11 @@ function CursorPanel({ tab }: { tab: TabConfig }) {
             }}
           >
             <img src="/logos/cursor.svg" alt="" width={16} height={16} />
-            Install in Cursor
+            Install in Cursor →
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M7 17L17 7M17 7H7M17 7v10" /></svg>
           </a>
           <div className="text-[10px] text-gray-600 font-mono mb-5 text-center">
-            Opens Cursor and installs automatically. The browser tab will close itself.
+            Opens Cursor and installs the MCP server automatically.
           </div>
         </>
       )}
