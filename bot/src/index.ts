@@ -931,6 +931,7 @@ async function handleJobs(ctx: any) {
 }
 
 async function handleStatus(ctx: any, jobId: number) {
+    const userId = getUserId(ctx);
     try {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
@@ -956,19 +957,27 @@ async function handleStatus(ctx: any, jobId: number) {
 
         const kb = new InlineKeyboard();
 
+        // Show buttons based on user role
+        const userAddr = userTcAddresses.get(userId) ?? '';
+        const isClient = userAddr && s.client === userAddr;
+        const isProvider = userAddr && s.provider === userAddr;
+        const isEvaluator = userAddr && s.evaluator === userAddr;
+
         switch (s.stateName) {
             case 'OPEN':
-                kb.text('💰 Fund', `fund_${jobId}`)
-                  .text('🤝 Take Job', `take_${jobId}`);
+                if (isClient) kb.text('💰 Fund', `fund_${jobId}`);
+                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
                 break;
             case 'FUNDED':
-                kb.text('🤝 Take Job', `take_${jobId}`)
-                  .text('🚫 Cancel', `cancel_${jobId}`);
+                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                if (isClient) kb.text('🚫 Cancel', `cancel_${jobId}`);
                 break;
             case 'SUBMITTED':
-                kb.text('✅ Approve', `approve_${jobId}`)
-                  .text('❌ Reject', `reject_${jobId}`).row()
-                  .text('⏰ Claim (timeout)', `claim_${jobId}`);
+                if (isEvaluator || isClient) {
+                    kb.text('✅ Approve', `approve_${jobId}`)
+                      .text('❌ Reject', `reject_${jobId}`).row();
+                }
+                if (isProvider) kb.text('⏰ Claim (timeout)', `claim_${jobId}`);
                 break;
             case 'COMPLETED':
                 text += `\n\n${e('🎉')} Job completed!`;
@@ -1280,7 +1289,7 @@ async function connectSSE(apiKey: string) {
                 body: JSON.stringify({
                     addresses: [factoryRaw],
                     types: ['transactions'],
-                    min_finality: 'finalized',
+                    min_finality: 'confirmed',
                 }),
             });
 

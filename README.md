@@ -30,7 +30,7 @@ claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp
 ```bash
 cd mcp-server && npm install && npm run build
 claude mcp add enact-protocol \
-  -e FACTORY_ADDRESS="EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" \
+  -e FACTORY_ADDRESS="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" \
   -e WALLET_MNEMONIC="your 24 words" \
   -- node ./dist/index.js
 ```
@@ -46,8 +46,8 @@ npx blueprint test                    # 56 tests
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| **JobFactory** | `EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg` | [View](https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg) |
-| **JettonJobFactory** | `EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1` | [View](https://tonviewer.com/EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1) |
+| **JobFactory** | `EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5` | [View](https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5) |
+| **JettonJobFactory** | `EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s` | [View](https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s) |
 
 ## The Problem
 
@@ -138,7 +138,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "FACTORY_ADDRESS": "EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg",
+        "FACTORY_ADDRESS": "EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5",
         "WALLET_MNEMONIC": "your 24 words",
         "NETWORK": "mainnet"
       }
@@ -285,6 +285,6 @@ MIT
 
 Built for the [TON AI Agent Hackathon 2026](https://identityhub.app/contests/ai-hackathon) — Agent Infrastructure Track
 
-[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg)
+[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5)
 
 </div>

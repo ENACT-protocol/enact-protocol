@@ -199,7 +199,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <Code label="Remote MCP (recommended)">{`claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp`}</Code>
         <Code label="Or connect locally with your wallet">{`cd mcp-server && npm install && npm run build
 claude mcp add enact-protocol \\
-  -e FACTORY_ADDRESS="EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" \\
+  -e FACTORY_ADDRESS="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" \\
   -e WALLET_MNEMONIC="your 24 words" \\
   -- node ./dist/index.js`}</Code>
         <Tip>Want to build from source or run tests? See <a href="/docs/getting-started" className="underline">Getting Started</a> for developer setup.</Tip>
@@ -277,7 +277,7 @@ await job.sendSubmitResult(provider, toNano('0.01'), resultHash, 0);
 // 3. Evaluator approves — payment releases automatically
 await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
 // On-chain: state SUBMITTED → COMPLETED, 2 TON sent to provider`}</Code>
-        <Tip>This is exactly what <IC>npx blueprint run demo</IC> does. Check <IC>scripts/demo.ts</IC> for the full source. After running, verify the state transitions on <a href="https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" target="_blank" rel="noopener noreferrer" className="underline">Tonviewer</a> — the job address is printed in the demo log.</Tip>
+        <Tip>This is exactly what <IC>npx blueprint run demo</IC> does. Check <IC>scripts/demo.ts</IC> for the full source. After running, verify the state transitions on <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="underline">Tonviewer</a> — the job address is printed in the demo log.</Tip>
 
         <H2>Next Steps</H2>
         <CardGroup cols={3}>
@@ -770,7 +770,7 @@ for (const task of tasks) {
         <Code label="Terminal">{`cp plugins/teleton-enact-plugin.js ~/.teleton/plugins/
 teleton start`}</Code>
         <H3>Environment Variables</H3>
-        <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg
+        <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5
 WALLET_MNEMONIC=word1 word2 ... word24
 TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
@@ -831,14 +831,14 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Contract</th><th>Address</th></tr></thead>
           <tbody>
-            <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg</a></td></tr>
-            <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1</a></td></tr>
+            <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5</a></td></tr>
+            <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s</a></td></tr>
           </tbody>
         </table></div>
         <div className="mt-6">
-          <a href="https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JobFactory on TON Viewer &rarr;</a>
+          <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JobFactory on TON Viewer &rarr;</a>
           {' | '}
-          <a href="https://tonviewer.com/EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JettonJobFactory &rarr;</a>
+          <a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JettonJobFactory &rarr;</a>
         </div>
         <Info>These are mainnet deployments. Anyone can deploy their own factory — it&apos;s permissionless.</Info>
 

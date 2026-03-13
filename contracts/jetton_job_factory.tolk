@@ -151,3 +151,7 @@ get fun get_next_job_id(): int {
     return storage.nextJobId;
 }
 
+get fun version(): int {
+    return 2;
+}
+

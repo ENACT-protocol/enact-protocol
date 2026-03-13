@@ -24,6 +24,17 @@ function buildFactoryData(owner: Address, jobCode: Cell): Cell {
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
+async function retry<T>(fn: () => Promise<T>, attempts = 5, delay = 3000): Promise<T> {
+    for (let i = 0; i < attempts; i++) {
+        try { return await fn(); } catch (e: any) {
+            if (i === attempts - 1) throw e;
+            console.log(`  Retry ${i + 1}/${attempts} (${e.message?.slice(0, 40)})`);
+            await sleep(delay);
+        }
+    }
+    throw new Error('unreachable');
+}
+
 async function deploy() {
     console.log('Connecting to TON mainnet...');
     const client = new TonClient({ endpoint: ENDPOINT, apiKey: API_KEY });
@@ -32,7 +43,7 @@ async function deploy() {
     const wallet = WalletContractV5R1.create({ publicKey: keyPair.publicKey, workchain: 0 });
     const walletContract = client.open(wallet);
 
-    const balance = await walletContract.getBalance();
+    const balance = await retry(() => walletContract.getBalance());
     console.log(`Wallet: ${wallet.address.toString()}`);
     console.log(`Balance: ${Number(balance) / 1e9} TON`);
 
@@ -60,8 +71,8 @@ async function deploy() {
     console.log('\n--- Deploying JobFactory ---');
     console.log(`Address: ${factoryAddr.toString()}`);
 
-    let seqno = await walletContract.getSeqno();
-    await walletContract.sendTransfer({
+    let seqno = await retry(() => walletContract.getSeqno());
+    await retry(() => walletContract.sendTransfer({
         seqno,
         secretKey: keyPair.secretKey,
         sendMode: SendMode.PAY_GAS_SEPARATELY,
@@ -72,12 +83,12 @@ async function deploy() {
             body: beginCell().endCell(),
             bounce: false,
         })],
-    });
+    }));
 
     console.log('Waiting for JobFactory deployment...');
     for (let i = 0; i < 30; i++) {
         await sleep(3000);
-        const state = await client.getContractState(factoryAddr);
+        const state = await retry(() => client.getContractState(factoryAddr));
         if (state.state === 'active') {
             console.log('✅ JobFactory deployed!');
             break;
@@ -90,14 +101,14 @@ async function deploy() {
     // Wait for seqno to increment
     for (let i = 0; i < 20; i++) {
         await sleep(2000);
-        const newSeqno = await walletContract.getSeqno();
+        const newSeqno = await retry(() => walletContract.getSeqno());
         if (newSeqno > seqno) { seqno = newSeqno; break; }
     }
 
     console.log('\n--- Deploying JettonJobFactory ---');
     console.log(`Address: ${jettonFactoryAddr.toString()}`);
 
-    await walletContract.sendTransfer({
+    await retry(() => walletContract.sendTransfer({
         seqno,
         secretKey: keyPair.secretKey,
         sendMode: SendMode.PAY_GAS_SEPARATELY,
@@ -108,12 +119,12 @@ async function deploy() {
             body: beginCell().endCell(),
             bounce: false,
         })],
-    });
+    }));
 
     console.log('Waiting for JettonJobFactory deployment...');
     for (let i = 0; i < 30; i++) {
         await sleep(3000);
-        const state = await client.getContractState(jettonFactoryAddr);
+        const state = await retry(() => client.getContractState(jettonFactoryAddr));
         if (state.state === 'active') {
             console.log('✅ JettonJobFactory deployed!');
             break;
