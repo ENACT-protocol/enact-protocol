@@ -65,7 +65,7 @@ export default function Footer() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
-            paddingRight: 'clamp(0.5rem, 2vw, 2rem)',
+            paddingRight: 'clamp(1.5rem, 4vw, 4rem)',
           }}
         >
           ENACT
