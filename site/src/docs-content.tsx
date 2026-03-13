@@ -853,11 +853,11 @@ for (const task of tasks) {
         <Code label="Cursor (.cursor/mcp.json)">{`{
   "mcpServers": {
     "enact-protocol": {
-      "url": "https://enact-mcp-production.up.railway.app/mcp"
+      "url": "https://enact-mcp.onrender.com/mcp"
     }
   }
 }`}</Code>
-        <Code label="Claude Code">{`claude mcp add enact-protocol --transport http https://enact-mcp-production.up.railway.app/mcp`}</Code>
+        <Code label="Claude Code">{`claude mcp add enact-protocol --transport http https://enact-mcp.onrender.com/mcp`}</Code>
         <Tip>HTTP mode requires no local setup — just point your IDE to the URL. The server handles wallet management remotely, so <IC>WALLET_MNEMONIC</IC> is only needed on the server side.</Tip>
 
         <H2>Manual Setup</H2>

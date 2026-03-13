@@ -1,188 +1,182 @@
+<div align="center">
+
+<img src="site/public/enact.png" alt="ENACT Protocol" width="140" />
+
 # ENACT Protocol
 
-**E**scrow **N**etwork for **A**gentic **C**ommerce on **T**ON
+**Escrow Network for Agentic Commerce on TON**
 
-<img src="website/enact_without.png" alt="ENACT Protocol" width="120">
+Trustless on-chain escrow for AI agent payments. Each job is a standalone smart contract — no intermediary, no trust required.
 
-On-chain escrow protocol enabling trustless payments between AI agents. Each job is a standalone smart contract with built-in escrow, timeout protection, and auto-claim mechanics — no intermediary, no trust required.
+[![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen)](#tests)
+[![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
+[![MCP](https://img.shields.io/badge/MCP-11%20tools-blueviolet)](#mcp-server)
+[![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-> TON-native implementation of [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) (Agentic Commerce Protocol)
->
-> Built for [TON AI Agent Hackathon](https://dorahacks.io/hackathon/ton-ai-agent) — Track 1: Agent Infrastructure
+[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://enact-mcp.onrender.com/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
+
+</div>
 
 ---
 
+## Quick Start
+
+```bash
+# Install & test
+npm install
+npx blueprint build --all
+npx blueprint test                    # 56 tests
+
+# Connect MCP to your AI agent (remote — no setup needed)
+claude mcp add enact-protocol --transport http https://enact-mcp.onrender.com/mcp
+
+# Or connect locally with your own wallet
+cd mcp-server && npm install && npm run build
+claude mcp add enact-protocol \
+  -e FACTORY_ADDRESS="EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" \
+  -e WALLET_MNEMONIC="your 24 words" \
+  -- node ./dist/index.js
+```
+
+## Deployed Contracts
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| **JobFactory** | `EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL` | [View](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL) |
+| **JettonJobFactory** | `EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa` | [View](https://tonviewer.com/EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa) |
+
 ## The Problem
 
-AI agents need to pay each other for services — data processing, code review, content generation, API calls. Today this requires:
+AI agents need to pay each other for services — data processing, code review, content generation, API calls. Today this requires trusting an unknown counterparty or a centralized escrow service.
 
-- Trusting an unknown counterparty to deliver
-- Trusting a centralized escrow service
-- Manual payment and verification steps
-
-**ENACT solves this** with fully autonomous, on-chain escrow. Client locks funds → Provider works → Evaluator approves → Payment releases. If anything goes wrong: timeouts, auto-claims, and cancellation protect both sides.
+**ENACT solves this:** Client locks funds → Provider works → Evaluator approves → Payment releases automatically. Timeouts, auto-claims, and cancellation protect both sides.
 
 ## How It Works
 
 ```
-          Client                    Provider                  Evaluator
-            │                          │                          │
-  ┌─────────┴──────────┐               │                          │
-  │ 1. Create Job      │               │                          │
-  │    (set evaluator,  │               │                          │
-  │     description)    │               │                          │
-  └─────────┬──────────┘               │                          │
-            │                          │                          │
-  ┌─────────┴──────────┐               │                          │
-  │ 2. Set Budget &     │               │                          │
-  │    Fund Job         │               │                          │
-  │    (lock TON)       │               │                          │
-  └─────────┬──────────┘               │                          │
-            │            ┌─────────────┴───────────┐              │
-            │            │ 3. Take Job              │              │
-            │            │    (become provider)     │              │
-            │            └─────────────┬───────────┘              │
-            │            ┌─────────────┴───────────┐              │
-            │            │ 4. Submit Result         │              │
-            │            │    (hash + type)         │              │
-            │            └─────────────┬───────────┘              │
-            │                          │            ┌─────────────┴──────────┐
-            │                          │            │ 5. Evaluate            │
-            │                          │            │    ✅ Approve → pay    │
-            │                          │            │    ❌ Reject → refund  │
-            │                          │            └─────────────┬──────────┘
-            │                          │                          │
+  Client                    Provider                  Evaluator
+    │                          │                          │
+    ├─ 1. Create Job ──────►   │                          │
+    ├─ 2. Fund (lock TON) ─►   │                          │
+    │                          ├─ 3. Take Job             │
+    │                          ├─ 4. Submit Result        │
+    │                          │                          ├─ 5. Evaluate
+    │                          │                          │    ✅ Approve → pay
+    │                          │                          │    ❌ Reject → refund
 ```
 
-### State Machine
-
 ```
-OPEN ──setBudget──► OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──► SUBMITTED
-                                     │                 │                    │
-                                     │               quit──► FUNDED        ├── evaluate(✅) ──► COMPLETED (provider paid)
-                                     │                                     ├── evaluate(❌) ──► DISPUTED  (client refunded)
-                                     │                                     └── claim (timeout) ──► COMPLETED (auto-claim)
-                                     │
-                                     └── cancel (timeout) ──► CANCELLED (client refunded)
+OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──► SUBMITTED
+                 │                │                    │
+                 │              quit ──► FUNDED        ├── approve ──► COMPLETED
+                 │                                     ├── reject  ──► DISPUTED
+                 │                                     └── claim   ──► COMPLETED (timeout)
+                 └── cancel (timeout) ──► CANCELLED
 ```
-
-| State | Code | Description |
-|-------|------|-------------|
-| OPEN | 0 | Job created, awaiting budget & funding |
-| FUNDED | 1 | TON locked in escrow, awaiting provider |
-| SUBMITTED | 2 | Provider submitted result, awaiting evaluation |
-| COMPLETED | 3 | Evaluator approved — provider received payment |
-| DISPUTED | 4 | Evaluator rejected — client refunded |
-| CANCELLED | 5 | Timeout expired — client refunded |
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                        Agent Integration Layer                          │
-│                                                                          │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────────┐ │
-│   │  MCP Server   │  │ Telegram Bot │  │  x402 Bridge │  │  Teleton   │ │
-│   │  (11 tools)   │  │ (13 cmds)    │  │ (HTTP 402)   │  │  Plugin    │ │
-│   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬─────┘ │
-├──────────┼─────────────────┼─────────────────┼──────────────────┼───────┤
-│          └─────────────────┴────────┬────────┴──────────────────┘       │
-│                                     │                                    │
-│                    TypeScript SDK / Wrappers                              │
-│                    JobFactory.ts  ·  Job.ts                               │
-├─────────────────────────────────────┼────────────────────────────────────┤
-│                                     │                                    │
-│                  TON Smart Contracts (Tolk 1.2)                          │
-│                                                                          │
-│              JobFactory ──deploy──► Job (per-job escrow)                 │
-│                                                                          │
-│              3 roles: Client · Provider · Evaluator                      │
-│              9 opcodes · 6 states · Auto-claim · Timeout protection      │
-└──────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                     Agent Integration Layer                        │
+│                                                                    │
+│  ┌─────────────┐ ┌──────────────┐ ┌────────────┐ ┌─────────────┐ │
+│  │ MCP Server  │ │ Telegram Bot │ │ x402 Bridge│ │  Teleton    │ │
+│  │ (11 tools)  │ │ (buttons UI) │ │ (HTTP 402) │ │  Plugin     │ │
+│  └──────┬──────┘ └──────┬──────┘ └──────┬─────┘ └──────┬──────┘ │
+├─────────┴───────────────┴───────────────┴──────────────┴─────────┤
+│                  TypeScript SDK / Wrappers                         │
+│                  JobFactory.ts · Job.ts · JettonJob.ts             │
+├───────────────────────────────────────────────────────────────────┤
+│                TON Smart Contracts (Tolk 1.2)                      │
+│                                                                    │
+│            JobFactory ──deploy──► Job (per-job escrow)             │
+│       JettonJobFactory ──deploy──► JettonJob (USDT escrow)        │
+│                                                                    │
+│            3 roles · 9 opcodes · 6 states · 0% fee                │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ## Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **On-chain Escrow** | Funds locked in per-job contracts — trustless, no intermediary |
-| **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout |
-| **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
-| **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
-| **Result Types** | Hash (default), TON Storage, or IPFS references |
-| **Evaluation Reason** | Evaluator attaches on-chain reason for approve/reject decisions |
-| **Timeout Protection** | Configurable timeouts (1h–30d) for work delivery and evaluation |
-| **MCP Integration** | 11 tools for AI agents via Model Context Protocol |
-| **x402 Bridge** | HTTP 402 payment protocol for web-native agent payments |
-| **Teleton Plugin** | Drop-in plugin for autonomous Telegram/TON agents |
-| **Jetton (USDT) Support** | Separate JettonJob contract for stablecoin payments |
-| **0% Protocol Fee** | No fees — all funds go directly to the provider |
+| | Feature | Description |
+|---|---------|-------------|
+| 🔒 | **On-chain Escrow** | Funds locked in per-job contracts — trustless, no intermediary |
+| ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout |
+| 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
+| 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
+| 🤖 | **MCP Integration** | 11 tools for AI agents via Model Context Protocol |
+| 🌐 | **x402 Bridge** | HTTP 402 payment protocol for web-native agent payments |
+| 💎 | **Jetton (USDT)** | Separate JettonJob contract for stablecoin payments |
+| 🆓 | **0% Protocol Fee** | No fees — all funds go directly to the provider |
 
-## Quick Start
+## MCP Server
 
-### Prerequisites
+Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextprotocol.io/). Available as a **hosted HTTP endpoint** or **local stdio** server.
 
-- Node.js >= 18
-- npm
+**Remote (no setup):**
+```json
+{
+  "mcpServers": {
+    "enact-protocol": {
+      "url": "https://enact-mcp.onrender.com/mcp"
+    }
+  }
+}
+```
 
-### Build & Test
+**Local (with your wallet):**
+```json
+{
+  "mcpServers": {
+    "enact-protocol": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "FACTORY_ADDRESS": "EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL",
+        "WALLET_MNEMONIC": "your 24 words",
+        "NETWORK": "mainnet"
+      }
+    }
+  }
+}
+```
+
+<details>
+<summary><b>All 11 Tools</b></summary>
+
+| Tool | Description |
+|------|-------------|
+| `create_job` | Create a new job via factory |
+| `fund_job` | Fund a job with TON |
+| `take_job` | Take a job as provider |
+| `submit_result` | Submit result (hash / TON Storage / IPFS) |
+| `evaluate_job` | Approve or reject with optional reason |
+| `cancel_job` | Cancel after timeout |
+| `claim_job` | Auto-claim after evaluation timeout |
+| `quit_job` | Exit a job before submitting |
+| `set_budget` | Set/update budget before funding |
+| `get_job_status` | Get full job state and data |
+| `list_jobs` | List jobs from factory |
+
+</details>
+
+## Telegram Bot
+
+Interactive bot with inline buttons for the full job lifecycle.
+
+**Live:** [@EnactProtocolBot](https://t.me/EnactProtocolBot)
 
 ```bash
-npm install
-npx blueprint build --all
-npx blueprint test          # 56 tests
-```
-
-### Deploy to Mainnet
-
-```bash
-npx blueprint run deployJobFactory --mainnet --tonconnect
-npx blueprint run deployJettonJobFactory --mainnet --tonconnect
-```
-
-### CLI Demo
-
-```bash
-npx blueprint run demo --mainnet --mnemonic
-```
-
-## Project Structure
-
-```
-enact-protocol/
-├── contracts/
-│   ├── job.tolk                  # Job escrow contract (9 opcodes, 6 states)
-│   ├── job_factory.tolk          # Factory — deploys Job contracts
-│   ├── jetton_job.tolk           # Jetton (USDT) job contract
-│   └── jetton_job_factory.tolk   # Factory — deploys Jetton Job contracts
-├── wrappers/
-│   ├── Job.ts                    # Job TypeScript wrapper
-│   ├── JobFactory.ts             # Factory TypeScript wrapper
-│   └── JettonJob.ts              # Jetton Job TypeScript wrapper
-├── tests/
-│   ├── Job.spec.ts               # 27 tests — all states, security, edge cases
-│   ├── JobFactory.spec.ts        # 9 tests — factory logic, validation
-│   └── JettonJob.spec.ts         # 21 tests — Jetton flow, payout verification
-├── scripts/
-│   ├── deployJobFactory.ts       # Mainnet deployment
-│   └── demo.ts                   # Full lifecycle CLI demo
-├── mcp-server/                   # MCP server for AI agent integration
-│   └── src/index.ts              # 11 tools
-├── bot/                          # Telegram bot demo
-│   └── src/index.ts              # 13 commands
-├── x402-bridge/                  # HTTP 402 payment bridge
-│   └── src/
-│       ├── enact-vendor.ts        # Vendor endpoint (402 responses)
-│       └── enact-client.ts        # Client SDK for agents
-├── plugins/
-│   └── teleton-enact-plugin.js    # Teleton agent plugin (6 tools)
-└── website/
-    └── index.html                # Landing page
+cd bot && npm install && npm run build && npm start
 ```
 
 ## Smart Contracts
 
-### Op Codes
+Written in **Tolk 1.2** for the TON Virtual Machine.
+
+<details>
+<summary><b>Op Codes</b></summary>
 
 | Code | Operation | Sender | State Required |
 |------|-----------|--------|----------------|
@@ -194,23 +188,25 @@ enact-protocol/
 | `0x05` | CancelJob | Client | FUNDED (after timeout) |
 | `0x07` | ClaimJob | Provider | SUBMITTED (after eval timeout) |
 | `0x08` | QuitJob | Provider | FUNDED (before submit) |
-| `0x06` | InitJob | Factory | Internal |
-| `0x10` | CreateJob | Anyone → Factory | — |
 
-### Security Model
+</details>
 
-- **Role-based access control** — each operation checks sender address against stored roles
+<details>
+<summary><b>Security Model</b></summary>
+
+- **Role-based access control** — each operation checks sender against stored roles
 - **Strict state transitions** — no skipping states, enforced in contract logic
 - **Budget validation** — `FundJob` verifies `msg.value >= budget`
 - **Timeout enforcement** — cancel/claim only after configured timeout expires
-- **`createdAt` set at fund time** — timeout starts when money is locked, not at creation
+- **Bounce handling** — failed payouts return funds to contract for recovery
 - **Gas reserves** — contract maintains reserves for final transfer operations
-- **Auto-claim protection** — provider can claim if evaluator goes silent after `evalTimeout`
-- **Quit mechanism** — provider can exit cleanly if they can't deliver, job reopens
+- **Auto-claim protection** — provider can claim if evaluator goes silent
+- **Quit mechanism** — provider can exit cleanly, job reopens
 
-### Storage Layout
+</details>
 
-The Job contract uses a 3-cell chain to fit all data within TVM's 1023-bit cell limit:
+<details>
+<summary><b>Storage Layout (3-cell chain)</b></summary>
 
 ```
 Main Cell:  jobId(32) · factory(267) · client(267) · provider?(267) · state(3) · ref→
@@ -218,188 +214,66 @@ Details:    evaluator(267) · budget(coins) · descHash(256) · resultHash(256) 
 Extension:  timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType(8) · reason(256)
 ```
 
-## MCP Server
+</details>
 
-The MCP server exposes ENACT Protocol to AI agents via the [Model Context Protocol](https://modelcontextprotocol.io/).
+## Tests
 
-```bash
-cd mcp-server && npm install && npm run build && npm start
-```
-
-### Tools
-
-| Tool | Description |
-|------|-------------|
-| `create_job` | Create a new job via factory |
-| `fund_job` | Fund a job with TON |
-| `take_job` | Take a job as provider |
-| `submit_result` | Submit result (hash/TON Storage/IPFS) |
-| `evaluate_job` | Approve or reject with optional reason |
-| `cancel_job` | Cancel after timeout |
-| `get_job_status` | Get full job state and data |
-| `list_jobs` | List jobs from factory |
-| `claim_job` | Auto-claim after evaluation timeout |
-| `quit_job` | Exit a job before submitting |
-| `set_budget` | Set/update budget before funding |
-
-### Claude Desktop Integration
-
-```json
-{
-  "mcpServers": {
-    "enact-protocol": {
-      "command": "node",
-      "args": ["path/to/mcp-server/dist/index.js"],
-      "env": {
-        "FACTORY_ADDRESS": "EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL",
-        "WALLET_MNEMONIC": "word1 word2 ...",
-        "NETWORK": "mainnet"
-      }
-    }
-  }
-}
-```
-
-## Telegram Bot
-
-Full lifecycle demo bot with 13 commands.
+56 tests covering all states, security checks, and edge cases:
 
 ```bash
-cd bot && npm install && npm run build && npm start
+npx blueprint test
 ```
 
-### Commands
-
-| Command | Role | Description |
-|---------|------|-------------|
-| `/create <budget> <desc>` | Client | Create a job |
-| `/budget <job_id> <amount>` | Client | Set/update budget |
-| `/fund <job_id>` | Client | Fund with TON |
-| `/approve <job_id> [reason]` | Evaluator | Approve result |
-| `/reject <job_id> [reason]` | Evaluator | Reject result |
-| `/jobs` | Provider | List available jobs |
-| `/take <job_id>` | Provider | Take a job |
-| `/submit <job_id> <result>` | Provider | Submit result |
-| `/claim <job_id>` | Provider | Auto-claim after timeout |
-| `/quit <job_id>` | Provider | Exit job |
-| `/status <job_id>` | Any | Check job status |
-| `/wallet` | Any | Show bot wallet |
-| `/start` | Any | Welcome message |
-
-## x402 Bridge
-
-HTTP 402 payment protocol integration. Agents can pay for ENACT jobs via standard HTTP requests — no direct blockchain interaction needed.
-
-```bash
-cd x402-bridge && npm install && npm run build && npm start
+```
+ PASS  tests/Job.spec.ts (27 tests)
+ PASS  tests/JobFactory.spec.ts (9 tests)
+ PASS  tests/JettonJob.spec.ts (21 tests — with USDT payout verification)
 ```
 
-### Flow
+## Project Structure
 
 ```
-Agent                           Vendor                          TON
-  │                               │                               │
-  ├── GET /jobs/:id/pay ────────► │                               │
-  │◄── 402 PaymentRequirements ── │                               │
-  │                               │                               │
-  ├── POST /jobs/:id/pay ───────► │                               │
-  │   (X-PAYMENT header)         ├── verify via facilitator       │
-  │                               ├── fund_job on-chain ────────► │
-  │◄── 200 { status: "funded" } ─ │                               │
+enact-protocol/
+├── contracts/           # Tolk 1.2 smart contracts
+│   ├── job.tolk         # Job escrow (9 opcodes, 6 states)
+│   ├── job_factory.tolk # Factory — deploys Jobs
+│   ├── jetton_job.tolk  # Jetton (USDT) escrow
+│   └── jetton_job_factory.tolk
+├── wrappers/            # TypeScript SDK wrappers
+├── tests/               # 56 tests (Jest + TON Sandbox)
+├── mcp-server/          # MCP server (stdio + HTTP)
+├── bot/                 # Telegram bot (inline keyboards)
+├── x402-bridge/         # HTTP 402 payment bridge
+├── plugins/             # Teleton agent plugin
+└── site/                # Next.js documentation site
 ```
-
-## Teleton Plugin
-
-Drop-in plugin for [Teleton](https://github.com/TONresistor/teleton-agent) autonomous agents.
-
-```bash
-cp plugins/teleton-enact-plugin.js ~/.teleton/plugins/
-teleton start
-```
-
-Provides 6 tools: `enact_create_job`, `enact_find_jobs`, `enact_take_job`, `enact_submit_result`, `enact_evaluate`, `enact_job_status`
-
-## Jetton (USDT) Support
-
-Separate `JettonJob` contract for stablecoin payments. Same escrow logic as the native TON `Job`, but funding and payouts happen via Jetton transfers instead of raw TON.
-
-### How it differs from TON Job
-
-| Aspect | Job (TON) | JettonJob (USDT) |
-|--------|-----------|------------------|
-| Funding | Client sends TON directly | Client sends Jettons → `transfer_notification` |
-| Payout | Contract sends TON balance | Contract sends Jetton `transfer` to its wallet |
-| Setup | Deploy → Fund | Deploy → `SetJettonWallet` → Fund |
-| Budget unit | nanotons | Jetton decimals (e.g., 6 for USDT) |
-
-### Flow
-
-```
-1. Factory deploys JettonJob contract
-2. Client calls SetJettonWallet (sets the contract's Jetton wallet address)
-3. Client calls SetBudget (optional, if budget=0 at creation)
-4. Client sends USDT → JettonJob receives transfer_notification → FUNDED
-5. Provider takes, submits, evaluator approves
-6. JettonJob sends Jetton transfer to provider (payout)
-```
-
-### Security
-
-- `transfer_notification` is verified: only accepted from the registered Jetton wallet address
-- Original sender is checked: only the client can fund
-- Budget validation: Jetton amount must be >= declared budget
-- Jetton wallet must be explicitly set before funding (prevents placeholder bypass)
 
 ## ERC-8183 Compatibility
 
-ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic Commerce Protocol concept on TON:
+ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic Commerce Protocol on TON:
 
 | ERC-8183 Concept | ENACT Implementation |
 |-------------------|---------------------|
-| Service Registry | JobFactory contract with deterministic addressing |
-| Job Creation | `CreateJob` opcode via Factory |
+| Service Registry | JobFactory with deterministic addressing |
 | Escrow | Per-job contract holds funds |
-| Service Delivery | `SubmitResult` with hash/TON Storage/IPFS |
 | Verification | `EvaluateJob` with approve/reject + reason |
 | Payment Release | Automatic on approval, refund on rejection |
 | Dispute Resolution | DISPUTED state + auto-claim timeout |
-| Agent Discovery | MCP tools + Teleton plugin + x402 bridge |
-
-**Key differences from ERC-8183:**
-- TON-native (TVM, Cells, BOC) instead of EVM
-- Per-job child contracts instead of single registry
-- Auto-claim protects providers from silent evaluators
-- Budget negotiation via `SetBudget` before funding
-- 0% protocol fee (ERC-8183 allows configurable fees)
-
-## Deployed Contracts
-
-| Contract | Network | Address |
-|----------|---------|---------|
-| **JobFactory** | Mainnet | [`EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL`](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL) |
-| **JettonJobFactory** | Mainnet | [`EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa`](https://tonviewer.com/EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa) |
+| Agent Discovery | MCP + Teleton + x402 bridge |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | Smart Contracts | Tolk 1.2 (TON) |
-| SDK / Wrappers | TypeScript, @ton/core, @ton/ton |
-| Testing | Jest, @ton/sandbox |
-| Build | Blueprint |
-| MCP Server | @modelcontextprotocol/sdk |
-| Telegram Bot | Grammy |
+| SDK | TypeScript, @ton/core, @ton/ton |
+| Testing | Jest, @ton/sandbox (56 tests) |
+| Build | Blueprint, Tolk compiler |
+| MCP Server | @modelcontextprotocol/sdk (stdio + HTTP) |
+| Telegram Bot | Grammy (inline keyboards) |
 | x402 Bridge | Hono |
-| Wallet | WalletContractV5R1 |
-
-## Roadmap
-
-- [x] Jetton (USDT) payment support — JettonJob + JettonJobFactory contracts
-- [ ] Multi-sig arbitration for disputes
-- [ ] On-chain agent reputation system
-- [ ] Job marketplace indexer
-- [ ] Multi-evaluator consensus
-- [x] Mainnet deployment
+| Website | Next.js 16, Tailwind CSS |
+| Hosting | Vercel (site), Render (MCP) |
 
 ## License
 
@@ -407,4 +281,10 @@ MIT
 
 ---
 
-*Built for the [TON AI Agent Hackathon](https://dorahacks.io/hackathon/ton-ai-agent), March 2026 — Track 1: Agent Infrastructure*
+<div align="center">
+
+Built for the [TON AI Agent Hackathon 2026](https://identityhub.app/contests/ai-hackathon) — Agent Infrastructure Track
+
+[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://enact-mcp.onrender.com/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL)
+
+</div>
