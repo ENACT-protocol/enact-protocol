@@ -19,11 +19,13 @@ export const FactoryOpcodes = {
     createJob: 0x00000010,
 };
 
+export const FACTORY_ADDRESS = 'EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL';
+export const JETTON_FACTORY_ADDRESS = 'EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa';
+
 export function getStateName(state: number): string {
     return STATE_NAMES[state] ?? `UNKNOWN(${state})`;
 }
 
-// Singleton client
 let _client: TonClient | null = null;
 
 export async function createClient() {
@@ -41,8 +43,7 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
         } catch (e: any) {
             const is429 = e.message?.includes('429') || e.status === 429;
             if (is429 && i < maxRetries - 1) {
-                const delay = 1000 * (i + 1);
-                await new Promise(r => setTimeout(r, delay));
+                await new Promise(r => setTimeout(r, 1000 * (i + 1)));
                 continue;
             }
             throw e;
@@ -51,9 +52,7 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
     throw new Error('Max retries exceeded');
 }
 
-export async function createWallet(client: TonClient) {
-    const mnemonic = process.env.WALLET_MNEMONIC?.split(' ') ?? [];
-    if (mnemonic.length === 0) throw new Error('WALLET_MNEMONIC not set');
+export async function createWalletFromMnemonic(client: TonClient, mnemonic: string[]) {
     const keyPair = await mnemonicToPrivateKey(mnemonic);
     const wallet = WalletContractV5R1.create({ publicKey: keyPair.publicKey, workchain: 0 });
     return { wallet, keyPair, contract: client.open(wallet) };
@@ -79,6 +78,7 @@ export async function sendTx(
 export async function getJobStatus(client: TonClient, jobAddress: string) {
     const addr = Address.parse(jobAddress);
     const result = await withRetry(() => client.runMethod(addr, 'get_job_data'));
+
     const jobId = result.stack.readNumber();
     const clientAddr = result.stack.readAddress();
     const providerAddr = result.stack.readAddressOpt();
@@ -99,7 +99,7 @@ export async function getJobStatus(client: TonClient, jobAddress: string) {
         client: clientAddr.toString(),
         provider: providerAddr?.toString() ?? 'none',
         evaluator: evaluatorAddr.toString(),
-        budget: budget.toString(),
+        budget,
         timeout, createdAt, evalTimeout, submittedAt, resultType,
         reason: reason.toString(),
     };
@@ -117,4 +117,17 @@ export async function getJobAddress(client: TonClient, factoryAddress: string, j
         { type: 'int', value: BigInt(jobId) },
     ]));
     return result.stack.readAddress();
+}
+
+export function fmtTon(nanotons: bigint | string): string {
+    try {
+        const val = typeof nanotons === 'bigint' ? nanotons : BigInt(nanotons);
+        return (Number(val) / 1e9).toFixed(2);
+    } catch {
+        return '0.00';
+    }
+}
+
+export function explorerLink(addr: string): string {
+    return `https://tonscan.org/address/${addr}`;
 }
