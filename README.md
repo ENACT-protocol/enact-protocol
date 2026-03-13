@@ -168,10 +168,6 @@ Interactive bot with inline buttons for the full job lifecycle. Features TonConn
 
 **Live:** [@EnactProtocolBot](https://t.me/EnactProtocolBot)
 
-```bash
-cd bot && npm install && npm run build && npm start
-```
-
 ## Smart Contracts
 
 Written in **Tolk 1.2** for the TON Virtual Machine.
