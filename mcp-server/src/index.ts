@@ -1,0 +1,349 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import express from 'express';
+import { z } from 'zod';
+import { Address, beginCell, toNano, TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
+import { mnemonicToPrivateKey } from '@ton/crypto';
+import { config } from './config.js';
+
+const FactoryOpcodes = { createJob: 0x00000010 };
+const JobOpcodes = {
+    fund: 0x00000001,
+    takeJob: 0x00000002,
+    submitResult: 0x00000003,
+    evaluate: 0x00000004,
+    cancel: 0x00000005,
+    claim: 0x00000007,
+    quit: 0x00000008,
+    setBudget: 0x00000009,
+};
+
+let client: TonClient;
+let wallet: WalletContractV5R1;
+let keyPair: { publicKey: Buffer; secretKey: Buffer };
+
+async function init() {
+    client = new TonClient({ endpoint: config.endpoint, apiKey: config.apiKey });
+    if (config.walletMnemonic.length > 0) {
+        keyPair = await mnemonicToPrivateKey(config.walletMnemonic);
+        wallet = WalletContractV5R1.create({ publicKey: keyPair.publicKey, workchain: 0 });
+    }
+}
+
+async function sendTransaction(to: Address, value: bigint, body: any) {
+    const contract = client.open(wallet);
+    const seqno = await contract.getSeqno();
+    await contract.sendTransfer({
+        seqno,
+        secretKey: keyPair.secretKey,
+        sendMode: SendMode.PAY_GAS_SEPARATELY,
+        messages: [internal({ to, value, body, bounce: true })],
+    });
+    return { seqno, walletAddress: wallet.address.toString() };
+}
+
+function createServer() {
+    return new McpServer({
+        name: 'enact-protocol',
+        version: '2.0.0',
+    });
+}
+
+function registerTools(server: McpServer) {
+
+// ===== TOOLS =====
+
+server.tool(
+    'create_job',
+    'Create a new job for an AI agent to complete. Sends a transaction to the JobFactory contract.',
+    {
+        evaluator_address: z.string().describe('TON address of the evaluator'),
+        budget_ton: z.string().describe('Budget in TON (e.g. "5"), or "0" for setBudget later'),
+        description_hash: z.string().describe('SHA256 hash of job description (hex, 64 chars)'),
+        timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h)'),
+        evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout for auto-claim (default 24h)'),
+    },
+    async ({ evaluator_address, budget_ton, description_hash, timeout_seconds, evaluation_timeout_seconds }) => {
+        if (!config.factoryAddress) throw new Error('FACTORY_ADDRESS not set');
+        const body = beginCell()
+            .storeUint(FactoryOpcodes.createJob, 32)
+            .storeAddress(Address.parse(evaluator_address))
+            .storeCoins(toNano(budget_ton))
+            .storeUint(BigInt('0x' + description_hash), 256)
+            .storeUint(timeout_seconds, 32)
+            .storeUint(evaluation_timeout_seconds, 32)
+            .endCell();
+
+        const result = await sendTransaction(config.factoryAddress, toNano('0.15'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'fund_job',
+    'Fund a job by sending TON to the job contract address.',
+    {
+        job_address: z.string().describe('Job contract address'),
+        amount_ton: z.string().describe('Amount in TON to send as payment'),
+    },
+    async ({ job_address, amount_ton }) => {
+        const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+        const total = toNano(amount_ton) + toNano('0.1');
+        const result = await sendTransaction(Address.parse(job_address), total, body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'take_job',
+    'Take a job as a provider. Registers your wallet as the job provider.',
+    {
+        job_address: z.string().describe('Job contract address'),
+    },
+    async ({ job_address }) => {
+        const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'submit_result',
+    'Submit a result hash for a job you have taken.',
+    {
+        job_address: z.string().describe('Job contract address'),
+        result_hash: z.string().describe('SHA256 hash of the result (hex, 64 chars)'),
+        result_type: z.number().default(0).describe('0=hash, 1=ton_storage_bag_id, 2=ipfs_cid'),
+    },
+    async ({ job_address, result_hash, result_type }) => {
+        const body = beginCell()
+            .storeUint(JobOpcodes.submitResult, 32)
+            .storeUint(BigInt('0x' + result_hash), 256)
+            .storeUint(result_type, 8)
+            .endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'evaluate_job',
+    'Evaluate a submitted job result. Approve sends funds to provider, reject refunds client.',
+    {
+        job_address: z.string().describe('Job contract address'),
+        approved: z.boolean().describe('true to approve (pay provider), false to reject (refund client)'),
+        reason: z.string().optional().describe('Optional reason hash (hex, 64 chars)'),
+    },
+    async ({ job_address, approved, reason }) => {
+        const reasonInt = reason ? BigInt('0x' + reason) : 0n;
+        const body = beginCell()
+            .storeUint(JobOpcodes.evaluate, 32)
+            .storeUint(approved ? 1 : 0, 8)
+            .storeUint(reasonInt, 256)
+            .endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'cancel_job',
+    'Cancel a funded job after timeout expires. Refunds client.',
+    {
+        job_address: z.string().describe('Job contract address'),
+    },
+    async ({ job_address }) => {
+        const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'claim_job',
+    'Provider claims funds after evaluation timeout expires. Use when evaluator is silent.',
+    {
+        job_address: z.string().describe('Job contract address'),
+    },
+    async ({ job_address }) => {
+        const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'quit_job',
+    'Provider quits a job before submitting result. Job returns to open for another provider.',
+    {
+        job_address: z.string().describe('Job contract address'),
+    },
+    async ({ job_address }) => {
+        const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'set_budget',
+    'Set or update the budget for a job in OPEN state. Only client can call.',
+    {
+        job_address: z.string().describe('Job contract address'),
+        budget_ton: z.string().describe('Budget in TON'),
+    },
+    async ({ job_address, budget_ton }) => {
+        const body = beginCell()
+            .storeUint(JobOpcodes.setBudget, 32)
+            .storeCoins(toNano(budget_ton))
+            .endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'get_job_status',
+    'Get the current status and data of a job contract.',
+    {
+        job_address: z.string().describe('Job contract address'),
+    },
+    async ({ job_address }) => {
+        const addr = Address.parse(job_address);
+        const stateNames = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
+
+        try {
+            const result = await client.runMethod(addr, 'get_job_data');
+            const jobId = result.stack.readNumber();
+            const clientAddr = result.stack.readAddress();
+            const providerAddr = result.stack.readAddressOpt();
+            const evaluatorAddr = result.stack.readAddress();
+            const budget = result.stack.readBigNumber();
+            const descHash = result.stack.readBigNumber();
+            const resultHash = result.stack.readBigNumber();
+            const timeout = result.stack.readNumber();
+            const createdAt = result.stack.readNumber();
+            const evalTimeout = result.stack.readNumber();
+            const submittedAt = result.stack.readNumber();
+            const resultType = result.stack.readNumber();
+            const reason = result.stack.readBigNumber();
+            const state = result.stack.readNumber();
+
+            const resultTypeNames = ['hash', 'ton_storage', 'ipfs'];
+
+            const data = {
+                jobId,
+                state: stateNames[state] ?? `UNKNOWN(${state})`,
+                stateCode: state,
+                client: clientAddr.toString(),
+                provider: providerAddr?.toString() ?? null,
+                evaluator: evaluatorAddr.toString(),
+                budget: budget.toString(),
+                descriptionHash: descHash.toString(16),
+                resultHash: resultHash.toString(16),
+                resultType: resultTypeNames[resultType] ?? `unknown(${resultType})`,
+                timeout,
+                createdAt,
+                evaluationTimeout: evalTimeout,
+                submittedAt,
+                reason: reason.toString(16),
+            };
+
+            return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+        } catch (e: any) {
+            return { content: [{ type: 'text' as const, text: `Error: ${e.message}` }] };
+        }
+    }
+);
+
+server.tool(
+    'list_jobs',
+    'List jobs created by the factory.',
+    {
+        factory_address: z.string().optional().describe('Factory address (uses env FACTORY_ADDRESS if not provided)'),
+        from_id: z.number().default(0).describe('Start job ID'),
+        count: z.number().default(10).describe('Number of jobs to list'),
+    },
+    async ({ factory_address, from_id, count }) => {
+        const addr = factory_address
+            ? Address.parse(factory_address)
+            : config.factoryAddress;
+        if (!addr) throw new Error('No factory address provided');
+
+        const nextIdResult = await client.runMethod(addr, 'get_next_job_id');
+        const nextId = nextIdResult.stack.readNumber();
+
+        const jobs: any[] = [];
+        const end = Math.min(from_id + count, nextId);
+
+        for (let i = from_id; i < end; i++) {
+            const addrResult = await client.runMethod(addr, 'get_job_address', [
+                { type: 'int', value: BigInt(i) },
+            ]);
+            const jobAddr = addrResult.stack.readAddress();
+            jobs.push({ jobId: i, address: jobAddr.toString() });
+        }
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ totalJobs: nextId, jobs }, null, 2),
+            }],
+        };
+    }
+);
+
+}
+
+// ===== START =====
+
+async function main() {
+    await init();
+    const port = process.env.PORT;
+
+    if (port) {
+        // HTTP mode — for remote deployment (Railway, etc.)
+        const app = express();
+        app.use(express.json());
+
+        app.post('/mcp', async (req, res) => {
+            const server = createServer();
+            registerTools(server);
+            try {
+                const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+                await server.connect(transport);
+                await transport.handleRequest(req, res, req.body);
+                res.on('close', () => { transport.close(); server.close(); });
+            } catch (error) {
+                if (!res.headersSent) {
+                    res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
+                }
+            }
+        });
+
+        app.get('/mcp', (_req, res) => {
+            res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });
+        });
+
+        app.delete('/mcp', (_req, res) => {
+            res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });
+        });
+
+        app.get('/', (_req, res) => {
+            res.json({ name: 'enact-protocol', version: '2.0.0', endpoint: '/mcp' });
+        });
+
+        app.listen(Number(port), '0.0.0.0', () => {
+            console.log(`ENACT MCP server running on http://0.0.0.0:${port}/mcp`);
+        });
+    } else {
+        // Stdio mode — for local usage (Claude Code, Cursor, etc.)
+        const server = createServer();
+        registerTools(server);
+        const transport = new StdioServerTransport();
+        await server.connect(transport);
+    }
+}
+
+main().catch(console.error);

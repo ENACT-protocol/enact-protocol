@@ -1,0 +1,36 @@
+node_modules
+temp
+build
+dist
+.DS_Store
+package.ts
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+bot/.env
+mcp-server/.env
+
+# Build artifacts
+mcp-server/dist
+bot/dist
+x402-bridge/dist
+site/.next
+
+# VS Code
+.vscode/*
+.history/
+*.vsix
+
+# IDEA files
+.idea
+
+# VIM
+Session.vim
+.vim/
+
+# Other private editor folders
+.nvim/
+.emacs/
+.helix/
