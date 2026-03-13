@@ -34,3 +34,13 @@ Session.vim
 .nvim/
 .emacs/
 .helix/
+
+# Claude Code memory
+.claude/
+
+# Old caches & static HTML
+.vitepress/
+designvariant.html
+docs.html
+website/
+screenshots/*.html
