@@ -15,9 +15,9 @@ export default function Header() {
     <nav className="fixed top-0 left-0 w-full z-50 glass-panel border-b-subtle">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <img src="/enact_without.png" alt="ENACT" className="h-8 w-8 sm:h-10 sm:w-10" />
+          <img src="/enact_without.png" alt="ENACT" className="h-12 w-12 sm:h-[3.75rem] sm:w-[3.75rem]" />
           <span className="font-serif italic text-lg sm:text-xl tracking-tight text-white">
-            ENACT<span className="font-sans not-italic font-light text-sm text-gray-400 ml-2 relative -top-0.5 hidden sm:inline">Protocol</span>
+            ENACT<span className="font-sans not-italic font-light text-sm text-gray-400 ml-2 relative -top-0.5">Protocol</span>
           </span>
         </Link>
         <div className="hidden md:flex items-center space-x-8">

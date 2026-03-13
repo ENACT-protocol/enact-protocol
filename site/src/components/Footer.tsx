@@ -39,7 +39,7 @@ export default function Footer() {
 
       {/* ── watermark: logo + ENACT, centered, gradient fade ── */}
       <div
-        className="relative h-[100px] sm:h-[140px] md:h-[220px] lg:h-[280px] flex items-end justify-center pointer-events-none select-none"
+        className="relative h-[140px] sm:h-[160px] md:h-[220px] lg:h-[280px] flex items-end justify-center pointer-events-none select-none"
         style={{
           WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 70%, transparent 100%)',
           maskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 70%, transparent 100%)',

@@ -74,7 +74,7 @@ export default function TonCanvas() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute top-0 right-0 w-full h-screen -z-1 opacity-60 pointer-events-none"
+      className="absolute top-0 right-0 w-full h-screen -z-1 opacity-60 pointer-events-none hidden sm:block"
     />
   );
 }

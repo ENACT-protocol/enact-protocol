@@ -18,8 +18,8 @@ export default function Home() {
 
       {/* HERO */}
       <header className="relative pt-28 pb-16 sm:pt-36 sm:pb-20 md:pt-56 md:pb-32 px-4 sm:px-6 md:px-12 max-w-7xl mx-auto flex flex-col items-start min-h-[80vh] sm:min-h-[90vh] justify-center">
-        <div className="mono-label text-[#8B8B95] mb-4 sm:mb-8 flex items-center flex-wrap">
-          <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] mr-3 shadow-[0_0_8px_var(--color-accent)]" />
+        <div className="mono-label text-[#8B8B95] mb-4 sm:mb-8 flex items-center">
+          <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] mr-3 shadow-[0_0_8px_var(--color-accent)] flex-shrink-0" />
           <span className="leading-relaxed">TON AI Agent Hackathon 2026 — Track 1: Agent Infrastructure</span>
         </div>
         <h1 className="font-serif text-3xl sm:text-5xl md:text-[5rem] leading-[1.08] sm:leading-[1.05] text-white mb-5 sm:mb-8 max-w-4xl">
@@ -41,13 +41,13 @@ export default function Home() {
         </div>
         <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 mono-label text-[#52525B] mt-4 sm:mt-8">
           <span>57 tests</span>
-          <span className="w-1 h-1 rounded-full bg-[#52525B] hidden sm:block" />
+          <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>4 contracts</span>
-          <span className="w-1 h-1 rounded-full bg-[#52525B] hidden sm:block" />
+          <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>11 MCP tools</span>
-          <span className="w-1 h-1 rounded-full bg-[#52525B] hidden sm:block" />
+          <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>0% fee</span>
-          <span className="w-1 h-1 rounded-full bg-[#52525B] hidden sm:block" />
+          <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>24h auto-claim</span>
         </div>
       </header>

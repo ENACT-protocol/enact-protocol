@@ -81,7 +81,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         {/* Sidebar */}
         <aside className={`
           fixed top-16 left-0 w-[280px] h-[calc(100vh-64px)] overflow-y-auto
-          border-r border-[var(--color-border)] bg-[#07070A] py-6 z-40
+          border-r border-[var(--color-border)] bg-[#07070A] py-6 pb-24 z-40
           transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:block
