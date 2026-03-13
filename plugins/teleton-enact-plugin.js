@@ -28,6 +28,8 @@ const OPCODES = {
 
 const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 
+const DEFAULT_FACTORY = 'EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5';
+
 async function getClient(context) {
     const endpoint = context.env?.TON_ENDPOINT ?? 'https://toncenter.com/api/v2/jsonRPC';
     const apiKey = context.env?.TONCENTER_API_KEY ?? '';
@@ -69,8 +71,7 @@ export const tools = [
             required: ['description', 'budget_ton'],
         },
         execute: async (params, context) => {
-            const factoryAddress = context.env?.ENACT_FACTORY_ADDRESS;
-            if (!factoryAddress) throw new Error('ENACT_FACTORY_ADDRESS not set');
+            const factoryAddress = context.env?.ENACT_FACTORY_ADDRESS || DEFAULT_FACTORY;
 
             const { wallet } = await getWallet(context);
             const descHash = BigInt('0x' + Buffer.from(params.description).toString('hex').padEnd(64, '0').slice(0, 64));
@@ -101,8 +102,7 @@ export const tools = [
             },
         },
         execute: async (params, context) => {
-            const factoryAddress = context.env?.ENACT_FACTORY_ADDRESS;
-            if (!factoryAddress) throw new Error('ENACT_FACTORY_ADDRESS not set');
+            const factoryAddress = context.env?.ENACT_FACTORY_ADDRESS || DEFAULT_FACTORY;
 
             const client = await getClient(context);
             const factoryAddr = Address.parse(factoryAddress);

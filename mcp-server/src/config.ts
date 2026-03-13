@@ -1,9 +1,7 @@
 import { Address } from '@ton/core';
 
 export const config = {
-    factoryAddress: process.env.FACTORY_ADDRESS
-        ? Address.parse(process.env.FACTORY_ADDRESS)
-        : null,
+    factoryAddress: Address.parse(process.env.FACTORY_ADDRESS || 'EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'),
     walletMnemonic: process.env.WALLET_MNEMONIC?.split(' ') ?? [],
     network: (process.env.NETWORK ?? 'mainnet') as 'testnet' | 'mainnet',
     endpoint: process.env.NETWORK === 'testnet'
