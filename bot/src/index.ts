@@ -88,9 +88,9 @@ bot.command('start', async (ctx) => {
     const connected = userWallets.has(userId);
 
     const kb = new InlineKeyboard()
-        .text('📝 Create Job', 'menu_create')
+        .text('✍️ Create Job', 'menu_create')
         .text('📋 Browse Jobs', 'menu_jobs').row()
-        .text('🔍 Job Status', 'menu_status')
+        .text('🔭 Job Status', 'menu_status')
         .text('👛 Wallet', 'menu_wallet').row()
         .text('📊 Factories', 'menu_factory')
         .text('❓ Help', 'menu_help');
@@ -98,8 +98,8 @@ bot.command('start', async (ctx) => {
     await ctx.reply(
         `${logo()} <b>ENACT Protocol</b>\n\n` +
         `Trustless escrow for AI agent jobs on TON.\n\n` +
-        `${e('🔗')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
-        `${e('🌐')} Network: TON Mainnet\n\n` +
+        `${e('👛')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
+        `${e('🌍')} Network: TON Mainnet\n\n` +
         `Choose an action:`,
         { parse_mode: 'HTML', reply_markup: kb }
     );
@@ -114,16 +114,18 @@ bot.callbackQuery('menu_main', async (ctx) => {
     const connected = userWallets.has(userId);
 
     const kb = new InlineKeyboard()
-        .text('📝 Create Job', 'menu_create')
+        .text('✍️ Create Job', 'menu_create')
         .text('📋 Browse Jobs', 'menu_jobs').row()
-        .text('🔍 Job Status', 'menu_status')
+        .text('🔭 Job Status', 'menu_status')
         .text('👛 Wallet', 'menu_wallet').row()
         .text('📊 Factories', 'menu_factory')
         .text('❓ Help', 'menu_help');
 
     await ctx.reply(
         `${logo()} <b>ENACT Protocol</b>\n\n` +
-        `${e('🔗')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n\n` +
+        `Trustless escrow for AI agent jobs on TON.\n\n` +
+        `${e('👛')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
+        `${e('🌍')} Network: TON Mainnet\n\n` +
         `Choose an action:`,
         { parse_mode: 'HTML', reply_markup: kb }
     );
@@ -132,12 +134,12 @@ bot.callbackQuery('menu_main', async (ctx) => {
 bot.callbackQuery('menu_create', async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.reply(
-        `${e('📝')} <b>Create a Job</b>\n\n` +
+        `${e('✍️')} <b>Create a Job</b>\n\n` +
         `Send the command:\n` +
         `<code>/create budget description</code>\n\n` +
         `Example:\n` +
         `<code>/create 5 Write a smart contract</code>\n\n` +
-        `${e('💡')} Budget is in TON. The job will be created in OPEN state.`,
+        `${e('🪙')} Budget is in TON. The job will be created in OPEN state.`,
         { parse_mode: 'HTML' }
     );
 });
@@ -150,7 +152,7 @@ bot.callbackQuery('menu_jobs', async (ctx) => {
 bot.callbackQuery('menu_status', async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.reply(
-        `${e('🔍')} <b>Check Job Status</b>\n\n` +
+        `${e('🔭')} <b>Check Job Status</b>\n\n` +
         `Send the command:\n` +
         `<code>/status job_id</code>\n\n` +
         `Example: <code>/status 0</code>`,
@@ -166,7 +168,7 @@ bot.callbackQuery('menu_wallet', async (ctx) => {
 bot.callbackQuery('menu_connect', async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.reply(
-        `${e('🔗')} <b>Connect Wallet</b>\n\n` +
+        `${e('👛')} <b>Connect Wallet</b>\n\n` +
         `Send your 24-word mnemonic phrase:\n` +
         `<code>/connect word1 word2 ... word24</code>\n\n` +
         `${e('🔒')} Your mnemonic is stored in memory only and is never saved to disk.\n` +
@@ -284,7 +286,7 @@ bot.command('connect', async (ctx) => {
         await ctx.reply(
             `${e('✅')} <b>Wallet Connected!</b>\n\n` +
             `${e('📍')} Address:\n<code>${addr}</code>\n\n` +
-            `${e('💎')} Balance: <b>${(Number(balance) / 1e9).toFixed(2)} TON</b>\n\n` +
+            `${e('🪙')} Balance: <b>${(Number(balance) / 1e9).toFixed(2)} TON</b>\n\n` +
             `${e('🔒')} Your mnemonic is stored in memory only.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
@@ -347,15 +349,15 @@ bot.command('create', async (ctx) => {
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
 
         const kb = new InlineKeyboard()
-            .text('💰 Fund Job', `fund_${jobId}`)
-            .text('🔍 Status', `status_${jobId}`).row()
+            .text('🪙 Fund Job', `fund_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`).row()
             .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
             .text('🏠 Main Menu', 'menu_main');
 
         await ctx.reply(
             `${e('✅')} <b>Job Created!</b>\n\n` +
             `${e('🆔')} ID: <code>${jobId}</code>\n` +
-            `${e('💎')} Budget: <b>${budgetTon} TON</b>\n` +
+            `${e('🪙')} Budget: <b>${budgetTon} TON</b>\n` +
             `${e('📄')} Description: ${description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
             `Press "Fund Job" to deposit TON into escrow.`,
@@ -406,7 +408,7 @@ bot.command('submit', async (ctx) => {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
@@ -453,8 +455,8 @@ bot.command('budget', async (ctx) => {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('💰 Fund Job', `fund_${jobId}`)
-            .text('🔍 Status', `status_${jobId}`);
+            .text('🪙 Fund Job', `fund_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`);
 
         await ctx.reply(
             `${e('✅')} Budget for job #${jobId} set to <b>${amountTon} TON</b>`,
@@ -506,7 +508,7 @@ async function handleWallet(ctx: any) {
 
         return ctx.reply(
             `${e('👛')} <b>Wallet</b>\n\n` +
-            `No wallet connected.\n\n` +
+            `${e('🚫')} No wallet connected.\n\n` +
             `Connect your wallet to create jobs, fund escrow, and interact with ENACT contracts.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
@@ -526,7 +528,7 @@ async function handleWallet(ctx: any) {
         await ctx.reply(
             `${e('👛')} <b>Your Wallet</b>\n\n` +
             `${e('📍')} Address:\n<code>${addr}</code>\n\n` +
-            `${e('💎')} Balance: <b>${(Number(balance) / 1e9).toFixed(2)} TON</b>`,
+            `${e('🪙')} Balance: <b>${(Number(balance) / 1e9).toFixed(2)} TON</b>`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
@@ -542,8 +544,8 @@ async function handleFactory(ctx: any) {
 
     await ctx.reply(
         `${logo()} <b>ENACT Factories</b>\n` +
-        `${e('🌐')} TON Mainnet\n\n` +
-        `${e('💎')} <b>JobFactory</b> (TON payments)\n` +
+        `${e('🌍')} TON Mainnet\n\n` +
+        `${e('🪙')} <b>JobFactory</b> (TON payments)\n` +
         `<code>${FACTORY_ADDRESS}</code>\n\n` +
         `${e('💰')} <b>JettonJobFactory</b> (USDT payments)\n` +
         `<code>${JETTON_FACTORY_ADDRESS}</code>`,
@@ -558,7 +560,7 @@ async function handleJobs(ctx: any) {
 
         if (count === 0) {
             const kb = new InlineKeyboard()
-                .text('📝 Create First Job', 'menu_create').row()
+                .text('✍️ Create First Job', 'menu_create').row()
                 .text('🏠 Main Menu', 'menu_main');
             return ctx.reply(`${e('📋')} No jobs yet. Create the first one!`, { parse_mode: 'HTML', reply_markup: kb });
         }
@@ -587,9 +589,9 @@ async function handleJobs(ctx: any) {
         const kb = new InlineKeyboard();
         const btnStart = Math.max(start, count - 5);
         for (let i = btnStart; i < count; i++) {
-            kb.text(`🔍 #${i}`, `status_${i}`);
+            kb.text(`🔭 #${i}`, `status_${i}`);
         }
-        kb.row().text('📝 Create Job', 'menu_create')
+        kb.row().text('✍️ Create Job', 'menu_create')
           .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
@@ -613,11 +615,11 @@ async function handleStatus(ctx: any, jobId: number) {
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
-            `${e('💎')} Budget: <b>${fmtTon(s.budget)} TON</b>\n` +
+            `${e('🪙')} Budget: <b>${fmtTon(s.budget)} TON</b>\n` +
             `${e('👤')} Client: <code>${s.client}</code>\n` +
             `${e('🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
-            `${e('⏱')} Timeout: ${s.timeout / 3600}h\n` +
+            `${e('⏰')} Timeout: ${s.timeout / 3600}h\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
 
         const kb = new InlineKeyboard();
@@ -669,12 +671,12 @@ async function handleFund(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, amount, body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('💰')} <b>Job #${jobId} Funded!</b>\n\n` +
-            `${e('💎')} Amount: <b>${fmtTon(status.budget)} TON</b>\n` +
+            `${e('🪙')} Amount: <b>${fmtTon(status.budget)} TON</b>\n` +
             `Funds are in escrow. Waiting for a provider.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
@@ -695,7 +697,7 @@ async function handleTake(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
@@ -721,7 +723,7 @@ async function handleCancel(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
@@ -745,7 +747,7 @@ async function handleClaim(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
@@ -769,7 +771,7 @@ async function handleQuit(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
@@ -797,7 +799,7 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔍 Status', `status_${jobId}`)
+            .text('🔭 Status', `status_${jobId}`)
             .text('🏠 Menu', 'menu_main');
 
         if (approved) {
@@ -818,14 +820,14 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
 
 async function showHelp(ctx: any) {
     const kb = new InlineKeyboard()
-        .text('📝 Create Job', 'menu_create')
+        .text('✍️ Create Job', 'menu_create')
         .text('📋 Browse Jobs', 'menu_jobs').row()
         .text('👛 Wallet', 'menu_wallet')
         .text('🏠 Menu', 'menu_main');
 
     await ctx.reply(
         `${logo()} <b>Help — ENACT Protocol Bot</b>\n\n` +
-        `<b>${e('🔗')} Wallet:</b>\n` +
+        `<b>${e('👛')} Wallet:</b>\n` +
         `  /connect — Connect your wallet (24-word mnemonic)\n` +
         `  /disconnect — Disconnect wallet\n` +
         `  /wallet — Wallet info & balance\n\n` +
@@ -841,7 +843,7 @@ async function showHelp(ctx: any) {
         `  /submit — Submit your result\n` +
         `  /claim — Claim funds (eval timeout)\n` +
         `  /quit — Quit before submitting\n\n` +
-        `<b>${e('ℹ️')} Info:</b>\n` +
+        `<b>${e('🔭')} Info:</b>\n` +
         `  /status — Check job status\n` +
         `  /jobs — List all jobs\n` +
         `  /factory — Factory contract addresses\n\n` +
