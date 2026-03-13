@@ -175,7 +175,7 @@ export default function InstallTabs({ tabs }: { tabs: TabConfig[] }) {
 
   return (
     <div className="install-tabs my-8">
-      <div className="flex border-b border-[var(--color-border)]">
+      <div className="flex border-b border-[var(--color-border)] overflow-x-auto">
         {tabs.map((t, i) => (
           <button
             key={t.label}

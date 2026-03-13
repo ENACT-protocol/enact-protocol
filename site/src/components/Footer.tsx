@@ -11,13 +11,13 @@ export default function Footer() {
     <footer className="relative overflow-hidden" style={{ background: '#050508' }}>
 
       {/* ── top: copyright left, links right ── */}
-      <div className="max-w-7xl mx-auto px-6 md:px-12 pt-10 pb-6 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 pt-8 sm:pt-10 pb-6 relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
             <div className="text-xs font-mono text-gray-600">&copy; 2026 ENACT Protocol. All rights reserved.</div>
             <div className="text-xs font-mono mt-1 text-gray-700">Built for TON AI Agent Hackathon 2026</div>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-5">
             <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-white transition-colors">
               <i className="hgi-stroke hgi-github" style={{ fontSize: 18 }} />
             </a>
@@ -39,7 +39,7 @@ export default function Footer() {
 
       {/* ── watermark: logo + ENACT, centered, gradient fade ── */}
       <div
-        className="relative h-[140px] md:h-[220px] lg:h-[280px] flex items-end justify-center pointer-events-none select-none"
+        className="relative h-[100px] sm:h-[140px] md:h-[220px] lg:h-[280px] flex items-end justify-center pointer-events-none select-none"
         style={{
           WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 70%, transparent 100%)',
           maskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 70%, transparent 100%)',
@@ -50,7 +50,7 @@ export default function Footer() {
           alt=""
           className="flex-shrink-0"
           style={{
-            height: 'clamp(6rem, 14vw, 14rem)',
+            height: 'clamp(4rem, 14vw, 14rem)',
             width: 'auto',
             opacity: 0.14,
             marginRight: 'clamp(4px, 0.5vw, 10px)',
@@ -60,11 +60,12 @@ export default function Footer() {
         <span
           className="font-serif italic leading-[0.82] tracking-tight"
           style={{
-            fontSize: 'clamp(5rem, 14vw, 14rem)',
+            fontSize: 'clamp(3.5rem, 14vw, 14rem)',
             background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
+            paddingRight: 'clamp(0.5rem, 2vw, 2rem)',
           }}
         >
           ENACT

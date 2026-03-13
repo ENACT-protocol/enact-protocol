@@ -84,10 +84,10 @@ function DocNav({ prev, next }: { prev?: { slug: string; title: string }; next?:
 /* ── Page header ─────────────────────────────────────── */
 function PageHeader({ label, title, desc }: { label: string; title: string; desc?: string }) {
   return (
-    <div className="mb-10">
+    <div className="mb-6 sm:mb-10">
       <div className="mono-label text-[var(--color-accent)] mb-3">{label}</div>
-      <h1 className="font-serif text-4xl text-white mb-3">{title}</h1>
-      {desc && <p className="text-[var(--color-text-muted)] text-lg leading-relaxed max-w-2xl">{desc}</p>}
+      <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl text-white mb-3">{title}</h1>
+      {desc && <p className="text-[var(--color-text-muted)] text-base sm:text-lg leading-relaxed max-w-2xl">{desc}</p>}
     </div>
   );
 }
@@ -520,24 +520,24 @@ await job.sendEvaluate(evaluator, toNano('0.05'), true, 0n);
         </div>
 
         <H2>6 States</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Code</th><th>State</th><th>Description</th></tr></thead>
           <tbody>
             {[['0','OPEN','bg-yellow-400','Created, awaiting budget & funding'],['1','FUNDED','bg-blue-400','TON locked in escrow'],['2','SUBMITTED','bg-purple-400','Provider submitted result'],['3','COMPLETED','bg-green-400','Approved — provider paid'],['4','DISPUTED','bg-red-400','Rejected — client refunded'],['5','CANCELLED','bg-gray-500','Timeout — client refunded']].map(([c,n,color,d])=>(
               <tr key={n}><td>{c}</td><td><span className="flex items-center gap-2"><span className={`state-dot ${color}`}/><span className="text-white">{n}</span></span></td><td>{d}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         <H2>9 Operations</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Opcode</th><th>Operation</th><th>Sender</th><th>State</th><th>Effect</th></tr></thead>
           <tbody>
             {[['0x01','Fund','Client','OPEN','Lock TON → FUNDED'],['0x02','TakeJob','Anyone','FUNDED','Claim as provider'],['0x03','SubmitResult','Provider','FUNDED','Push hash → SUBMITTED'],['0x04','Evaluate','Evaluator','SUBMITTED','Approve/Reject'],['0x05','Cancel','Client','FUNDED','Refund after timeout'],['0x06','InitJob','Factory','Internal','Initialize data'],['0x07','Claim','Provider','SUBMITTED','Auto-claim 24h'],['0x08','Quit','Provider','FUNDED','Exit, job reopens'],['0x09','SetBudget','Client','OPEN','Set/update price']].map(([op,name,sender,state,effect])=>(
               <tr key={op}><td>{op}</td><td className="text-white">{name}</td><td>{sender}</td><td>{state}</td><td>{effect}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         <H2>3 Roles</H2>
         <CardGroup cols={3}>
@@ -599,14 +599,14 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
 // Deploys a new Job contract as a child`}</Code>
 
         <H2>Getter Methods</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Method</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td>get_job_address(jobId)</td><td>Deterministic child address</td></tr>
             <tr><td>get_next_job_id()</td><td>Current counter</td></tr>
             <tr><td>get_protocol_fee_bps()</td><td>Fee in basis points (0)</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <Tip>Anyone can deploy their own factory — it&apos;s permissionless. Run <IC>npx blueprint run deployJobFactory --tonconnect --mainnet</IC></Tip>
 
         <DocNav prev={{ slug: 'smart-contracts', title: 'Job Contract' }} next={{ slug: 'jetton-job', title: 'JettonJob' }} />
@@ -627,13 +627,13 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
         <Info>Source: <IC>contracts/jetton_job.tolk</IC></Info>
 
         <H2>Additional Operations</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Opcode</th><th>Operation</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td>0x0a</td><td className="text-white">SetJettonWallet</td><td>Register Jetton wallet address</td></tr>
             <tr><td>0x7362d09c</td><td className="text-white">transfer_notification</td><td>Jetton funding callback</td></tr>
           </tbody>
-        </table>
+        </table></div>
 
         <H2>How Funding Works</H2>
         <div className="mt-4">
@@ -829,14 +829,14 @@ for (const task of tasks) {
         <Tip>That&apos;s it. Your AI agent now has access to 11 on-chain tools for creating, funding, and managing escrow jobs on TON.</Tip>
 
         <H2>11 Tools</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
             {[['create_job','evaluator, budget_ton, desc_hash, timeout_s, eval_timeout_s','Deploy new job'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_hash, result_type','Submit result'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         <P>For a human-friendly interface, check out the <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a>. For HTTP-based agent payments, see <a href="/docs/x402-bridge" className="text-[var(--color-accent)] hover:underline">x402 Bridge</a>.</P>
 
@@ -865,14 +865,14 @@ npm start`}</Code>
         <Tip>Live bot: <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="underline">@EnactProtocolBot</a> — try it on mainnet right now.</Tip>
 
         <H2>13 Commands</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Command</th><th>Role</th><th>Usage</th><th>Description</th></tr></thead>
           <tbody>
             {[['/start','Any','/start','Welcome & help'],['/wallet','Any','/wallet','Show wallet & balance'],['/create','Client','/create 1.5 Analyze','Create job'],['/budget','Client','/budget 0 2.0','Set budget'],['/fund','Client','/fund 0','Fund job'],['/approve','Evaluator','/approve 0 Good','Approve result'],['/reject','Evaluator','/reject 0 Bad','Reject result'],['/jobs','Provider','/jobs','List available'],['/take','Provider','/take 0','Take job'],['/submit','Provider','/submit 0 result','Submit result'],['/claim','Provider','/claim 0','Auto-claim'],['/quit','Provider','/quit 0','Exit job'],['/status','Any','/status 0','Check state']].map(([cmd,role,usage,desc])=>(
               <tr key={cmd}><td>{cmd}</td><td>{role}</td><td className="font-mono text-xs text-gray-400">{usage}</td><td>{desc}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         <P>Want to automate this? The <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> exposes the same operations as tools for any LLM.</P>
 
@@ -919,14 +919,14 @@ npm start`}</Code>
         </div>
 
         <H2>API Endpoints</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td>GET</td><td className="text-gray-300 font-mono text-sm">/jobs/:id/pay</td><td>Returns 402 PaymentRequirements</td></tr>
             <tr><td>POST</td><td className="text-gray-300 font-mono text-sm">/jobs/:id/pay</td><td>{'Verify & fund → 200 { status: "funded" }'}</td></tr>
             <tr><td>GET</td><td className="text-gray-300 font-mono text-sm">/health</td><td>Health check</td></tr>
           </tbody>
-        </table>
+        </table></div>
 
         <DocNav prev={{ slug: 'telegram-bot', title: 'Telegram Bot' }} next={{ slug: 'teleton', title: 'Teleton Plugin' }} />
       </>
@@ -959,14 +959,14 @@ TONCENTER_API_KEY=your_key`}</Code>
         <Tip>Learn more about the Teleton framework: <a href="https://github.com/TONresistor/teleton-agent" target="_blank" rel="noopener noreferrer" className="underline">github.com/TONresistor/teleton-agent</a></Tip>
 
         <H2>6 Tools</H2>
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
             {[['enact_create_job','description, budget_ton, timeout_hours','Create job with escrow'],['enact_find_jobs','count (10)','Find available jobs'],['enact_take_job','job_address','Take job as provider'],['enact_submit_result','job_address, result, result_type','Submit result'],['enact_evaluate','job_address, approved, reason','Approve or reject'],['enact_job_status','job_address','Check job state']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         <DocNav prev={{ slug: 'x402-bridge', title: 'x402 Bridge' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
       </>
@@ -984,14 +984,14 @@ TONCENTER_API_KEY=your_key`}</Code>
           desc="All environment variables used across ENACT Protocol components."
         />
 
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Variable</th><th>Used By</th><th>Description</th></tr></thead>
           <tbody>
             {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','Same, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" or "testnet"']].map(([v,u,d])=>(
               <tr key={v}><td>{v}</td><td>{u}</td><td>{d}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <Warn>Never commit <IC>WALLET_MNEMONIC</IC> to version control. Use <IC>.env</IC> files and add them to <IC>.gitignore</IC>.</Warn>
 
         <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
@@ -1010,13 +1010,13 @@ TONCENTER_API_KEY=your_key`}</Code>
           desc="Live contract addresses on TON mainnet."
         />
 
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Contract</th><th>Address</th></tr></thead>
           <tbody>
             <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL</a></td></tr>
             <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa</a></td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div className="mt-6">
           <a href="https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JobFactory on TON Viewer &rarr;</a>
           {' | '}
@@ -1040,14 +1040,14 @@ TONCENTER_API_KEY=your_key`}</Code>
           desc="Technologies and frameworks used across the ENACT Protocol."
         />
 
-        <table className="doc-table">
+        <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
           <tbody>
             {[['Smart Contracts','Tolk 1.2 (TON)'],['SDK','TypeScript, @ton/core, @ton/ton'],['Testing','Jest, @ton/sandbox'],['Build','Blueprint, Tolk compiler'],['MCP Server','@modelcontextprotocol/sdk'],['Telegram Bot','Grammy'],['x402 Bridge','Hono'],['Wallet','WalletContractV5R1'],['Plugin','Teleton (Node.js ESM)']].map(([l,t])=>(
               <tr key={l}><td>{l}</td><td>{t}</td></tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         <DocNav prev={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
       </>
