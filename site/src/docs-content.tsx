@@ -125,16 +125,18 @@ const mcpInstallTabs = [
     lang: 'TOML',
     code: `[mcp_servers.enact-protocol]
 enabled = true
-type = "http"
 url = "https://mcp.enact.info/mcp"`,
   },
   {
     label: 'Other',
     hint: 'Any MCP client',
     lang: 'Config',
-    code: `Server name:    enact-protocol
-Transport:      HTTP (Streamable)
-URL:            https://mcp.enact.info/mcp`,
+    otherFields: [
+      { label: 'Server name', value: 'enact-protocol' },
+      { label: 'Server URL', value: 'https://mcp.enact.info/mcp' },
+      { label: 'Transport', value: 'HTTP (Streamable)' },
+    ],
+    code: '',
   },
 ];
 

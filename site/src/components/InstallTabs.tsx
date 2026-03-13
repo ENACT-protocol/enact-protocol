@@ -21,6 +21,8 @@ export interface TabConfig {
   code: string;
   /** JSON config for Cursor deeplink */
   cursorConfig?: Record<string, unknown>;
+  /** Structured fields for "Other" panel */
+  otherFields?: { label: string; value: string }[];
 }
 
 /* ── Code block with copy ── */
@@ -49,17 +51,15 @@ function CursorPanel({ tab }: { tab: TabConfig }) {
         <>
           <a
             href={deeplink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2.5 w-full py-3 rounded-lg mb-2 font-mono text-sm text-white transition-all duration-200 hover:brightness-125 cursor-pointer"
+            className="flex items-center justify-center gap-3 w-full py-3.5 rounded-xl mb-2 font-medium text-sm text-white transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
             style={{
-              background: 'linear-gradient(135deg, #1A1A24 0%, #12121A 100%)',
-              border: '1px solid #2A2A36',
+              background: 'linear-gradient(135deg, #2A2A3A 0%, #1A1A28 100%)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
             }}
           >
-            <img src="/logos/cursor.svg" alt="" width={16} height={16} />
-            Install in Cursor →
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M7 17L17 7M17 7H7M17 7v10" /></svg>
+            <img src="/logos/cursor.svg" alt="" width={18} height={18} />
+            Install in Cursor
           </a>
           <div className="text-[10px] text-gray-600 font-mono mb-5 text-center">
             Opens Cursor and installs the MCP server automatically.
@@ -113,14 +113,37 @@ function CodexPanel({ tab }: { tab: TabConfig }) {
   );
 }
 
-/* ── Other: generic server info ── */
+/* ── Other: structured fields ── */
 function OtherPanel({ tab }: { tab: TabConfig }) {
+  const fields = tab.otherFields;
+  if (!fields) {
+    return (
+      <div className="install-panel">
+        <CodeBlock code={tab.code} />
+      </div>
+    );
+  }
   return (
     <div className="install-panel">
-      <div className="text-[11px] font-mono text-[var(--color-text-dim)] uppercase tracking-wider mb-3">
-        Use these credentials in any MCP-compatible client
+      <div className="text-[11px] font-mono text-[var(--color-text-dim)] uppercase tracking-wider mb-4">
+        Use these settings in any MCP-compatible client
       </div>
-      <CodeBlock code={tab.code} />
+      <div className="flex flex-col gap-3">
+        {fields.map((f) => (
+          <div key={f.label} className="flex flex-col gap-1">
+            <div className="text-[11px] font-mono text-gray-500 uppercase tracking-wider">{f.label}</div>
+            <div className="relative group">
+              <div
+                className="font-mono text-sm text-white px-3 py-2.5 rounded-lg"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                {f.value}
+              </div>
+              <CopyButton text={f.value} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
