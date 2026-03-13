@@ -21,21 +21,25 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 ## Quick Start
 
+**Connect MCP to your AI agent (remote — no setup needed):**
 ```bash
-# Install & test
-npm install
-npx blueprint build --all
-npx blueprint test                    # 56 tests
-
-# Connect MCP to your AI agent (remote — no setup needed)
 claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp
+```
 
-# Or connect locally with your own wallet
+**Or connect locally with your own wallet:**
+```bash
 cd mcp-server && npm install && npm run build
 claude mcp add enact-protocol \
   -e FACTORY_ADDRESS="EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" \
   -e WALLET_MNEMONIC="your 24 words" \
   -- node ./dist/index.js
+```
+
+**Development (build & test):**
+```bash
+npm install
+npx blueprint build --all
+npx blueprint test                    # 56 tests
 ```
 
 ## Deployed Contracts

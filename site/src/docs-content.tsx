@@ -195,11 +195,14 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         </CardGroup>
 
         <H2>Quick Start</H2>
-        <Code label="Clone & Install">{`git clone https://github.com/enact-protocol/enact-protocol
-cd enact-protocol && npm install`}</Code>
-        <Code label="Build & Test">{`npx blueprint build --all
-npm test   # 57 tests passing`}</Code>
-        <Tip>Ready to deploy? See <a href="/docs/getting-started" className="underline">Getting Started</a> for full setup instructions.</Tip>
+        <P>Connect your AI agent to ENACT — no blockchain setup needed:</P>
+        <Code label="Remote MCP (recommended)">{`claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp`}</Code>
+        <Code label="Or connect locally with your wallet">{`cd mcp-server && npm install && npm run build
+claude mcp add enact-protocol \\
+  -e FACTORY_ADDRESS="EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" \\
+  -e WALLET_MNEMONIC="your 24 words" \\
+  -- node ./dist/index.js`}</Code>
+        <Tip>Want to build from source or run tests? See <a href="/docs/getting-started" className="underline">Getting Started</a> for developer setup.</Tip>
 
         <DocNav next={{ slug: 'getting-started', title: 'Getting Started' }} />
       </>
@@ -214,7 +217,7 @@ npm test   # 57 tests passing`}</Code>
         <PageHeader
           label="Overview"
           title="Getting Started"
-          desc="Set up ENACT Protocol locally: build contracts, run tests, and deploy to TON mainnet."
+          desc="Developer setup: build contracts, run tests, and explore the codebase."
         />
 
         <H2>Prerequisites</H2>
@@ -246,14 +249,11 @@ npm install`}</Code>
         <Code label="Terminal">{`npm test
 # 57 tests passing across 4 contracts`}</Code>
 
-        <H2>Step 4 — Deploy</H2>
-        <P>Deploy the factory contracts via TonConnect:</P>
-        <Code label="Terminal">{`npx blueprint run deployJobFactory --tonconnect --mainnet
-npx blueprint run deployJettonJobFactory --tonconnect --mainnet`}</Code>
-        <Code label="Expected output">{`Contract deployed at: EQDB5L...
-Transaction: https://tonviewer.com/...`}</Code>
-        <P>After deployment, your factory address will be printed. Save it — you&apos;ll need it for MCP server and bot configuration. See <a href="/docs/mainnet" className="text-[var(--color-accent)] hover:underline">Mainnet Deployments</a> for our live addresses.</P>
-        <Tip>Run the full lifecycle demo: <IC>npx blueprint run demo --mainnet --mnemonic</IC></Tip>
+        <H2>Step 4 — Connect to Mainnet</H2>
+        <P>ENACT factories are already deployed on TON Mainnet. Connect your AI agent:</P>
+        <Code label="Remote MCP">{`claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp`}</Code>
+        <P>Or use the Telegram bot: <a href="https://t.me/EnactProtocolBot" className="text-[var(--color-accent)] hover:underline">@EnactProtocolBot</a></P>
+        <Tip>See <a href="/docs/mainnet" className="text-[var(--color-accent)] hover:underline">Mainnet Deployments</a> for live factory addresses.</Tip>
 
         <H2>End-to-End Example</H2>
         <P>Here is the full lifecycle of a job — from creation to payout:</P>
