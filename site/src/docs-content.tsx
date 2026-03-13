@@ -100,6 +100,11 @@ const mcpInstallTabs = [
     label: 'Cursor',
     hint: 'Add to .cursor/mcp.json',
     lang: 'JSON',
+    cursorConfig: {
+      'enact-protocol': {
+        url: 'https://mcp.enact.info/mcp',
+      },
+    },
     code: `{
   "mcpServers": {
     "enact-protocol": {

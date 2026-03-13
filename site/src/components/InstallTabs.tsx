@@ -37,9 +37,9 @@ function CodeBlock({ code, className }: { code: string; className?: string }) {
 function CursorPanel({ tab }: { tab: TabConfig }) {
   const deeplink = useMemo(() => {
     if (!tab.cursorConfig) return null;
-    const json = JSON.stringify(tab.cursorConfig);
-    const b64 = btoa(json);
     const name = Object.keys(tab.cursorConfig)[0] ?? 'enact';
+    const serverConfig = tab.cursorConfig[name];
+    const b64 = btoa(JSON.stringify(serverConfig));
     return `https://cursor.com/en/install-mcp?name=${encodeURIComponent(name)}&config=${encodeURIComponent(b64)}`;
   }, [tab.cursorConfig]);
 
