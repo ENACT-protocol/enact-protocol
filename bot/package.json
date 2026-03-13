@@ -11,6 +11,7 @@
     "@ton/core": "~0",
     "@ton/crypto": "^3.3.0",
     "@ton/ton": ">=16.2.2 <17.0.0",
+    "@tonconnect/sdk": "^3.4.1",
     "dotenv": "^17.3.1",
     "grammy": "^1.35.0"
   },

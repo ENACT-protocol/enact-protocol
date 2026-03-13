@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
-import { Address, beginCell, toNano } from '@ton/core';
+import { Address, beginCell, toNano, Cell } from '@ton/core';
+import TonConnect, { IStorage } from '@tonconnect/sdk';
 import {
     createClient, createWalletFromMnemonic, sendTx,
     getJobStatus, getFactoryJobCount, getJobAddress,
@@ -11,10 +12,46 @@ import {
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) { console.error('BOT_TOKEN not set'); process.exit(1); }
 
+const MANIFEST_URL = 'https://www.enact.info/tonconnect-manifest.json';
+
 const bot = new Bot(BOT_TOKEN);
 
 // ─── Per-user wallet storage (in-memory) ───
+// Mnemonic wallets (advanced mode)
 const userWallets = new Map<number, string[]>();
+// TonConnect sessions
+const userConnectors = new Map<number, TonConnect>();
+// TonConnect connected addresses
+const userTcAddresses = new Map<number, string>();
+
+// In-memory storage adapter for TonConnect
+class MemStorage implements IStorage {
+    private data = new Map<string, string>();
+    async getItem(key: string) { return this.data.get(key) ?? null; }
+    async setItem(key: string, value: string) { this.data.set(key, value); }
+    async removeItem(key: string) { this.data.delete(key); }
+}
+
+function getConnector(userId: number): TonConnect {
+    let tc = userConnectors.get(userId);
+    if (!tc) {
+        tc = new TonConnect({ manifestUrl: MANIFEST_URL, storage: new MemStorage() });
+        userConnectors.set(userId, tc);
+    }
+    return tc;
+}
+
+/** Check if user has any wallet (mnemonic or TonConnect) */
+function hasWallet(userId: number): boolean {
+    return userWallets.has(userId) || userTcAddresses.has(userId);
+}
+
+/** Get wallet mode: 'mnemonic' | 'tonconnect' | null */
+function walletMode(userId: number): 'mnemonic' | 'tonconnect' | null {
+    if (userWallets.has(userId)) return 'mnemonic';
+    if (userTcAddresses.has(userId)) return 'tonconnect';
+    return null;
+}
 
 // ─── Custom emoji cache ───
 // Maps fallback emoji → custom_emoji_id
@@ -65,10 +102,11 @@ function getUserId(ctx: any): number {
 
 async function requireWallet(ctx: any) {
     const userId = getUserId(ctx);
-    const mnemonic = userWallets.get(userId);
-    if (!mnemonic) {
+    const mode = walletMode(userId);
+
+    if (!mode) {
         const kb = new InlineKeyboard()
-            .text('🔗 Connect Wallet', 'menu_connect');
+            .text('👛 Connect Wallet', 'menu_connect');
         await ctx.reply(
             `${e('⚠️')} <b>Wallet not connected</b>\n\n` +
             `Connect your wallet first to perform transactions.`,
@@ -76,8 +114,28 @@ async function requireWallet(ctx: any) {
         );
         return null;
     }
-    const client = await createClient();
-    return createWalletFromMnemonic(client, mnemonic);
+
+    if (mode === 'mnemonic') {
+        const client = await createClient();
+        return createWalletFromMnemonic(client, userWallets.get(userId)!);
+    }
+
+    // TonConnect mode — return null, transactions go via deeplinks
+    return null;
+}
+
+/** Build a ton:// deeplink for a transaction */
+function tonTransferLink(to: string, amount: bigint, payload?: Cell): string {
+    let link = `https://app.tonkeeper.com/transfer/${to}?amount=${amount}`;
+    if (payload) {
+        link += `&bin=${payload.toBoc().toString('base64url')}`;
+    }
+    return link;
+}
+
+/** Check if user is in TonConnect mode (transactions via deeplinks) */
+function isTonConnect(userId: number): boolean {
+    return walletMode(userId) === 'tonconnect';
 }
 
 // ────────────────────────────────────────────
@@ -85,7 +143,7 @@ async function requireWallet(ctx: any) {
 // ────────────────────────────────────────────
 bot.command('start', async (ctx) => {
     const userId = getUserId(ctx);
-    const connected = userWallets.has(userId);
+    const connected = hasWallet(userId);
 
     const kb = new InlineKeyboard()
         .text('✍️ Create Job', 'menu_create')
@@ -99,7 +157,7 @@ bot.command('start', async (ctx) => {
         `${logo()} <b>ENACT Protocol</b>\n\n` +
         `Trustless escrow for AI agent jobs on TON.\n\n` +
         `${e('👛')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
-        `${e('🌍')} Network: TON Mainnet\n\n` +
+        `${e('🔗')} Network: TON Mainnet\n\n` +
         `Choose an action:`,
         { parse_mode: 'HTML', reply_markup: kb }
     );
@@ -111,7 +169,7 @@ bot.command('start', async (ctx) => {
 bot.callbackQuery('menu_main', async (ctx) => {
     await ctx.answerCallbackQuery();
     const userId = getUserId(ctx);
-    const connected = userWallets.has(userId);
+    const connected = hasWallet(userId);
 
     const kb = new InlineKeyboard()
         .text('✍️ Create Job', 'menu_create')
@@ -125,7 +183,7 @@ bot.callbackQuery('menu_main', async (ctx) => {
         `${logo()} <b>ENACT Protocol</b>\n\n` +
         `Trustless escrow for AI agent jobs on TON.\n\n` +
         `${e('👛')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
-        `${e('🌍')} Network: TON Mainnet\n\n` +
+        `${e('🔗')} Network: TON Mainnet\n\n` +
         `Choose an action:`,
         { parse_mode: 'HTML', reply_markup: kb }
     );
@@ -136,10 +194,10 @@ bot.callbackQuery('menu_create', async (ctx) => {
     await ctx.reply(
         `${e('✍️')} <b>Create a Job</b>\n\n` +
         `Send the command:\n` +
-        `<code>/create budget description</code>\n\n` +
+        `<code>/create {amount in TON} {description}</code>\n\n` +
         `Example:\n` +
         `<code>/create 5 Write a smart contract</code>\n\n` +
-        `${e('🪙')} Budget is in TON. The job will be created in OPEN state.`,
+        `${e('🪙')} The amount is the job budget in TON. The job will be created in OPEN state.`,
         { parse_mode: 'HTML' }
     );
 });
@@ -167,8 +225,53 @@ bot.callbackQuery('menu_wallet', async (ctx) => {
 
 bot.callbackQuery('menu_connect', async (ctx) => {
     await ctx.answerCallbackQuery();
+    const userId = getUserId(ctx);
+
+    // Generate TonConnect link
+    const connector = getConnector(userId);
+    let tcLink = '';
+    try {
+        const url = await connector.connect({ universalLink: 'https://app.tonkeeper.com/ton-connect', bridgeUrl: 'https://bridge.tonapi.io/bridge' });
+        if (typeof url === 'string') tcLink = url;
+    } catch { /* ignore */ }
+
+    // Listen for connection
+    connector.onStatusChange(async (wallet) => {
+        if (wallet) {
+            const addr = Address.parseRaw(wallet.account.address).toString();
+            userTcAddresses.set(userId, addr);
+            try {
+                await bot.api.sendMessage(ctx.chat!.id,
+                    `${e('✅')} <b>Wallet Connected via TonConnect!</b>\n\n` +
+                    `${e('📍')} Address:\n<code>${addr}</code>\n\n` +
+                    `${e('🪙')} Transactions will open in Tonkeeper for approval.`,
+                    { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🏠 Main Menu', 'menu_main') }
+                );
+            } catch { /* chat may be unavailable */ }
+        }
+    });
+
+    const kb = new InlineKeyboard();
+    if (tcLink) {
+        kb.url('👛 Connect via Tonkeeper', tcLink).row();
+    }
+    kb.text('🔑 Connect via Mnemonic', 'menu_connect_mnemonic').row()
+      .text('🏠 Main Menu', 'menu_main');
+
     await ctx.reply(
         `${e('👛')} <b>Connect Wallet</b>\n\n` +
+        (tcLink
+            ? `${e('✅')} <b>Recommended:</b> Connect via Tonkeeper — safe, no secrets shared.\n\n`
+            : '') +
+        `${e('🔑')} <b>Advanced:</b> Connect via 24-word mnemonic for direct on-chain transactions.`,
+        { parse_mode: 'HTML', reply_markup: kb }
+    );
+});
+
+bot.callbackQuery('menu_connect_mnemonic', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+        `${e('🔑')} <b>Connect via Mnemonic</b>\n\n` +
         `Send your 24-word mnemonic phrase:\n` +
         `<code>/connect word1 word2 ... word24</code>\n\n` +
         `${e('🔒')} Your mnemonic is stored in memory only and is never saved to disk.\n` +
@@ -191,6 +294,10 @@ bot.callbackQuery('menu_disconnect', async (ctx) => {
     await ctx.answerCallbackQuery();
     const userId = getUserId(ctx);
     userWallets.delete(userId);
+    userTcAddresses.delete(userId);
+    const tc = userConnectors.get(userId);
+    if (tc) { try { await tc.disconnect(); } catch {} }
+    userConnectors.delete(userId);
     await ctx.reply(
         `${e('✅')} Wallet disconnected.`,
         { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
@@ -301,6 +408,10 @@ bot.command('connect', async (ctx) => {
 bot.command('disconnect', async (ctx) => {
     const userId = getUserId(ctx);
     userWallets.delete(userId);
+    userTcAddresses.delete(userId);
+    const tc = userConnectors.get(userId);
+    if (tc) { try { await tc.disconnect(); } catch {} }
+    userConnectors.delete(userId);
     await ctx.reply(
         `${e('✅')} Wallet disconnected.`,
         { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
@@ -311,38 +422,72 @@ bot.command('create', async (ctx) => {
     const args = ctx.message?.text?.split(' ').slice(1) ?? [];
     if (args.length < 2) {
         return ctx.reply(
-            `${e('❌')} <b>Invalid format</b>\n\n` +
-            `Usage:\n<code>/create budget description</code>\n\n` +
-            `Example: <code>/create 5 Write a bot</code>`,
+            `${e('✍️')} <b>Create a Job</b>\n\n` +
+            `Usage:\n<code>/create {amount in TON} {description}</code>\n\n` +
+            `Example: <code>/create 5 Write a smart contract</code>\n\n` +
+            `${e('🪙')} The amount is the job budget in TON.`,
             { parse_mode: 'HTML' }
         );
     }
 
     const budgetTon = args[0];
     if (isNaN(Number(budgetTon)) || Number(budgetTon) <= 0) {
-        return ctx.reply(`${e('❌')} Budget must be a positive number.`, { parse_mode: 'HTML' });
+        return ctx.reply(`${e('❌')} Budget must be a positive number in TON.`, { parse_mode: 'HTML' });
     }
 
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     const description = args.slice(1).join(' ');
+    const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
+        if (mode === 'tonconnect') {
+            // For TonConnect: use sender address as evaluator
+            const addr = userTcAddresses.get(userId)!;
+            const body = beginCell()
+                .storeUint(FactoryOpcodes.createJob, 32)
+                .storeAddress(Address.parse(addr)) // evaluator = sender
+                .storeCoins(toNano(budgetTon))
+                .storeUint(descHash, 256)
+                .storeUint(86400, 32)
+                .storeUint(86400, 32)
+                .endCell();
+
+            const link = tonTransferLink(FACTORY_ADDRESS, toNano('0.1'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Create in Tonkeeper', link).row()
+                .text('🏠 Main Menu', 'menu_main');
+            return ctx.reply(
+                `${e('✍️')} <b>Create Job</b>\n\n` +
+                `${e('🪙')} Budget: <b>${budgetTon} TON</b>\n` +
+                `${e('📄')} Description: ${description}\n\n` +
+                `Open Tonkeeper to approve:`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+
         await ctx.reply(`${e('⏳')} Creating job...`, { parse_mode: 'HTML' });
         const client = await createClient();
-        const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
 
+        // evaluator = sender (self-evaluate for demo)
         const body = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
-            .storeAddress(w.wallet.address)
+            .storeAddress(w.wallet.address) // evaluator
             .storeCoins(toNano(budgetTon))
             .storeUint(descHash, 256)
-            .storeUint(86400, 32)
-            .storeUint(86400, 32)
+            .storeUint(86400, 32)  // timeout: 24h
+            .storeUint(86400, 32)  // eval timeout: 24h
             .endCell();
 
-        await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.15'), body);
+        await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.1'), body);
+
+        // Wait for on-chain confirmation before reading state
+        await new Promise(r => setTimeout(r, 10000));
 
         const jobCount = await getFactoryJobCount(client, FACTORY_ADDRESS);
         const jobId = jobCount - 1;
@@ -499,11 +644,11 @@ bot.command('jobs', async (ctx) => handleJobs(ctx));
 
 async function handleWallet(ctx: any) {
     const userId = getUserId(ctx);
-    const mnemonic = userWallets.get(userId);
+    const mode = walletMode(userId);
 
-    if (!mnemonic) {
+    if (!mode) {
         const kb = new InlineKeyboard()
-            .text('🔗 Connect Wallet', 'menu_connect').row()
+            .text('👛 Connect Wallet', 'menu_connect').row()
             .text('🏠 Main Menu', 'menu_main');
 
         return ctx.reply(
@@ -516,9 +661,19 @@ async function handleWallet(ctx: any) {
 
     try {
         const client = await createClient();
-        const w = await createWalletFromMnemonic(client, mnemonic);
-        const balance = await client.getBalance(w.wallet.address);
-        const addr = w.wallet.address.toString();
+        let addr: string;
+        let balance: bigint;
+
+        if (mode === 'mnemonic') {
+            const w = await createWalletFromMnemonic(client, userWallets.get(userId)!);
+            addr = w.wallet.address.toString();
+            balance = await client.getBalance(w.wallet.address);
+        } else {
+            addr = userTcAddresses.get(userId)!;
+            balance = await client.getBalance(Address.parse(addr));
+        }
+
+        const modeLabel = mode === 'tonconnect' ? 'TonConnect' : 'Mnemonic';
 
         const kb = new InlineKeyboard()
             .url('🔗 Explorer', explorerLink(addr))
@@ -528,7 +683,8 @@ async function handleWallet(ctx: any) {
         await ctx.reply(
             `${e('👛')} <b>Your Wallet</b>\n\n` +
             `${e('📍')} Address:\n<code>${addr}</code>\n\n` +
-            `${e('🪙')} Balance: <b>${(Number(balance) / 1e9).toFixed(2)} TON</b>`,
+            `${e('🪙')} Balance: <b>${(Number(balance) / 1e9).toFixed(2)} TON</b>\n` +
+            `${e('🔗')} Mode: <b>${modeLabel}</b>`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
@@ -539,15 +695,15 @@ async function handleWallet(ctx: any) {
 async function handleFactory(ctx: any) {
     const kb = new InlineKeyboard()
         .url('💎 JobFactory', explorerLink(FACTORY_ADDRESS))
-        .url('💰 JettonJobFactory', explorerLink(JETTON_FACTORY_ADDRESS)).row()
+        .url('💵 JettonJobFactory', explorerLink(JETTON_FACTORY_ADDRESS)).row()
         .text('🏠 Main Menu', 'menu_main');
 
     await ctx.reply(
         `${logo()} <b>ENACT Factories</b>\n` +
-        `${e('🌍')} TON Mainnet\n\n` +
-        `${e('🪙')} <b>JobFactory</b> (TON payments)\n` +
+        `${e('🔗')} TON Mainnet\n\n` +
+        `${e('💎')} <b>JobFactory</b> (TON payments):\n` +
         `<code>${FACTORY_ADDRESS}</code>\n\n` +
-        `${e('💰')} <b>JettonJobFactory</b> (USDT payments)\n` +
+        `${e('💵')} <b>JettonJobFactory</b> (USDT payments):\n` +
         `<code>${JETTON_FACTORY_ADDRESS}</code>`,
         { parse_mode: 'HTML', reply_markup: kb }
     );
@@ -657,17 +813,36 @@ async function handleStatus(ctx: any, jobId: number) {
 }
 
 async function handleFund(ctx: any, jobId: number) {
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     try {
-        await ctx.reply(`${e('⏳')} Funding job #${jobId}...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
-
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
         const amount = status.budget + toNano('0.1');
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), amount, body);
+            const kb = new InlineKeyboard()
+                .url('👛 Approve in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            await ctx.reply(
+                `${e('💰')} <b>Fund Job #${jobId}</b>\n\n` +
+                `${e('🪙')} Amount: <b>${fmtTon(status.budget)} TON</b>\n\n` +
+                `Open Tonkeeper to approve the transaction:`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+            return;
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+
+        await ctx.reply(`${e('⏳')} Funding job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, amount, body);
 
         const kb = new InlineKeyboard()
@@ -686,109 +861,135 @@ async function handleFund(ctx: any, jobId: number) {
 }
 
 async function handleTake(ctx: any, jobId: number) {
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     try {
-        await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.05'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Approve in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            return ctx.reply(`${e('🤝')} <b>Take Job #${jobId}</b>\n\nOpen Tonkeeper to approve:`, { parse_mode: 'HTML', reply_markup: kb });
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
-        const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
-            .text('🏠 Menu', 'menu_main');
-
-        await ctx.reply(
-            `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\n` +
-            `Complete the work and submit your result:\n` +
-            `<code>/submit ${jobId} your_result_text</code>`,
-            { parse_mode: 'HTML', reply_markup: kb }
-        );
+        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
 }
 
 async function handleCancel(ctx: any, jobId: number) {
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     try {
-        await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.05'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Approve in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            return ctx.reply(`${e('🚫')} <b>Cancel Job #${jobId}</b>\n\nOpen Tonkeeper to approve:`, { parse_mode: 'HTML', reply_markup: kb });
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
-        const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
-            .text('🏠 Menu', 'menu_main');
-
-        await ctx.reply(
-            `${e('🚫')} <b>Job #${jobId} Cancelled</b>\n\nFunds refunded to the client.`,
-            { parse_mode: 'HTML', reply_markup: kb }
-        );
+        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('🚫')} <b>Job #${jobId} Cancelled</b>\n\nFunds refunded to the client.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
 }
 
 async function handleClaim(ctx: any, jobId: number) {
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     try {
-        await ctx.reply(`${e('⏳')} Claiming funds for #${jobId}...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.05'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Approve in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            return ctx.reply(`${e('⏰')} <b>Claim Job #${jobId}</b>\n\nOpen Tonkeeper to approve:`, { parse_mode: 'HTML', reply_markup: kb });
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Claiming funds for #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
-        const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
-            .text('🏠 Menu', 'menu_main');
-
-        await ctx.reply(
-            `${e('⏰')} <b>Job #${jobId} Claimed!</b>\n\nEvaluator timed out — funds sent to the provider.`,
-            { parse_mode: 'HTML', reply_markup: kb }
-        );
+        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('⏰')} <b>Job #${jobId} Claimed!</b>\n\nEvaluator timed out — funds sent to the provider.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
 }
 
 async function handleQuit(ctx: any, jobId: number) {
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     try {
-        await ctx.reply(`${e('⏳')} Quitting job #${jobId}...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.05'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Approve in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            return ctx.reply(`${e('🚪')} <b>Quit Job #${jobId}</b>\n\nOpen Tonkeeper to approve:`, { parse_mode: 'HTML', reply_markup: kb });
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Quitting job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
-        const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
-            .text('🏠 Menu', 'menu_main');
-
-        await ctx.reply(
-            `${e('🚪')} <b>Quit Job #${jobId}</b>\n\nJob is open again for other providers.`,
-            { parse_mode: 'HTML', reply_markup: kb }
-        );
+        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('🚪')} <b>Quit Job #${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
 }
 
 async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     try {
-        await ctx.reply(`${e('⏳')} ${approved ? 'Approving' : 'Rejecting'} job #${jobId}...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell()
@@ -796,22 +997,29 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
             .storeUint(approved ? 1 : 0, 8)
             .storeUint(0n, 256)
             .endCell();
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.05'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Approve in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            return ctx.reply(
+                `${approved ? e('✅') : e('❌')} <b>${approved ? 'Approve' : 'Reject'} Job #${jobId}</b>\n\nOpen Tonkeeper to approve:`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} ${approved ? 'Approving' : 'Rejecting'} job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
-        const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
-            .text('🏠 Menu', 'menu_main');
-
+        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
         if (approved) {
-            await ctx.reply(
-                `${e('✅')} <b>Job #${jobId} Approved!</b>\n\nFunds sent to the provider. ${e('🎉')}`,
-                { parse_mode: 'HTML', reply_markup: kb }
-            );
+            await ctx.reply(`${e('✅')} <b>Job #${jobId} Approved!</b>\n\nFunds sent to the provider. ${e('🎉')}`, { parse_mode: 'HTML', reply_markup: kb });
         } else {
-            await ctx.reply(
-                `${e('❌')} <b>Job #${jobId} Rejected</b>\n\nFunds refunded to the client.`,
-                { parse_mode: 'HTML', reply_markup: kb }
-            );
+            await ctx.reply(`${e('❌')} <b>Job #${jobId} Rejected</b>\n\nFunds refunded to the client.`, { parse_mode: 'HTML', reply_markup: kb });
         }
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
