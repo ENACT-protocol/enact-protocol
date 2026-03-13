@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Bot, InlineKeyboard } from 'grammy';
@@ -1451,6 +1452,13 @@ async function main() {
     // Start real-time factory watcher (non-blocking)
     startFactoryWatcher().catch(err =>
         console.error('Factory watcher failed:', err.message));
+
+    // Health-check HTTP server for Render
+    const port = process.env.PORT || 10000;
+    http.createServer((_, res) => {
+        res.writeHead(200);
+        res.end('ENACT Bot OK');
+    }).listen(port, () => console.log(`Health server on :${port}`));
 }
 
 main();
