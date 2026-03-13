@@ -30,6 +30,21 @@ function pip(px: number, py: number, poly: [number, number][]) {
   return inside;
 }
 
+// Precompute dot positions for the TON logo shape
+function computeDots(cx: number, cy: number, scale: number, spacing: number) {
+  const dots: { x: number; y: number }[] = [];
+  for (let px = cx - scale; px <= cx + scale; px += spacing) {
+    for (let py = cy - scale; py <= cy + scale; py += spacing) {
+      const nx = (px - cx) / scale;
+      const ny = (py - cy) / scale;
+      if (pip(nx, ny, outer) && !pip(nx, ny, holeL) && !pip(nx, ny, holeR)) {
+        dots.push({ x: px, y: py });
+      }
+    }
+  }
+  return dots;
+}
+
 export default function TonCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -39,36 +54,69 @@ export default function TonCanvas() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    function draw() {
+    let animId: number;
+    let dots: { x: number; y: number }[] = [];
+    let cx = 0, cy = 0, scale = 0;
+
+    function resize() {
       const w = canvas!.width = window.innerWidth;
       const h = canvas!.height = window.innerHeight;
-      const scale = Math.min(w, h) * 0.28;
-      const cx = w * 0.75;
-      const cy = h * 0.45;
-      const spacing = 8;
-      const r = 1.5;
-
-      ctx!.clearRect(0, 0, w, h);
-      ctx!.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx!.beginPath();
-
-      for (let px = cx - scale; px <= cx + scale; px += spacing) {
-        for (let py = cy - scale; py <= cy + scale; py += spacing) {
-          const nx = (px - cx) / scale;
-          const ny = (py - cy) / scale;
-          if (pip(nx, ny, outer) && !pip(nx, ny, holeL) && !pip(nx, ny, holeR)) {
-            ctx!.moveTo(px + r, py);
-            ctx!.arc(px, py, r, 0, Math.PI * 2);
-          }
-        }
-      }
-      ctx!.fill();
+      scale = Math.min(w, h) * 0.28;
+      cx = w * 0.75;
+      cy = h * 0.45;
+      dots = computeDots(cx, cy, scale, 8);
     }
 
-    draw();
-    const onResize = () => draw();
+    function draw(time: number) {
+      const w = canvas!.width;
+      const h = canvas!.height;
+      ctx!.clearRect(0, 0, w, h);
+
+      const r = 1.5;
+      // Shimmer: a diagonal glint band that sweeps across the logo
+      const period = 4000; // ms for one full sweep
+      const t = (time % period) / period; // 0..1
+      // Band position in normalized coords (-1.5 .. 2.5 range to fully sweep)
+      const bandCenter = -1.5 + t * 4;
+      const bandWidth = 0.6;
+
+      for (let i = 0; i < dots.length; i++) {
+        const dot = dots[i];
+        const nx = (dot.x - cx) / scale;
+        const ny = (dot.y - cy) / scale;
+        // Distance along the diagonal (top-left to bottom-right)
+        const diag = (nx + ny) * 0.707;
+        const dist = Math.abs(diag - bandCenter);
+
+        let alpha = 0.85;
+        if (dist < bandWidth) {
+          // Glint: brighten dots near the band
+          const intensity = 1 - dist / bandWidth;
+          alpha = 0.85 + intensity * 0.15;
+          const brightness = Math.round(255 + intensity * 0);
+          const accent = Math.round(intensity * 80);
+          ctx!.fillStyle = `rgba(${brightness}, ${brightness + accent}, 255, ${alpha})`;
+        } else {
+          ctx!.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        }
+
+        ctx!.beginPath();
+        ctx!.arc(dot.x, dot.y, r, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+
+      animId = requestAnimationFrame(draw);
+    }
+
+    resize();
+    animId = requestAnimationFrame(draw);
+
+    const onResize = () => resize();
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   return (

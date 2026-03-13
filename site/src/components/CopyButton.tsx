@@ -25,7 +25,7 @@ export default function CopyButton({ text }: { text: string }) {
     <button
       onClick={handleCopy}
       aria-label={state === 'copied' ? 'Copied' : 'Copy to clipboard'}
-      className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-md transition-all duration-200 cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+      className="absolute top-1/2 -translate-y-1/2 right-2 w-7 h-7 flex items-center justify-center rounded-md transition-all duration-200 cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 hover:!bg-[rgba(255,255,255,0.12)]"
       style={{
         background: state === 'copied' ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)',
         border: '1px solid',

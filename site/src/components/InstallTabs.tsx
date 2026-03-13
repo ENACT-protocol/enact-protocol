@@ -132,11 +132,8 @@ function OtherPanel({ tab }: { tab: TabConfig }) {
         {fields.map((f) => (
           <div key={f.label} className="flex flex-col gap-1">
             <div className="text-[11px] font-mono text-gray-500 uppercase tracking-wider">{f.label}</div>
-            <div className="relative group">
-              <div
-                className="font-mono text-sm text-white px-3 py-2.5 rounded-lg"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
+            <div className="relative group overflow-hidden rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="font-mono text-sm text-white px-3 py-2.5 pr-10">
                 {f.value}
               </div>
               <CopyButton text={f.value} />
