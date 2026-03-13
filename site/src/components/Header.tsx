@@ -14,7 +14,7 @@ export default function Header() {
   return (
     <nav className="fixed top-0 left-0 w-full z-50 glass-panel border-b-subtle">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3">
           <img src="/enact_without.png" alt="ENACT" className="h-12 w-12 sm:h-[3.75rem] sm:w-[3.75rem]" />
           <span className="font-serif italic text-lg sm:text-xl tracking-tight text-white">
             ENACT<span className="font-sans not-italic font-light text-sm text-gray-400 ml-2 relative -top-0.5">Protocol</span>
