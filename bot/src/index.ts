@@ -17,31 +17,44 @@ const bot = new Bot(BOT_TOKEN);
 const userWallets = new Map<number, string[]>();
 
 // ─── Custom emoji cache ───
+// Maps fallback emoji → custom_emoji_id
 const ce: Record<string, string> = {};
+let enactLogoId = '';
 
 async function loadCustomEmoji() {
     try {
-        const sets = ['TONEmoji', 'FinanceEmoji'];
+        const sets = ['TONEmoji', 'FinanceEmoji', 'EnactProtocol'];
         for (const name of sets) {
             try {
                 const set = await bot.api.getStickerSet(name);
                 for (const s of set.stickers) {
                     if (s.custom_emoji_id && s.emoji) {
                         ce[s.emoji] = s.custom_emoji_id;
+                        // EnactProtocol pack has the project logo
+                        if (name === 'EnactProtocol') {
+                            enactLogoId = s.custom_emoji_id;
+                        }
                     }
                 }
             } catch { /* pack not found */ }
         }
-        console.log(`Loaded ${Object.keys(ce).length} custom emoji`);
+        console.log(`Loaded ${Object.keys(ce).length} custom emoji, logo: ${enactLogoId ? 'yes' : 'no'}`);
     } catch {
         console.log('Custom emoji not available, using standard');
     }
 }
 
+/** Custom emoji for message text (HTML) — renders animated/static custom emoji */
 function e(emoji: string): string {
     const id = ce[emoji];
     if (id) return `<tg-emoji emoji-id="${id}">${emoji}</tg-emoji>`;
     return emoji;
+}
+
+/** ENACT logo custom emoji for messages */
+function logo(): string {
+    if (enactLogoId) return `<tg-emoji emoji-id="${enactLogoId}">⚙️</tg-emoji>`;
+    return '⚙️';
 }
 
 // ─── Helpers ───
@@ -55,7 +68,7 @@ async function requireWallet(ctx: any) {
     const mnemonic = userWallets.get(userId);
     if (!mnemonic) {
         const kb = new InlineKeyboard()
-            .text(`${e('🔗')} Connect Wallet`, 'menu_connect');
+            .text('🔗 Connect Wallet', 'menu_connect');
         await ctx.reply(
             `${e('⚠️')} <b>Wallet not connected</b>\n\n` +
             `Connect your wallet first to perform transactions.`,
@@ -75,15 +88,15 @@ bot.command('start', async (ctx) => {
     const connected = userWallets.has(userId);
 
     const kb = new InlineKeyboard()
-        .text(`${e('📝')} Create Job`, 'menu_create')
-        .text(`${e('📋')} Browse Jobs`, 'menu_jobs').row()
-        .text(`${e('🔍')} Job Status`, 'menu_status')
-        .text(`${e('👛')} Wallet`, 'menu_wallet').row()
-        .text(`${e('📊')} Factories`, 'menu_factory')
-        .text(`${e('❓')} Help`, 'menu_help');
+        .text('📝 Create Job', 'menu_create')
+        .text('📋 Browse Jobs', 'menu_jobs').row()
+        .text('🔍 Job Status', 'menu_status')
+        .text('👛 Wallet', 'menu_wallet').row()
+        .text('📊 Factories', 'menu_factory')
+        .text('❓ Help', 'menu_help');
 
     await ctx.reply(
-        `${e('💎')} <b>ENACT Protocol</b>\n\n` +
+        `${logo()} <b>ENACT Protocol</b>\n\n` +
         `Trustless escrow for AI agent jobs on TON.\n\n` +
         `${e('🔗')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
         `${e('🌐')} Network: TON Mainnet\n\n` +
@@ -101,15 +114,15 @@ bot.callbackQuery('menu_main', async (ctx) => {
     const connected = userWallets.has(userId);
 
     const kb = new InlineKeyboard()
-        .text(`${e('📝')} Create Job`, 'menu_create')
-        .text(`${e('📋')} Browse Jobs`, 'menu_jobs').row()
-        .text(`${e('🔍')} Job Status`, 'menu_status')
-        .text(`${e('👛')} Wallet`, 'menu_wallet').row()
-        .text(`${e('📊')} Factories`, 'menu_factory')
-        .text(`${e('❓')} Help`, 'menu_help');
+        .text('📝 Create Job', 'menu_create')
+        .text('📋 Browse Jobs', 'menu_jobs').row()
+        .text('🔍 Job Status', 'menu_status')
+        .text('👛 Wallet', 'menu_wallet').row()
+        .text('📊 Factories', 'menu_factory')
+        .text('❓ Help', 'menu_help');
 
     await ctx.reply(
-        `${e('💎')} <b>ENACT Protocol</b>\n\n` +
+        `${logo()} <b>ENACT Protocol</b>\n\n` +
         `${e('🔗')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n\n` +
         `Choose an action:`,
         { parse_mode: 'HTML', reply_markup: kb }
@@ -178,7 +191,7 @@ bot.callbackQuery('menu_disconnect', async (ctx) => {
     userWallets.delete(userId);
     await ctx.reply(
         `${e('✅')} Wallet disconnected.`,
-        { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text(`${e('🏠')} Menu`, 'menu_main') }
+        { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
 
@@ -265,8 +278,8 @@ bot.command('connect', async (ctx) => {
         userWallets.set(userId, words);
 
         const kb = new InlineKeyboard()
-            .url(`${e('🔗')} Explorer`, explorerLink(addr)).row()
-            .text(`${e('🏠')} Main Menu`, 'menu_main');
+            .url('🔗 Explorer', explorerLink(addr)).row()
+            .text('🏠 Main Menu', 'menu_main');
 
         await ctx.reply(
             `${e('✅')} <b>Wallet Connected!</b>\n\n` +
@@ -288,7 +301,7 @@ bot.command('disconnect', async (ctx) => {
     userWallets.delete(userId);
     await ctx.reply(
         `${e('✅')} Wallet disconnected.`,
-        { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text(`${e('🏠')} Menu`, 'menu_main') }
+        { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
 
@@ -334,10 +347,10 @@ bot.command('create', async (ctx) => {
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
 
         const kb = new InlineKeyboard()
-            .text(`${e('💰')} Fund Job`, `fund_${jobId}`)
-            .text(`${e('🔍')} Status`, `status_${jobId}`).row()
-            .url(`${e('🔗')} Explorer`, explorerLink(jobAddr.toString())).row()
-            .text(`${e('🏠')} Main Menu`, 'menu_main');
+            .text('💰 Fund Job', `fund_${jobId}`)
+            .text('🔍 Status', `status_${jobId}`).row()
+            .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
+            .text('🏠 Main Menu', 'menu_main');
 
         await ctx.reply(
             `${e('✅')} <b>Job Created!</b>\n\n` +
@@ -393,8 +406,8 @@ bot.command('submit', async (ctx) => {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('📨')} <b>Result Submitted!</b>\n\n` +
@@ -440,8 +453,8 @@ bot.command('budget', async (ctx) => {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('💰')} Fund Job`, `fund_${jobId}`)
-            .text(`${e('🔍')} Status`, `status_${jobId}`);
+            .text('💰 Fund Job', `fund_${jobId}`)
+            .text('🔍 Status', `status_${jobId}`);
 
         await ctx.reply(
             `${e('✅')} Budget for job #${jobId} set to <b>${amountTon} TON</b>`,
@@ -488,8 +501,8 @@ async function handleWallet(ctx: any) {
 
     if (!mnemonic) {
         const kb = new InlineKeyboard()
-            .text(`${e('🔗')} Connect Wallet`, 'menu_connect').row()
-            .text(`${e('🏠')} Main Menu`, 'menu_main');
+            .text('🔗 Connect Wallet', 'menu_connect').row()
+            .text('🏠 Main Menu', 'menu_main');
 
         return ctx.reply(
             `${e('👛')} <b>Wallet</b>\n\n` +
@@ -506,9 +519,9 @@ async function handleWallet(ctx: any) {
         const addr = w.wallet.address.toString();
 
         const kb = new InlineKeyboard()
-            .url(`${e('🔗')} Explorer`, explorerLink(addr))
-            .text(`${e('🔌')} Disconnect`, 'menu_disconnect').row()
-            .text(`${e('🏠')} Main Menu`, 'menu_main');
+            .url('🔗 Explorer', explorerLink(addr))
+            .text('🔌 Disconnect', 'menu_disconnect').row()
+            .text('🏠 Main Menu', 'menu_main');
 
         await ctx.reply(
             `${e('👛')} <b>Your Wallet</b>\n\n` +
@@ -523,12 +536,12 @@ async function handleWallet(ctx: any) {
 
 async function handleFactory(ctx: any) {
     const kb = new InlineKeyboard()
-        .url(`${e('💎')} JobFactory`, explorerLink(FACTORY_ADDRESS))
-        .url(`${e('💰')} JettonJobFactory`, explorerLink(JETTON_FACTORY_ADDRESS)).row()
-        .text(`${e('🏠')} Main Menu`, 'menu_main');
+        .url('💎 JobFactory', explorerLink(FACTORY_ADDRESS))
+        .url('💰 JettonJobFactory', explorerLink(JETTON_FACTORY_ADDRESS)).row()
+        .text('🏠 Main Menu', 'menu_main');
 
     await ctx.reply(
-        `${e('📊')} <b>ENACT Factories</b>\n` +
+        `${logo()} <b>ENACT Factories</b>\n` +
         `${e('🌐')} TON Mainnet\n\n` +
         `${e('💎')} <b>JobFactory</b> (TON payments)\n` +
         `<code>${FACTORY_ADDRESS}</code>\n\n` +
@@ -545,8 +558,8 @@ async function handleJobs(ctx: any) {
 
         if (count === 0) {
             const kb = new InlineKeyboard()
-                .text(`${e('📝')} Create First Job`, 'menu_create').row()
-                .text(`${e('🏠')} Main Menu`, 'menu_main');
+                .text('📝 Create First Job', 'menu_create').row()
+                .text('🏠 Main Menu', 'menu_main');
             return ctx.reply(`${e('📋')} No jobs yet. Create the first one!`, { parse_mode: 'HTML', reply_markup: kb });
         }
 
@@ -574,10 +587,10 @@ async function handleJobs(ctx: any) {
         const kb = new InlineKeyboard();
         const btnStart = Math.max(start, count - 5);
         for (let i = btnStart; i < count; i++) {
-            kb.text(`${e('🔍')} #${i}`, `status_${i}`);
+            kb.text(`🔍 #${i}`, `status_${i}`);
         }
-        kb.row().text(`${e('📝')} Create Job`, 'menu_create')
-          .text(`${e('🏠')} Menu`, 'menu_main');
+        kb.row().text('📝 Create Job', 'menu_create')
+          .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
@@ -611,17 +624,17 @@ async function handleStatus(ctx: any, jobId: number) {
 
         switch (s.stateName) {
             case 'OPEN':
-                kb.text(`${e('💰')} Fund`, `fund_${jobId}`)
-                  .text(`${e('🤝')} Take Job`, `take_${jobId}`);
+                kb.text('💰 Fund', `fund_${jobId}`)
+                  .text('🤝 Take Job', `take_${jobId}`);
                 break;
             case 'FUNDED':
-                kb.text(`${e('🤝')} Take Job`, `take_${jobId}`)
-                  .text(`${e('🚫')} Cancel`, `cancel_${jobId}`);
+                kb.text('🤝 Take Job', `take_${jobId}`)
+                  .text('🚫 Cancel', `cancel_${jobId}`);
                 break;
             case 'SUBMITTED':
-                kb.text(`${e('✅')} Approve`, `approve_${jobId}`)
-                  .text(`${e('❌')} Reject`, `reject_${jobId}`).row()
-                  .text(`${e('⏰')} Claim (timeout)`, `claim_${jobId}`);
+                kb.text('✅ Approve', `approve_${jobId}`)
+                  .text('❌ Reject', `reject_${jobId}`).row()
+                  .text('⏰ Claim (timeout)', `claim_${jobId}`);
                 break;
             case 'COMPLETED':
                 text += `\n\n${e('🎉')} Job completed!`;
@@ -632,8 +645,8 @@ async function handleStatus(ctx: any, jobId: number) {
         }
 
         kb.row()
-          .url(`${e('🔗')} Explorer`, explorerLink(jobAddr.toString()))
-          .text(`${e('🏠')} Menu`, 'menu_main');
+          .url('🔗 Explorer', explorerLink(jobAddr.toString()))
+          .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
@@ -656,8 +669,8 @@ async function handleFund(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, amount, body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('💰')} <b>Job #${jobId} Funded!</b>\n\n` +
@@ -682,8 +695,8 @@ async function handleTake(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\n` +
@@ -708,8 +721,8 @@ async function handleCancel(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('🚫')} <b>Job #${jobId} Cancelled</b>\n\nFunds refunded to the client.`,
@@ -732,8 +745,8 @@ async function handleClaim(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('⏰')} <b>Job #${jobId} Claimed!</b>\n\nEvaluator timed out — funds sent to the provider.`,
@@ -756,8 +769,8 @@ async function handleQuit(ctx: any, jobId: number) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
             `${e('🚪')} <b>Quit Job #${jobId}</b>\n\nJob is open again for other providers.`,
@@ -784,8 +797,8 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
         await sendTx(client, w, jobAddr, toNano('0.05'), body);
 
         const kb = new InlineKeyboard()
-            .text(`${e('🔍')} Status`, `status_${jobId}`)
-            .text(`${e('🏠')} Menu`, 'menu_main');
+            .text('🔍 Status', `status_${jobId}`)
+            .text('🏠 Menu', 'menu_main');
 
         if (approved) {
             await ctx.reply(
@@ -805,13 +818,13 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
 
 async function showHelp(ctx: any) {
     const kb = new InlineKeyboard()
-        .text(`${e('📝')} Create Job`, 'menu_create')
-        .text(`${e('📋')} Browse Jobs`, 'menu_jobs').row()
-        .text(`${e('👛')} Wallet`, 'menu_wallet')
-        .text(`${e('🏠')} Menu`, 'menu_main');
+        .text('📝 Create Job', 'menu_create')
+        .text('📋 Browse Jobs', 'menu_jobs').row()
+        .text('👛 Wallet', 'menu_wallet')
+        .text('🏠 Menu', 'menu_main');
 
     await ctx.reply(
-        `${e('❓')} <b>Help — ENACT Protocol Bot</b>\n\n` +
+        `${logo()} <b>Help — ENACT Protocol Bot</b>\n\n` +
         `<b>${e('🔗')} Wallet:</b>\n` +
         `  /connect — Connect your wallet (24-word mnemonic)\n` +
         `  /disconnect — Disconnect wallet\n` +
