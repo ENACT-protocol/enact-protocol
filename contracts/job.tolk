@@ -20,6 +20,8 @@ const ERR_EVAL_TIMEOUT_NOT_EXPIRED: int = 105;
 const ERR_BUDGET_NOT_SET: int = 106;
 const ERR_NO_PROVIDER: int = 107;
 
+const MIN_STORAGE: int = 10000000;  // 0.01 TON reserve for storage fees
+
 // ===================== STORAGE LAYOUT =====================
 // Main cell:
 //   jobId:uint32, factoryAddr:address, clientAddr:address,
@@ -171,6 +173,15 @@ fun onInternalMessage(in: InMessage) {
                 0, msg.timeout, 0, msg.evaluationTimeout, 0, 0, 0
             );
             saveData(msg.jobId, factory, msg.clientAddress, null, STATE_OPEN, det);
+
+            // Return excess to client, keep MIN_STORAGE for rent
+            reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: msg.clientAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
         }
 
         SetBudget => {
@@ -181,6 +192,14 @@ fun onInternalMessage(in: InMessage) {
             val (evaluator, _, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason) = loadDetails(detCell);
             val newDet = buildDetailsCell(evaluator, msg.budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason);
             saveData(jobId, factory, client, provider, STATE_OPEN, newDet);
+
+            // Return excess
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
         FundJob => {
@@ -194,6 +213,15 @@ fun onInternalMessage(in: InMessage) {
 
             val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason);
             saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
+
+            // Keep budget + storage on contract, return excess to client
+            reserveToncoinsOnBalance(budget + MIN_STORAGE, RESERVE_MODE_AT_MOST);
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
         }
 
         TakeJob => {
@@ -202,6 +230,14 @@ fun onInternalMessage(in: InMessage) {
             assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
 
             saveData(jobId, factory, client, in.senderAddress, STATE_FUNDED, det);
+
+            // Return excess
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
         QuitJob => {
@@ -211,6 +247,14 @@ fun onInternalMessage(in: InMessage) {
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
             saveData(jobId, factory, client, null, STATE_FUNDED, det);
+
+            // Return excess
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
         SubmitResult => {
@@ -222,6 +266,14 @@ fun onInternalMessage(in: InMessage) {
             val (evaluator, budget, descHash, _, timeout, createdAt, evalTimeout, _, _, reason) = loadDetails(detCell);
             val newDet = buildDetailsCell(evaluator, budget, descHash, msg.resultHash, timeout, createdAt, evalTimeout, blockchain.now(), msg.resultType, reason);
             saveData(jobId, factory, client, provider, STATE_SUBMITTED, newDet);
+
+            // Return excess
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
         EvaluateJob => {

@@ -86,7 +86,7 @@ export const tools = [
                 .storeUint(evalTimeout, 32)
                 .endCell();
 
-            const result = await sendTx(context, factoryAddress, toNano('0.15'), body);
+            const result = await sendTx(context, factoryAddress, toNano('0.03'), body);
             return { status: 'created', ...result };
         },
     },
@@ -157,7 +157,7 @@ export const tools = [
         },
         execute: async (params, context) => {
             const body = beginCell().storeUint(OPCODES.takeJob, 32).endCell();
-            return sendTx(context, params.job_address, toNano('0.05'), body);
+            return sendTx(context, params.job_address, toNano('0.01'), body);
         },
     },
 
@@ -180,7 +180,7 @@ export const tools = [
                 .storeUint(resultHash, 256)
                 .storeUint(params.result_type ?? 0, 8)
                 .endCell();
-            return sendTx(context, params.job_address, toNano('0.05'), body);
+            return sendTx(context, params.job_address, toNano('0.01'), body);
         },
     },
 
@@ -205,7 +205,7 @@ export const tools = [
                 .storeUint(params.approved ? 1 : 0, 8)
                 .storeUint(reasonHash, 256)
                 .endCell();
-            return sendTx(context, params.job_address, toNano('0.05'), body);
+            return sendTx(context, params.job_address, toNano('0.01'), body);
         },
     },
 

@@ -140,68 +140,6 @@ url = "https://mcp.enact.info/mcp"`,
   },
 ];
 
-const x402InstallTabs = [
-  {
-    label: 'Cursor',
-    hint: 'Add to .cursor/mcp.json',
-    lang: 'JSON',
-    cursorConfig: {
-      'enact-x402': {
-        command: 'node',
-        args: ['./x402-bridge/dist/index.js'],
-        env: { FACTORY_ADDRESS: 'EQA3t7...', WALLET_MNEMONIC: 'word1 word2 ... word24' },
-      },
-    },
-    code: `{
-  "mcpServers": {
-    "enact-x402": {
-      "command": "node",
-      "args": ["./x402-bridge/dist/index.js"],
-      "env": {
-        "FACTORY_ADDRESS": "EQA3t7...",
-        "WALLET_MNEMONIC": "word1 word2 ... word24"
-      }
-    }
-  }
-}`,
-  },
-  {
-    label: 'Claude Code',
-    hint: 'Run in terminal',
-    lang: 'Shell',
-    code: `claude mcp add enact-x402 \\
-  -e FACTORY_ADDRESS="EQA3t7..." \\
-  -e WALLET_MNEMONIC="word1 word2 ... word24" \\
-  -- node ./x402-bridge/dist/index.js`,
-  },
-  {
-    label: 'Codex',
-    hint: 'Add to codex.toml',
-    lang: 'TOML',
-    code: `[mcp_servers.enact-x402]
-enabled = true
-type = "stdio"
-command = "node"
-args = ["./x402-bridge/dist/index.js"]
-
-[mcp_servers.enact-x402.env]
-FACTORY_ADDRESS = "EQA3t7..."
-WALLET_MNEMONIC = "word1 word2 ... word24"`,
-  },
-  {
-    label: 'Other',
-    hint: 'Any MCP client',
-    lang: 'Config',
-    code: `Server name:    enact-x402
-Transport:      stdio
-Command:        node ./x402-bridge/dist/index.js
-
-Environment variables:
-  FACTORY_ADDRESS    = EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
-  WALLET_MNEMONIC    = <your 24-word mnemonic>`,
-  },
-];
-
 const teletonInstallTabs = [
   {
     label: 'Cursor',
@@ -211,7 +149,7 @@ const teletonInstallTabs = [
       'enact-teleton': {
         command: 'node',
         args: ['~/.teleton/plugins/teleton-enact-plugin.js'],
-        env: { ENACT_FACTORY_ADDRESS: 'EQA3t7...', WALLET_MNEMONIC: 'word1 word2 ... word24' },
+        env: { ENACT_FACTORY_ADDRESS: 'EQDB5L...', WALLET_MNEMONIC: 'word1 word2 ... word24' },
       },
     },
     code: `{
@@ -220,7 +158,7 @@ const teletonInstallTabs = [
       "command": "node",
       "args": ["~/.teleton/plugins/teleton-enact-plugin.js"],
       "env": {
-        "ENACT_FACTORY_ADDRESS": "EQA3t7...",
+        "ENACT_FACTORY_ADDRESS": "EQDB5L...",
         "WALLET_MNEMONIC": "word1 word2 ... word24"
       }
     }
@@ -232,7 +170,7 @@ const teletonInstallTabs = [
     hint: 'Run in terminal',
     lang: 'Shell',
     code: `claude mcp add enact-teleton \\
-  -e ENACT_FACTORY_ADDRESS="EQA3t7..." \\
+  -e ENACT_FACTORY_ADDRESS="EQDB5L..." \\
   -e WALLET_MNEMONIC="word1 word2 ... word24" \\
   -- node ~/.teleton/plugins/teleton-enact-plugin.js`,
   },
@@ -247,7 +185,7 @@ command = "node"
 args = ["~/.teleton/plugins/teleton-enact-plugin.js"]
 
 [mcp_servers.enact-teleton.env]
-ENACT_FACTORY_ADDRESS = "EQA3t7..."
+ENACT_FACTORY_ADDRESS = "EQDB5L..."
 WALLET_MNEMONIC = "word1 word2 ... word24"`,
   },
   {
@@ -259,7 +197,7 @@ Transport:      stdio
 Command:        node ~/.teleton/plugins/teleton-enact-plugin.js
 
 Environment variables:
-  ENACT_FACTORY_ADDRESS = EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
+  ENACT_FACTORY_ADDRESS = EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg
   WALLET_MNEMONIC       = <your 24-word mnemonic>`,
   },
 ];
@@ -301,7 +239,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <P>Agent Alpha needs 10,000 product reviews analyzed for sentiment. It creates an ENACT job with a 5 TON budget. Agent Beta — specialized in NLP — discovers and takes the job. Beta processes the reviews, submits a result hash. An evaluator agent runs validation checks. Pass? 5 TON transfers to Beta automatically. No APIs, no middlemen, no trust required.</P>
         <Code label="MCP tool calls from any compatible LLM">{`// From any MCP-compatible LLM:
 → create_job(budget: "5", description: "Analyze 10k reviews")
-→ fund_job(job: "EQxx...", amount: "5.1")
+→ fund_job(job: "EQxx...", amount: "5.01")
 // Provider agent:
 → take_job(job: "EQxx...")
 → submit_result(job: "EQxx...", hash: "0xabc...")
@@ -313,7 +251,6 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="11 tools for AI agent integration via Model Context Protocol" />
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="13 commands for human-accessible job management" />
-          <NavCard href="/docs/x402-bridge" icon="hgi-credit-card" title="x402 Bridge" desc="HTTP 402 payment protocol bridge for API monetization" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
           <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="57 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
         </CardGroup>
@@ -354,7 +291,6 @@ npm test   # 57 tests passing`}</Code>
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="11 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 13 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 57 tests. Deploy your own escrow or integrate into a dApp." />
-          <NavCard href="/docs/x402-bridge" icon="hgi-credit-card" title="x402 Bridge" desc="HTTP 402 pay-per-API access. Vendors gate endpoints, agents pay via TON automatically." />
         </CardGroup>
         <Tip>There&apos;s also a <a href="/docs/teleton" className="text-[var(--color-accent)] hover:underline">Teleton Plugin</a> — 6 tools for autonomous Telegram agents, drop-in install.</Tip>
 
@@ -375,7 +311,7 @@ npm install`}</Code>
         <P>Deploy the factory contracts via TonConnect:</P>
         <Code label="Terminal">{`npx blueprint run deployJobFactory --tonconnect --mainnet
 npx blueprint run deployJettonJobFactory --tonconnect --mainnet`}</Code>
-        <Code label="Expected output">{`Contract deployed at: EQA3t7...
+        <Code label="Expected output">{`Contract deployed at: EQDB5L...
 Transaction: https://tonviewer.com/...`}</Code>
         <P>After deployment, your factory address will be printed. Save it — you&apos;ll need it for MCP server and bot configuration. See <a href="/docs/mainnet" className="text-[var(--color-accent)] hover:underline">Mainnet Deployments</a> for our live addresses.</P>
         <Tip>Run the full lifecycle demo: <IC>npx blueprint run demo --mainnet --mnemonic</IC></Tip>
@@ -383,25 +319,26 @@ Transaction: https://tonviewer.com/...`}</Code>
         <H2>End-to-End Example</H2>
         <P>Here is the full lifecycle of a job — from creation to payout:</P>
         <Code label="TypeScript">{`// 1. Client creates and funds a job
-const jobAddress = await factory.sendCreateJob(client, toNano('0.15'), {
+const jobAddress = await factory.sendCreateJob(client, toNano('0.03'), {
     evaluator: evaluator.address,
     budget: toNano('2'),
     descriptionHash: BigInt('0x...'),
     timeout: 86400,
     evalTimeout: 86400,
 });
-await job.sendFund(client, toNano('2.1'));
+await job.sendFund(client, toNano('2.01'));
 // On-chain: state OPEN → FUNDED, 2 TON locked in escrow
+// Excess gas is returned automatically
 
 // 2. Provider takes the job and delivers work
-await job.sendTakeJob(provider, toNano('0.05'));
-await job.sendSubmitResult(provider, toNano('0.05'), resultHash, 0);
+await job.sendTakeJob(provider, toNano('0.01'));
+await job.sendSubmitResult(provider, toNano('0.01'), resultHash, 0);
 // On-chain: state FUNDED → SUBMITTED
 
 // 3. Evaluator approves — payment releases automatically
-await job.sendEvaluate(evaluator, toNano('0.05'), true, 0n);
+await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
 // On-chain: state SUBMITTED → COMPLETED, 2 TON sent to provider`}</Code>
-        <Tip>This is exactly what <IC>npx blueprint run demo</IC> does. Check <IC>scripts/demo.ts</IC> for the full source. After running, verify the state transitions on <a href="https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" target="_blank" rel="noopener noreferrer" className="underline">Tonviewer</a> — the job address is printed in the demo log.</Tip>
+        <Tip>This is exactly what <IC>npx blueprint run demo</IC> does. Check <IC>scripts/demo.ts</IC> for the full source. After running, verify the state transitions on <a href="https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" target="_blank" rel="noopener noreferrer" className="underline">Tonviewer</a> — the job address is printed in the demo log.</Tip>
 
         <H2>Next Steps</H2>
         <CardGroup cols={3}>
@@ -538,6 +475,7 @@ await job.sendEvaluate(evaluator, toNano('0.05'), true, 0n);
             ))}
           </tbody>
         </table></div>
+        <Tip>All operations return excess gas to the sender. For example, <IC>sendCreateJob</IC> costs ~0.03 TON but actual consumption is ~0.013 TON — the rest is refunded. Similarly, <IC>sendFund</IC> requires budget + 0.01 TON gas (actual ~0.005 TON), and other operations need just 0.01 TON gas (actual ~0.003 TON).</Tip>
 
         <H2>3 Roles</H2>
         <CardGroup cols={3}>
@@ -701,14 +639,14 @@ const config: JobConfig = {
 };`}</Code>
 
         <H2>Operations</H2>
-        <Code label="TypeScript">{`await job.sendFund(client.getSender(), toNano('1.1'));
-await job.sendTakeJob(provider.getSender(), toNano('0.05'));
-await job.sendSubmitResult(provider.getSender(), toNano('0.05'), resultHash, 0);
-await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true, 0n);
-await job.sendCancel(client.getSender(), toNano('0.05'));
-await job.sendClaim(provider.getSender(), toNano('0.05'));
-await job.sendQuit(provider.getSender(), toNano('0.05'));
-await job.sendSetBudget(client.getSender(), toNano('0.05'), toNano('2'));`}</Code>
+        <Code label="TypeScript">{`await job.sendFund(client.getSender(), toNano('1.01'));
+await job.sendTakeJob(provider.getSender(), toNano('0.01'));
+await job.sendSubmitResult(provider.getSender(), toNano('0.01'), resultHash, 0);
+await job.sendEvaluate(evaluator.getSender(), toNano('0.01'), true, 0n);
+await job.sendCancel(client.getSender(), toNano('0.01'));
+await job.sendClaim(provider.getSender(), toNano('0.01'));
+await job.sendQuit(provider.getSender(), toNano('0.01'));
+await job.sendSetBudget(client.getSender(), toNano('0.01'), toNano('2'));`}</Code>
 
         <H2>Getters</H2>
         <Code label="TypeScript">{`const state = await job.getState();
@@ -718,23 +656,23 @@ const data = await job.getJobData();`}</Code>
 
         <H3>Create & Fund a Job</H3>
         <Code label="TypeScript">{`const factory = provider.open(JobFactory.createFromAddress(factoryAddr));
-await factory.sendCreateJob(client.getSender(), toNano('0.15'), {
+await factory.sendCreateJob(client.getSender(), toNano('0.03'), {
     evaluator: evalAddr, budget: toNano('2'), descriptionHash: descHash,
     timeout: 86400, evalTimeout: 86400
 });
 const job = provider.open(Job.createFromAddress(await factory.getJobAddress(0)));
-await job.sendFund(client.getSender(), toNano('2.1'));`}</Code>
+await job.sendFund(client.getSender(), toNano('2.01'));`}</Code>
 
         <H3>Provider Claims After Timeout</H3>
         <Code label="TypeScript">{`// If evaluator is silent for 24h after submission:
-await job.sendClaim(provider.getSender(), toNano('0.05'));
+await job.sendClaim(provider.getSender(), toNano('0.01'));
 // Funds automatically transfer to provider`}</Code>
 
         <H3>Handle Rejection & Retry</H3>
         <Code label="TypeScript">{`const state = await job.getState();
 if (state === 4) { // DISPUTED — rejected
     // Client was refunded, create a new job with updated requirements
-    await factory.sendCreateJob(client.getSender(), toNano('0.15'), newConfig);
+    await factory.sendCreateJob(client.getSender(), toNano('0.03'), newConfig);
 }`}</Code>
 
         <P>For deploying new jobs programmatically, see <a href="/docs/sdk-factory" className="text-[var(--color-accent)] hover:underline">JobFactory Wrapper</a>. For connecting an LLM agent, see <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a>.</P>
@@ -759,7 +697,7 @@ if (state === 4) { // DISPUTED — rejected
         <H2>Usage</H2>
         <Code label="TypeScript">{`import { JobFactory } from '../wrappers/JobFactory';
 
-await factory.sendCreateJob(client.getSender(), toNano('0.15'), {
+await factory.sendCreateJob(client.getSender(), toNano('0.03'), {
     evaluator: evaluator.address,
     budget: toNano('1'),
     descriptionHash: BigInt('0x1234...'),
@@ -773,7 +711,7 @@ const nextId = await factory.getNextJobId();`}</Code>
         <H2>Batch Job Creation</H2>
         <Code label="TypeScript">{`// Create multiple jobs in sequence
 for (const task of tasks) {
-    await factory.sendCreateJob(client.getSender(), toNano('0.15'), {
+    await factory.sendCreateJob(client.getSender(), toNano('0.03'), {
         evaluator: evalAddr,
         budget: task.budget,
         descriptionHash: task.hash,
@@ -803,7 +741,7 @@ for (const task of tasks) {
         <P>Same as Job wrapper plus Jetton-specific operations:</P>
         <Code label="TypeScript">{`await jettonJob.sendSetJettonWallet(
     client.getSender(),
-    toNano('0.05'),
+    toNano('0.01'),
     walletAddress
 );`}</Code>
 
@@ -838,7 +776,9 @@ for (const task of tasks) {
           </tbody>
         </table></div>
 
-        <P>For a human-friendly interface, check out the <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a>. For HTTP-based agent payments, see <a href="/docs/x402-bridge" className="text-[var(--color-accent)] hover:underline">x402 Bridge</a>.</P>
+        <Info>The MCP server integrates with IPFS via Pinata: job descriptions are uploaded to IPFS when creating jobs, results are stored on IPFS when submitting, and retrieved from IPFS when reading job details — giving agents decentralized, permanent storage for all job data.</Info>
+
+        <P>For a human-friendly interface, check out the <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a>.</P>
 
         <DocNav prev={{ slug: 'sdk-jetton', title: 'JettonJob Wrapper' }} next={{ slug: 'telegram-bot', title: 'Telegram Bot' }} />
       </>
@@ -853,7 +793,7 @@ for (const task of tasks) {
         <PageHeader
           label="Integrations"
           title="Telegram Bot"
-          desc="Interactive bot with inline buttons for job management via Telegram. Live at @EnactProtocolBot."
+          desc="Interactive bot with inline buttons for job management via Telegram. Features real-time transaction detection via TON Streaming API v2. Live at @EnactProtocolBot."
         />
 
         <H2>Setup</H2>
@@ -876,59 +816,7 @@ npm start`}</Code>
 
         <P>Want to automate this? The <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> exposes the same operations as tools for any LLM.</P>
 
-        <DocNav prev={{ slug: 'mcp-server', title: 'MCP Server' }} next={{ slug: 'x402-bridge', title: 'x402 Bridge' }} />
-      </>
-    ),
-  },
-
-  /* ─────────────────── x402 BRIDGE ───────────────────── */
-  'x402-bridge': {
-    title: 'x402 Bridge',
-    content: (
-      <>
-        <PageHeader
-          label="Integrations"
-          title="x402 Bridge"
-          desc="HTTP 402 payment protocol bridge. Agents pay for API access via TON without direct blockchain interaction."
-        />
-
-        <H2>Quick Setup</H2>
-        <P>Add the x402 bridge as an MCP server in your IDE:</P>
-        <InstallTabs tabs={x402InstallTabs} />
-
-        <H2>Manual Setup</H2>
-        <Code label="Terminal">{`cd x402-bridge
-npm install
-npm run build
-npm start`}</Code>
-
-        <H2>Payment Flow</H2>
-        <div className="mt-4">
-          {[
-            ['1', 'Vendor registers', 'Creates an HTTP endpoint gated behind payment'],
-            ['2', 'Agent sends GET', 'Receives 402 Payment Required with payment details'],
-            ['3', 'Agent pays', 'Makes payment via TON'],
-            ['4', 'Agent sends POST', 'Includes X-PAYMENT header containing payment proof'],
-            ['5', 'Vendor verifies', 'Verifies payment, funds the job on-chain, returns 200 OK'],
-          ].map(([n, title, desc]) => (
-            <div key={n} className="step-row">
-              <div className="step-num">{n}</div>
-              <div><strong className="text-white text-sm">{title}</strong><span className="text-[var(--color-text-muted)] text-sm"> — {desc}</span></div>
-            </div>
-          ))}
-        </div>
-
-        <H2>API Endpoints</H2>
-        <div className="doc-table-wrapper"><table className="doc-table">
-          <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr><td>GET</td><td className="text-gray-300 font-mono text-sm">/jobs/:id/pay</td><td>Returns 402 PaymentRequirements</td></tr>
-            <tr><td>POST</td><td className="text-gray-300 font-mono text-sm">/jobs/:id/pay</td><td>{'Verify & fund → 200 { status: "funded" }'}</td></tr>
-            <tr><td>GET</td><td className="text-gray-300 font-mono text-sm">/health</td><td>Health check</td></tr>
-          </tbody>
-        </table></div>
-
-        <DocNav prev={{ slug: 'telegram-bot', title: 'Telegram Bot' }} next={{ slug: 'teleton', title: 'Teleton Plugin' }} />
+        <DocNav prev={{ slug: 'mcp-server', title: 'MCP Server' }} next={{ slug: 'teleton', title: 'Teleton Plugin' }} />
       </>
     ),
   },
@@ -952,7 +840,7 @@ npm start`}</Code>
         <Code label="Terminal">{`cp plugins/teleton-enact-plugin.js ~/.teleton/plugins/
 teleton start`}</Code>
         <H3>Environment Variables</H3>
-        <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
+        <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg
 WALLET_MNEMONIC=word1 word2 ... word24
 TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
@@ -968,7 +856,7 @@ TONCENTER_API_KEY=your_key`}</Code>
           </tbody>
         </table></div>
 
-        <DocNav prev={{ slug: 'x402-bridge', title: 'x402 Bridge' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
+        <DocNav prev={{ slug: 'telegram-bot', title: 'Telegram Bot' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
       </>
     ),
   },
@@ -1013,14 +901,14 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Contract</th><th>Address</th></tr></thead>
           <tbody>
-            <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL</a></td></tr>
-            <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa</a></td></tr>
+            <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg</a></td></tr>
+            <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1</a></td></tr>
           </tbody>
         </table></div>
         <div className="mt-6">
-          <a href="https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JobFactory on TON Viewer &rarr;</a>
+          <a href="https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JobFactory on TON Viewer &rarr;</a>
           {' | '}
-          <a href="https://tonviewer.com/EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JettonJobFactory &rarr;</a>
+          <a href="https://tonviewer.com/EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JettonJobFactory &rarr;</a>
         </div>
         <Info>These are mainnet deployments. Anyone can deploy their own factory — it&apos;s permissionless.</Info>
 
@@ -1043,7 +931,7 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
           <tbody>
-            {[['Smart Contracts','Tolk 1.2 (TON)'],['SDK','TypeScript, @ton/core, @ton/ton'],['Testing','Jest, @ton/sandbox'],['Build','Blueprint, Tolk compiler'],['MCP Server','@modelcontextprotocol/sdk'],['Telegram Bot','Grammy'],['x402 Bridge','Hono'],['Wallet','WalletContractV5R1'],['Plugin','Teleton (Node.js ESM)']].map(([l,t])=>(
+            {[['Smart Contracts','Tolk 1.2 (TON)'],['SDK','TypeScript, @ton/core, @ton/ton'],['Testing','Jest, @ton/sandbox'],['Build','Blueprint, Tolk compiler'],['MCP Server','@modelcontextprotocol/sdk'],['Telegram Bot','Grammy'],['Wallet','WalletContractV5R1'],['Plugin','Teleton (Node.js ESM)']].map(([l,t])=>(
               <tr key={l}><td>{l}</td><td>{t}</td></tr>
             ))}
           </tbody>

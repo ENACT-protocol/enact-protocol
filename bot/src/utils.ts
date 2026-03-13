@@ -19,8 +19,8 @@ export const FactoryOpcodes = {
     createJob: 0x00000010,
 };
 
-export const FACTORY_ADDRESS = 'EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL';
-export const JETTON_FACTORY_ADDRESS = 'EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa';
+export const FACTORY_ADDRESS = 'EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg';
+export const JETTON_FACTORY_ADDRESS = 'EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1';
 
 export function getStateName(state: number): string {
     return STATE_NAMES[state] ?? `UNKNOWN(${state})`;

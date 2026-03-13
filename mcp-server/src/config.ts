@@ -10,4 +10,5 @@ export const config = {
         ? 'https://testnet.toncenter.com/api/v2/jsonRPC'
         : 'https://toncenter.com/api/v2/jsonRPC',
     apiKey: process.env.TONCENTER_API_KEY ?? '',
+    pinataJwt: process.env.PINATA_JWT ?? '',
 };

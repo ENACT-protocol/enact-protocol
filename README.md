@@ -33,7 +33,7 @@ claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp
 # Or connect locally with your own wallet
 cd mcp-server && npm install && npm run build
 claude mcp add enact-protocol \
-  -e FACTORY_ADDRESS="EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL" \
+  -e FACTORY_ADDRESS="EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg" \
   -e WALLET_MNEMONIC="your 24 words" \
   -- node ./dist/index.js
 ```
@@ -42,8 +42,8 @@ claude mcp add enact-protocol \
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| **JobFactory** | `EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL` | [View](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL) |
-| **JettonJobFactory** | `EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa` | [View](https://tonviewer.com/EQAJpr7tz9rnawoKu-7_kAlR5YxGDFPLCT_Wh7I1IN-D6jfa) |
+| **JobFactory** | `EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg` | [View](https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg) |
+| **JettonJobFactory** | `EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1` | [View](https://tonviewer.com/EQDvIgil0xrojYWCU5YXsL3a2w22WkXYN6JXqYr6DXgDH1w1) |
 
 ## The Problem
 
@@ -80,11 +80,11 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 ┌────────────────────────────────────────────────────────────────────┐
 │                     Agent Integration Layer                        │
 │                                                                    │
-│  ┌─────────────┐ ┌──────────────┐ ┌────────────┐ ┌─────────────┐ │
-│  │ MCP Server  │ │ Telegram Bot │ │ x402 Bridge│ │  Teleton    │ │
-│  │ (11 tools)  │ │ (buttons UI) │ │ (HTTP 402) │ │  Plugin     │ │
-│  └──────┬──────┘ └──────┬──────┘ └──────┬─────┘ └──────┬──────┘ │
-├─────────┴───────────────┴───────────────┴──────────────┴─────────┤
+│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐   │
+│  │ MCP Server  │    │ Telegram Bot │    │  Teleton Plugin     │   │
+│  │ (11 tools)  │    │ (buttons UI) │    │  (6 agent tools)    │   │
+│  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘   │
+├─────────┴──────────────────┴───────────────────────┴─────────────┤
 │                  TypeScript SDK / Wrappers                         │
 │                  JobFactory.ts · Job.ts · JettonJob.ts             │
 ├───────────────────────────────────────────────────────────────────┤
@@ -106,7 +106,8 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
 | 🤖 | **MCP Integration** | 11 tools for AI agents via Model Context Protocol |
-| 🌐 | **x402 Bridge** | HTTP 402 payment protocol for web-native agent payments |
+| 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
+| ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
 | 💎 | **Jetton (USDT)** | Separate JettonJob contract for stablecoin payments |
 | 🆓 | **0% Protocol Fee** | No fees — all funds go directly to the provider |
 
@@ -133,7 +134,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "FACTORY_ADDRESS": "EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL",
+        "FACTORY_ADDRESS": "EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg",
         "WALLET_MNEMONIC": "your 24 words",
         "NETWORK": "mainnet"
       }
@@ -147,10 +148,10 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 
 | Tool | Description |
 |------|-------------|
-| `create_job` | Create a new job via factory |
+| `create_job` | Create job (description auto-uploaded to IPFS) |
 | `fund_job` | Fund a job with TON |
 | `take_job` | Take a job as provider |
-| `submit_result` | Submit result (hash / TON Storage / IPFS) |
+| `submit_result` | Submit result (auto-uploads to IPFS via Pinata) |
 | `evaluate_job` | Approve or reject with optional reason |
 | `cancel_job` | Cancel after timeout |
 | `claim_job` | Auto-claim after evaluation timeout |
@@ -163,7 +164,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 
 ## Telegram Bot
 
-Interactive bot with inline buttons for the full job lifecycle.
+Interactive bot with inline buttons for the full job lifecycle. Features TonConnect wallet integration, real-time transaction detection via TON Streaming API v2, and persistent wallet/description storage.
 
 **Live:** [@EnactProtocolBot](https://t.me/EnactProtocolBot)
 
@@ -199,7 +200,8 @@ Written in **Tolk 1.2** for the TON Virtual Machine.
 - **Budget validation** — `FundJob` verifies `msg.value >= budget`
 - **Timeout enforcement** — cancel/claim only after configured timeout expires
 - **Bounce handling** — failed payouts return funds to contract for recovery
-- **Gas reserves** — contract maintains reserves for final transfer operations
+- **Gas reserves** — contract maintains minimal reserves, returns excess to sender
+- **Excess return** — all operations return unused gas automatically (~0.003–0.013 TON actual cost)
 - **Auto-claim protection** — provider can claim if evaluator goes silent
 - **Quit mechanism** — provider can exit cleanly, job reopens
 
@@ -243,7 +245,6 @@ enact-protocol/
 ├── tests/               # 56 tests (Jest + TON Sandbox)
 ├── mcp-server/          # MCP server (stdio + HTTP)
 ├── bot/                 # Telegram bot (inline keyboards)
-├── x402-bridge/         # HTTP 402 payment bridge
 ├── plugins/             # Teleton agent plugin
 └── site/                # Next.js documentation site
 ```
@@ -259,7 +260,7 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 | Verification | `EvaluateJob` with approve/reject + reason |
 | Payment Release | Automatic on approval, refund on rejection |
 | Dispute Resolution | DISPUTED state + auto-claim timeout |
-| Agent Discovery | MCP + Teleton + x402 bridge |
+| Agent Discovery | MCP + Teleton plugin |
 
 ## Tech Stack
 
@@ -271,7 +272,6 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 | Build | Blueprint, Tolk compiler |
 | MCP Server | @modelcontextprotocol/sdk (stdio + HTTP) |
 | Telegram Bot | Grammy (inline keyboards) |
-| x402 Bridge | Hono |
 | Website | Next.js 16, Tailwind CSS |
 | Hosting | Vercel (site), Render (MCP) |
 
@@ -285,6 +285,6 @@ MIT
 
 Built for the [TON AI Agent Hackathon 2026](https://identityhub.app/contests/ai-hackathon) — Agent Infrastructure Track
 
-[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL)
+[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg)
 
 </div>

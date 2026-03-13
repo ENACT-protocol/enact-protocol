@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import { z } from 'zod';
+import { createHash } from 'crypto';
 import { Address, beginCell, toNano, TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { config } from './config.js';
@@ -43,6 +44,39 @@ async function sendTransaction(to: Address, value: bigint, body: any) {
     return { seqno, walletAddress: wallet.address.toString() };
 }
 
+// ─── IPFS via Pinata REST API ───
+
+function sha256hex(text: string): string {
+    return createHash('sha256').update(text, 'utf-8').digest('hex');
+}
+
+async function uploadToIPFS(content: object): Promise<{ cid: string; hash: string }> {
+    if (!config.pinataJwt) throw new Error('PINATA_JWT not set');
+    const json = JSON.stringify(content);
+    const hash = sha256hex(json);
+
+    const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.pinataJwt}`,
+        },
+        body: JSON.stringify({ pinataContent: content }),
+    });
+    if (!res.ok) throw new Error(`Pinata upload failed: ${res.status} ${await res.text()}`);
+    const data = await res.json() as { IpfsHash: string };
+    return { cid: data.IpfsHash, hash };
+}
+
+async function fetchFromIPFS(cid: string): Promise<any> {
+    const res = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`);
+    if (!res.ok) throw new Error(`IPFS fetch failed: ${res.status}`);
+    return res.json();
+}
+
+// Local CID mapping (hash → CID) for reverse lookup
+const cidMap = new Map<string, string>();
+
 function createServer() {
     return new McpServer({
         name: 'enact-protocol',
@@ -56,27 +90,32 @@ function registerTools(server: McpServer) {
 
 server.tool(
     'create_job',
-    'Create a new job for an AI agent to complete. Sends a transaction to the JobFactory contract.',
+    'Create a new job for an AI agent to complete. Description is uploaded to IPFS, hash stored on-chain.',
     {
         evaluator_address: z.string().describe('TON address of the evaluator'),
         budget_ton: z.string().describe('Budget in TON (e.g. "5"), or "0" for setBudget later'),
-        description_hash: z.string().describe('SHA256 hash of job description (hex, 64 chars)'),
+        description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
         timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout for auto-claim (default 24h)'),
     },
-    async ({ evaluator_address, budget_ton, description_hash, timeout_seconds, evaluation_timeout_seconds }) => {
+    async ({ evaluator_address, budget_ton, description, timeout_seconds, evaluation_timeout_seconds }) => {
         if (!config.factoryAddress) throw new Error('FACTORY_ADDRESS not set');
+
+        // Upload description to IPFS
+        const { cid, hash } = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
+        cidMap.set(hash, cid);
+
         const body = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
             .storeAddress(Address.parse(evaluator_address))
             .storeCoins(toNano(budget_ton))
-            .storeUint(BigInt('0x' + description_hash), 256)
+            .storeUint(BigInt('0x' + hash), 256)
             .storeUint(timeout_seconds, 32)
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(config.factoryAddress, toNano('0.15'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        const result = await sendTransaction(config.factoryAddress, toNano('0.03'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ipfs_cid: cid, description_hash: hash, ...result }) }] };
     }
 );
 
@@ -89,7 +128,7 @@ server.tool(
     },
     async ({ job_address, amount_ton }) => {
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        const total = toNano(amount_ton) + toNano('0.1');
+        const total = toNano(amount_ton) + toNano('0.01');
         const result = await sendTransaction(Address.parse(job_address), total, body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
@@ -103,27 +142,30 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
 );
 
 server.tool(
     'submit_result',
-    'Submit a result hash for a job you have taken.',
+    'Submit a result for a job you have taken. Result is uploaded to IPFS, hash stored on-chain.',
     {
         job_address: z.string().describe('Job contract address'),
-        result_hash: z.string().describe('SHA256 hash of the result (hex, 64 chars)'),
-        result_type: z.number().default(0).describe('0=hash, 1=ton_storage_bag_id, 2=ipfs_cid'),
+        result_text: z.string().describe('Full result text. Will be uploaded to IPFS.'),
     },
-    async ({ job_address, result_hash, result_type }) => {
+    async ({ job_address, result_text }) => {
+        // Upload result to IPFS
+        const { cid, hash } = await uploadToIPFS({ type: 'job_result', result: result_text, submittedAt: new Date().toISOString() });
+        cidMap.set(hash, cid);
+
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
-            .storeUint(BigInt('0x' + result_hash), 256)
-            .storeUint(result_type, 8)
+            .storeUint(BigInt('0x' + hash), 256)
+            .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ipfs_cid: cid, result_hash: hash, ...result }) }] };
     }
 );
 
@@ -142,7 +184,7 @@ server.tool(
             .storeUint(approved ? 1 : 0, 8)
             .storeUint(reasonInt, 256)
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
 );
@@ -155,7 +197,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
 );
@@ -168,7 +210,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
 );
@@ -181,7 +223,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
 );
@@ -198,7 +240,7 @@ server.tool(
             .storeUint(JobOpcodes.setBudget, 32)
             .storeCoins(toNano(budget_ton))
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.05'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
     }
 );
@@ -231,8 +273,32 @@ server.tool(
             const state = result.stack.readNumber();
 
             const resultTypeNames = ['hash', 'ton_storage', 'ipfs'];
+            const descHashHex = descHash.toString(16).padStart(64, '0');
+            const resultHashHex = resultHash.toString(16).padStart(64, '0');
 
-            const data = {
+            // Try to fetch description from IPFS
+            let description: string | null = null;
+            const descCid = cidMap.get(descHashHex);
+            if (descCid) {
+                try {
+                    const content = await fetchFromIPFS(descCid);
+                    description = content.description ?? JSON.stringify(content);
+                } catch { /* IPFS fetch failed */ }
+            }
+
+            // Try to fetch result from IPFS (if result_type = 2)
+            let resultContent: string | null = null;
+            if (resultType === 2 && resultHash > 0n) {
+                const resCid = cidMap.get(resultHashHex);
+                if (resCid) {
+                    try {
+                        const content = await fetchFromIPFS(resCid);
+                        resultContent = content.result ?? JSON.stringify(content);
+                    } catch { /* IPFS fetch failed */ }
+                }
+            }
+
+            const data: any = {
                 jobId,
                 state: stateNames[state] ?? `UNKNOWN(${state})`,
                 stateCode: state,
@@ -240,8 +306,10 @@ server.tool(
                 provider: providerAddr?.toString() ?? null,
                 evaluator: evaluatorAddr.toString(),
                 budget: budget.toString(),
-                descriptionHash: descHash.toString(16),
-                resultHash: resultHash.toString(16),
+                descriptionHash: descHashHex,
+                description,
+                resultHash: resultHashHex,
+                resultContent,
                 resultType: resultTypeNames[resultType] ?? `unknown(${resultType})`,
                 timeout,
                 createdAt,

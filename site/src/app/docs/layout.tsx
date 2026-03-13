@@ -24,7 +24,6 @@ const sidebar = [
   { group: 'Integrations', items: [
     { name: 'MCP Server', slug: 'mcp-server' },
     { name: 'Telegram Bot', slug: 'telegram-bot' },
-    { name: 'x402 Bridge', slug: 'x402-bridge' },
     { name: 'Teleton Plugin', slug: 'teleton' },
   ]},
   { group: 'Reference', items: [
