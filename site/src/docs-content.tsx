@@ -140,67 +140,6 @@ url = "https://mcp.enact.info/mcp"`,
   },
 ];
 
-const teletonInstallTabs = [
-  {
-    label: 'Cursor',
-    hint: 'Add to .cursor/mcp.json',
-    lang: 'JSON',
-    cursorConfig: {
-      'enact-teleton': {
-        command: 'node',
-        args: ['~/.teleton/plugins/teleton-enact-plugin.js'],
-        env: { ENACT_FACTORY_ADDRESS: 'EQDB5L...', WALLET_MNEMONIC: 'word1 word2 ... word24' },
-      },
-    },
-    code: `{
-  "mcpServers": {
-    "enact-teleton": {
-      "command": "node",
-      "args": ["~/.teleton/plugins/teleton-enact-plugin.js"],
-      "env": {
-        "ENACT_FACTORY_ADDRESS": "EQDB5L...",
-        "WALLET_MNEMONIC": "word1 word2 ... word24"
-      }
-    }
-  }
-}`,
-  },
-  {
-    label: 'Claude Code',
-    hint: 'Run in terminal',
-    lang: 'Shell',
-    code: `claude mcp add enact-teleton \\
-  -e ENACT_FACTORY_ADDRESS="EQDB5L..." \\
-  -e WALLET_MNEMONIC="word1 word2 ... word24" \\
-  -- node ~/.teleton/plugins/teleton-enact-plugin.js`,
-  },
-  {
-    label: 'Codex',
-    hint: 'Add to codex.toml',
-    lang: 'TOML',
-    code: `[mcp_servers.enact-teleton]
-enabled = true
-type = "stdio"
-command = "node"
-args = ["~/.teleton/plugins/teleton-enact-plugin.js"]
-
-[mcp_servers.enact-teleton.env]
-ENACT_FACTORY_ADDRESS = "EQDB5L..."
-WALLET_MNEMONIC = "word1 word2 ... word24"`,
-  },
-  {
-    label: 'Other',
-    hint: 'Any MCP client',
-    lang: 'Config',
-    code: `Server name:    enact-teleton
-Transport:      stdio
-Command:        node ~/.teleton/plugins/teleton-enact-plugin.js
-
-Environment variables:
-  ENACT_FACTORY_ADDRESS = EQDB5LRpf1xuSCBAPZ3y5GUKbQebVJgzGUxQigWSCwqd1pvg
-  WALLET_MNEMONIC       = <your 24-word mnemonic>`,
-  },
-];
 
 /* ══════════════════════════════════════════════════════════
    Pages
@@ -796,13 +735,7 @@ for (const task of tasks) {
           desc="Interactive bot with inline buttons for job management via Telegram. Features real-time transaction detection via TON Streaming API v2. Live at @EnactProtocolBot."
         />
 
-        <H2>Setup</H2>
-        <Code label="Terminal">{`cd bot
-npm install
-cp .env.example .env
-# Edit .env with your BOT_TOKEN and WALLET_MNEMONIC
-npm start`}</Code>
-        <Tip>Live bot: <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="underline">@EnactProtocolBot</a> — try it on mainnet right now.</Tip>
+        <Tip>Live on mainnet: <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="underline">@EnactProtocolBot</a> — open in Telegram and try it now.</Tip>
 
         <H2>13 Commands</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
@@ -832,11 +765,8 @@ npm start`}</Code>
           desc="Drop-in plugin for the Teleton autonomous agent framework. 6 tools for the full job lifecycle."
         />
 
-        <H2>Quick Setup</H2>
-        <P>Add the Teleton plugin to your IDE or install it directly:</P>
-        <InstallTabs tabs={teletonInstallTabs} />
-
-        <H2>Manual Installation</H2>
+        <H2>Installation</H2>
+        <P>Copy the plugin into your Teleton plugins directory and restart the agent:</P>
         <Code label="Terminal">{`cp plugins/teleton-enact-plugin.js ~/.teleton/plugins/
 teleton start`}</Code>
         <H3>Environment Variables</H3>
