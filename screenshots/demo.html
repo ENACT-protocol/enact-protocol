@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html><head><style>
+body { background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Courier New', monospace; font-size: 14px; padding: 24px; margin: 0; }
+.cyan { color: #4ec9b0; } .yellow { color: #dcdcaa; } .gray { color: #808080; }
+.blue { color: #569cd6; } .green { color: #6a9955; } .white { color: #ffffff; }
+.header { color: #569cd6; font-weight: bold; font-size: 16px; margin-bottom: 8px; }
+.line { margin: 3px 0; }
+.step { color: #dcdcaa; font-weight: bold; margin-top: 12px; }
+.addr { color: #ce9178; }
+.ok { color: #4ec9b0; }
+</style></head><body>
+<div class="header">$ npx blueprint run demo --testnet --mnemonic</div>
+<br>
+<div class="line"><span class="white">=== ENACT Protocol Demo ===</span></div>
+<br>
+<div class="step">Step 1: Deploying JobFactory...</div>
+<div class="line"><span class="ok">✓ Contract deployed</span></div>
+<div class="line">Factory deployed at: <span class="addr">EQCJmHCTz2GFY5KK9YIKKZcsI3--lZ4KwjA0uuztsIlE_M_s</span></div>
+<br>
+<div class="step">Step 2: Creating Job...</div>
+<div class="line"><span class="ok">✓ Sent transaction</span></div>
+<div class="line">Job created at: <span class="addr">EQAFPdB24NnSBSfPgvbusYxJQ6DHkToylqSEiersIZPALtfg</span></div>
+<br>
+<div class="step">Step 3: Funding Job with 1 TON...</div>
+<div class="line"><span class="ok">✓ Sent transaction</span></div>
+<div class="line">Job state after fund: <span class="cyan">1</span> <span class="gray">(1 = FUNDED)</span></div>
+<br>
+<div class="step">Step 4: Taking Job as provider...</div>
+<div class="line"><span class="ok">✓ Sent transaction</span></div>
+<br>
+<div class="step">Step 5: Submitting result...</div>
+<div class="line"><span class="ok">✓ Sent transaction</span></div>
+<div class="line">Job state after submit: <span class="cyan">2</span> <span class="gray">(2 = SUBMITTED)</span></div>
+<br>
+<div class="step">Step 6: Evaluating (approve)...</div>
+<div class="line"><span class="ok">✓ Sent transaction</span></div>
+<div class="line">Job state after evaluate: <span class="cyan">3</span> <span class="gray">(3 = COMPLETED)</span></div>
+<br>
+<div class="line"><span class="white">=== Demo Complete ===</span></div>
+<div class="line">Final job data: {</div>
+<div class="line">&nbsp;&nbsp;jobId: <span class="cyan">0</span>,</div>
+<div class="line">&nbsp;&nbsp;state: <span class="cyan">3</span> <span class="gray">// COMPLETED</span>,</div>
+<div class="line">&nbsp;&nbsp;client: <span class="addr">'EQANDNGnCCOPad_P2-o9tPWgCjPMWxjb5DbM7TAlwbIU6e7h'</span>,</div>
+<div class="line">&nbsp;&nbsp;provider: <span class="addr">'EQANDNGnCCOPad_P2-o9tPWgCjPMWxjb5DbM7TAlwbIU6e7h'</span></div>
+<div class="line">}</div>
+</body></html>

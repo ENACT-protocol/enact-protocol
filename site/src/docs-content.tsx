@@ -231,7 +231,7 @@ const teletonInstallTabs = [
     cursorConfig: {
       'enact-teleton': {
         command: 'node',
-        args: ['~/.teleton/plugins/teleton-pact-plugin.js'],
+        args: ['~/.teleton/plugins/teleton-enact-plugin.js'],
         env: { ENACT_FACTORY_ADDRESS: 'EQA3t7...', WALLET_MNEMONIC: 'word1 word2 ... word24' },
       },
     },
@@ -239,7 +239,7 @@ const teletonInstallTabs = [
   "mcpServers": {
     "enact-teleton": {
       "command": "node",
-      "args": ["~/.teleton/plugins/teleton-pact-plugin.js"],
+      "args": ["~/.teleton/plugins/teleton-enact-plugin.js"],
       "env": {
         "ENACT_FACTORY_ADDRESS": "EQA3t7...",
         "WALLET_MNEMONIC": "word1 word2 ... word24"
@@ -255,7 +255,7 @@ const teletonInstallTabs = [
     code: `claude mcp add enact-teleton \\
   -e ENACT_FACTORY_ADDRESS="EQA3t7..." \\
   -e WALLET_MNEMONIC="word1 word2 ... word24" \\
-  -- node ~/.teleton/plugins/teleton-pact-plugin.js`,
+  -- node ~/.teleton/plugins/teleton-enact-plugin.js`,
   },
   {
     label: 'Codex',
@@ -265,7 +265,7 @@ const teletonInstallTabs = [
 enabled = true
 type = "stdio"
 command = "node"
-args = ["~/.teleton/plugins/teleton-pact-plugin.js"]
+args = ["~/.teleton/plugins/teleton-enact-plugin.js"]
 
 [mcp_servers.enact-teleton.env]
 ENACT_FACTORY_ADDRESS = "EQA3t7..."
@@ -277,7 +277,7 @@ WALLET_MNEMONIC = "word1 word2 ... word24"`,
     lang: 'Config',
     code: `Server name:    enact-teleton
 Transport:      stdio
-Command:        node ~/.teleton/plugins/teleton-pact-plugin.js
+Command:        node ~/.teleton/plugins/teleton-enact-plugin.js
 
 Environment variables:
   ENACT_FACTORY_ADDRESS = EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
@@ -993,7 +993,7 @@ npm start`}</Code>
         <InstallTabs tabs={teletonInstallTabs} />
 
         <H2>Manual Installation</H2>
-        <Code label="Terminal">{`cp plugins/teleton-pact-plugin.js ~/.teleton/plugins/
+        <Code label="Terminal">{`cp plugins/teleton-enact-plugin.js ~/.teleton/plugins/
 teleton start`}</Code>
         <H3>Environment Variables</H3>
         <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
