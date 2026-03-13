@@ -102,21 +102,13 @@ const mcpInstallTabs = [
     lang: 'JSON',
     cursorConfig: {
       'enact-protocol': {
-        command: 'node',
-        args: ['./mcp-server/dist/index.js'],
-        env: { FACTORY_ADDRESS: 'EQA3t7...', WALLET_MNEMONIC: 'word1 word2 ... word24', NETWORK: 'mainnet' },
+        url: 'https://mcp.enact.info/mcp',
       },
     },
     code: `{
   "mcpServers": {
     "enact-protocol": {
-      "command": "node",
-      "args": ["./mcp-server/dist/index.js"],
-      "env": {
-        "FACTORY_ADDRESS": "EQA3t7...",
-        "WALLET_MNEMONIC": "word1 word2 ... word24",
-        "NETWORK": "mainnet"
-      }
+      "url": "https://mcp.enact.info/mcp"
     }
   }
 }`,
@@ -125,11 +117,7 @@ const mcpInstallTabs = [
     label: 'Claude Code',
     hint: 'Run in terminal',
     lang: 'Shell',
-    code: `claude mcp add enact-protocol \\
-  -e FACTORY_ADDRESS="EQA3t7..." \\
-  -e WALLET_MNEMONIC="word1 word2 ... word24" \\
-  -e NETWORK=mainnet \\
-  -- node ./mcp-server/dist/index.js`,
+    code: `claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp`,
   },
   {
     label: 'Codex',
@@ -137,27 +125,16 @@ const mcpInstallTabs = [
     lang: 'TOML',
     code: `[mcp_servers.enact-protocol]
 enabled = true
-type = "stdio"
-command = "node"
-args = ["./mcp-server/dist/index.js"]
-
-[mcp_servers.enact-protocol.env]
-FACTORY_ADDRESS = "EQA3t7..."
-WALLET_MNEMONIC = "word1 word2 ... word24"
-NETWORK = "mainnet"`,
+type = "http"
+url = "https://mcp.enact.info/mcp"`,
   },
   {
     label: 'Other',
     hint: 'Any MCP client',
     lang: 'Config',
     code: `Server name:    enact-protocol
-Transport:      stdio
-Command:        node ./mcp-server/dist/index.js
-
-Environment variables:
-  FACTORY_ADDRESS    = EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
-  WALLET_MNEMONIC    = <your 24-word mnemonic>
-  NETWORK            = mainnet`,
+Transport:      HTTP (Streamable)
+URL:            https://mcp.enact.info/mcp`,
   },
 ];
 
@@ -844,33 +821,10 @@ for (const task of tasks) {
           desc="11 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
         />
 
-        <H2>Quick Setup (Local — stdio)</H2>
-        <P>Choose your IDE and add the ENACT MCP server locally:</P>
+        <H2>Quick Setup</H2>
+        <P>Add the ENACT MCP server to your IDE — no installation required:</P>
         <InstallTabs tabs={mcpInstallTabs} />
-
-        <H2>Remote Setup (HTTP)</H2>
-        <P>The MCP server supports HTTP transport for remote deployment (Railway, Render, etc.). Set the <IC>PORT</IC> environment variable to enable HTTP mode:</P>
-        <Code label="Cursor (.cursor/mcp.json)">{`{
-  "mcpServers": {
-    "enact-protocol": {
-      "url": "https://enact-mcp.onrender.com/mcp"
-    }
-  }
-}`}</Code>
-        <Code label="Claude Code">{`claude mcp add enact-protocol --transport http https://enact-mcp.onrender.com/mcp`}</Code>
-        <Tip>HTTP mode requires no local setup — just point your IDE to the URL. The server handles wallet management remotely, so <IC>WALLET_MNEMONIC</IC> is only needed on the server side.</Tip>
-
-        <H2>Manual Setup</H2>
-        <Code label="Terminal">{`cd mcp-server
-npm install
-npm run build`}</Code>
-        <H3>Environment Variables</H3>
-        <Code label=".env">{`FACTORY_ADDRESS=EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL
-WALLET_MNEMONIC=word1 word2 ... word24
-TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
-TONCENTER_API_KEY=your_key
-NETWORK=mainnet
-# PORT=3000  # Uncomment to enable HTTP mode`}</Code>
+        <Tip>That&apos;s it. Your AI agent now has access to 11 on-chain tools for creating, funding, and managing escrow jobs on TON.</Tip>
 
         <H2>11 Tools</H2>
         <table className="doc-table">

@@ -13,7 +13,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 [![MCP](https://img.shields.io/badge/MCP-11%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://enact-mcp.onrender.com/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
+[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
 
 </div>
 
@@ -28,7 +28,7 @@ npx blueprint build --all
 npx blueprint test                    # 56 tests
 
 # Connect MCP to your AI agent (remote — no setup needed)
-claude mcp add enact-protocol --transport http https://enact-mcp.onrender.com/mcp
+claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp
 
 # Or connect locally with your own wallet
 cd mcp-server && npm install && npm run build
@@ -119,7 +119,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 {
   "mcpServers": {
     "enact-protocol": {
-      "url": "https://enact-mcp.onrender.com/mcp"
+      "url": "https://mcp.enact.info/mcp"
     }
   }
 }
@@ -285,6 +285,6 @@ MIT
 
 Built for the [TON AI Agent Hackathon 2026](https://identityhub.app/contests/ai-hackathon) — Agent Infrastructure Track
 
-[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://enact-mcp.onrender.com/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL)
+[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQA3t751GuMhAZGnvBm0HOzxrppnz9tLuI__4XXQ_FC7BYcL)
 
 </div>
