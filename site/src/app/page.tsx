@@ -417,7 +417,7 @@ export default function Home() {
               TON Mainnet
             </div>
             <div className="space-y-6">
-              {[['JobFactory','EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'],['JettonJobFactory','EQBD38Dc4Fplj18JuIoIS509rvyvC58gznj4ImgBqZcDPvTp']].map(([n,a])=>(
+              {[['JobFactory','EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'],['JettonJobFactory','EQB967QrI5Ou4LOqZE7wNXVA1mJllyipeGjDK54vLQu6V3NK']].map(([n,a])=>(
                 <div key={n}>
                   <div className="text-xs text-gray-500 mb-2 font-mono">{n}</div>
                   <div className="flex items-center gap-2 bg-[#0A0A0E] border border-[#1A1A24] p-3 hover:border-gray-600 transition-colors overflow-hidden">

@@ -863,7 +863,7 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Contract</th><th>Address</th><th></th></tr></thead>
           <tbody>
-            {[['JobFactory','EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'],['JettonJobFactory','EQBD38Dc4Fplj18JuIoIS509rvyvC58gznj4ImgBqZcDPvTp']].map(([name,addr])=>(
+            {[['JobFactory','EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'],['JettonJobFactory','EQB967QrI5Ou4LOqZE7wNXVA1mJllyipeGjDK54vLQu6V3NK']].map(([name,addr])=>(
               <tr key={name}>
                 <td>{name}</td>
                 <td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}>{addr}</td>
