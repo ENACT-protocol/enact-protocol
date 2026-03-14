@@ -392,29 +392,55 @@ server.tool(
 
 server.tool(
     'create_jetton_job',
-    'Create a new Jetton (USDT) job. After creation, use set_jetton_wallet and set_budget, then fund with Jetton transfer.',
+    'Create a new USDT job. In local mode auto-sets USDT wallet. In remote mode call set_jetton_wallet after, then fund_jetton_job.',
     {
         evaluator_address: z.string().describe('TON address of the evaluator'),
-        budget_jetton: z.string().describe('Budget in Jetton units (e.g. "5" for 5 USDT)'),
+        budget_usdt: z.string().describe('Budget in USDT (e.g. "5" for 5 USDT)'),
         description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
         timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout (default 24h)'),
     },
-    async ({ evaluator_address, budget_jetton, description, timeout_seconds, evaluation_timeout_seconds }) => {
+    async ({ evaluator_address, budget_usdt, description, timeout_seconds, evaluation_timeout_seconds }) => {
+        const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
         const { cid, hash } = await uploadToIPFS({ type: 'jetton_job_description', description, createdAt: new Date().toISOString() });
         cidMap.set(hash, cid);
 
         const body = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
             .storeAddress(Address.parse(evaluator_address))
-            .storeCoins(BigInt(Math.round(parseFloat(budget_jetton) * 1e6))) // USDT: 6 decimals
+            .storeCoins(BigInt(Math.round(parseFloat(budget_usdt) * 1e6))) // USDT: 6 decimals
             .storeUint(BigInt('0x' + hash), 256)
             .storeUint(timeout_seconds, 32)
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
         const result = await sendTransaction(config.jettonFactoryAddress, toNano('0.03'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, type: 'jetton_job', ipfs_cid: cid, description_hash: hash }) }] };
+
+        // In local mode: auto-set USDT wallet after job creation
+        let jettonWallet = '';
+        if (wallet) {
+            try {
+                // Wait for job to deploy
+                await new Promise(r => setTimeout(r, 8000));
+                const nextId = await client.runMethod(config.jettonFactoryAddress, 'get_next_job_id');
+                const jobId = nextId.stack.readNumber() - 1;
+                const jobAddrRes = await client.runMethod(config.jettonFactoryAddress, 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
+                const jobAddr = jobAddrRes.stack.readAddress();
+
+                const jwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+                    { type: 'slice', cell: beginCell().storeAddress(jobAddr).endCell() },
+                ]);
+                const jw = jwRes.stack.readAddress();
+                jettonWallet = jw.toString();
+
+                const setBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jw).endCell();
+                await sendTransaction(jobAddr, toNano('0.01'), setBody);
+            } catch (e: any) {
+                console.error('Auto set_jetton_wallet failed:', e.message);
+            }
+        }
+
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, type: 'usdt_job', ipfs_cid: cid, description_hash: hash, jetton_wallet: jettonWallet || 'call set_jetton_wallet manually' }) }] };
     }
 );
 
