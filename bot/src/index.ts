@@ -1084,7 +1084,7 @@ async function handleJobs(ctx: any, page: number) {
                     try {
                         const s = await getJobStatus(client, addr.toString());
                         const icon = stateIcon[s.stateName] ?? '❓';
-                        text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtTon(s.budget)}</b> USDT\n`;
+                        text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtTon(s.budget)}</b> ${e('💵')}\n`;
                     } catch {
                         text += `⬜ <b>J#${i}</b> — (not initialized)\n`;
                     }
@@ -1428,7 +1428,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
-            `${e('💵')} Budget: <b>${fmtTon(s.budget)}</b> USDT\n` +
+            `${e('💵')} Budget: <b>${fmtTon(s.budget)}</b> ${e('💵')}\n` +
             (desc ? `${e('📄')} Description: ${desc}\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
