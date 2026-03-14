@@ -208,7 +208,7 @@ Written in **Tolk 1.2** for the TON Virtual Machine.
 - **Timeout enforcement** — cancel/claim only after configured timeout expires
 - **Bounce handling** — failed payouts return funds to contract for recovery
 - **Gas reserves** — contract maintains minimal reserves, returns excess to sender
-- **Excess return** — all operations return unused gas automatically (~0.003–0.013 TON actual cost)
+- **Excess return** — all operations return unused gas automatically (~0.003–0.013 TON actual cost, USDT funding ~0.02 TON)
 - **Auto-claim protection** — provider can claim if evaluator goes silent
 - **Quit mechanism** — provider can exit cleanly, job reopens
 

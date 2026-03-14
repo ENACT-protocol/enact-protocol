@@ -423,7 +423,23 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
             ))}
           </tbody>
         </table></div>
-        <Tip>All operations return excess gas to the sender. For example, <IC>sendCreateJob</IC> costs ~0.03 TON but actual consumption is ~0.013 TON — the rest is refunded. Similarly, <IC>sendFund</IC> requires budget + 0.01 TON gas (actual ~0.005 TON), and other operations need just 0.01 TON gas (actual ~0.003 TON).</Tip>
+        <H2>Network Fees</H2>
+        <P>ENACT charges <b>0% protocol fee</b> — all funds go to the provider. The only costs are TON network gas fees. Excess gas is automatically refunded.</P>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>Operation</th><th>Gas Attached</th><th>Actual Cost</th><th>Refunded</th></tr></thead>
+          <tbody>
+            {[
+              ['Create Job','0.03 TON','~0.013 TON','~0.017 TON'],
+              ['Fund Job','budget + 0.01 TON','~0.005 TON','~0.005 TON'],
+              ['Take / Submit / Evaluate','0.01 TON','~0.003 TON','~0.007 TON'],
+              ['Cancel / Claim / Quit','0.01 TON','~0.003 TON','~0.007 TON'],
+              ['Fund USDT Job','0.065 TON (gas only)','~0.02 TON','~0.045 TON'],
+            ].map(([op,gas,actual,refund])=>(
+              <tr key={op}><td>{op}</td><td>{gas}</td><td>{actual}</td><td>{refund}</td></tr>
+            ))}
+          </tbody>
+        </table></div>
+        <Tip>USDT transfers require extra gas (0.065 TON) for the Jetton transfer message. This is network gas, not a protocol fee. The unused portion is returned to the sender.</Tip>
 
         <H2>3 Roles</H2>
         <CardGroup cols={3}>
