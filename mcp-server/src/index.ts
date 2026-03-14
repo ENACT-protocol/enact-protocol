@@ -443,20 +443,21 @@ server.tool(
 
 server.tool(
     'fund_jetton_job',
-    'Fund a USDT job by sending USDT to the job contract. In local mode resolves wallet automatically. In remote mode requires sender_address.',
+    'Fund a USDT job by sending USDT to the job contract. Resolves client and USDT wallet automatically from on-chain data.',
     {
         job_address: z.string().describe('Jetton job contract address'),
         amount_usdt: z.string().describe('Amount in USDT (e.g. "10" for 10 USDT)'),
-        sender_address: z.string().optional().describe('Your TON wallet address (required in remote mode, auto-detected in local mode)'),
     },
-    async ({ job_address, amount_usdt, sender_address }) => {
+    async ({ job_address, amount_usdt }) => {
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
         const jobAddr = Address.parse(job_address);
         const usdtAmount = BigInt(Math.round(parseFloat(amount_usdt) * 1e6));
 
-        const senderAddr = wallet ? wallet.address
-            : sender_address ? Address.parse(sender_address)
-            : (() => { throw new Error('sender_address required in remote mode (no wallet configured)'); })();
+        // Get client address from job contract (funder is always the client)
+        const jobData = await client.runMethod(jobAddr, 'get_job_data');
+        jobData.stack.readNumber(); // jobId
+        const clientAddr = jobData.stack.readAddress();
+        const senderAddr = wallet ? wallet.address : clientAddr;
 
         // Resolve sender's USDT jetton wallet
         const senderWalletRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
