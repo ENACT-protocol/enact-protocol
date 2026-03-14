@@ -42,7 +42,7 @@ export default function Home() {
         <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 mono-label text-[#52525B] mt-4 sm:mt-8">
           <span>56 tests</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
-          <span>3 contracts</span>
+          <span>4 contracts</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>14 MCP tools</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />

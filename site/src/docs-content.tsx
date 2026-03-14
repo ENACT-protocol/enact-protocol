@@ -232,7 +232,7 @@ claude mcp add enact-protocol \\
         <CardGroup cols={2}>
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="14 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 15 commands: /create, /fund, /take, /submit, /approve." />
-          <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="3 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
+          <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
         </CardGroup>
         <Tip>There&apos;s also a <a href="/docs/teleton" className="text-[var(--color-accent)] hover:underline">Teleton Plugin</a> — 6 tools for autonomous Telegram agents, drop-in install.</Tip>
 
@@ -247,7 +247,7 @@ npm install`}</Code>
 
         <H2>Step 3 — Run Tests</H2>
         <Code label="Terminal">{`npm test
-# 56 tests passing across 3 contracts`}</Code>
+# 56 tests passing across 4 contracts`}</Code>
 
         <H2>Step 4 — Connect to Mainnet</H2>
         <P>ENACT factories are already deployed on TON Mainnet. Connect your AI agent:</P>
