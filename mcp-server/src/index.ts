@@ -74,7 +74,7 @@ function sha256hex(text: string): string {
 }
 
 async function uploadToIPFS(content: object): Promise<{ cid: string; hash: string }> {
-    if (!config.pinataJwt) throw new Error('PINATA_JWT not set');
+    if (!config.pinataJwt) throw new Error('PINATA_JWT not set. Get key at pinata.cloud/keys');
     const json = JSON.stringify(content);
     const hash = sha256hex(json);
 
@@ -84,7 +84,10 @@ async function uploadToIPFS(content: object): Promise<{ cid: string; hash: strin
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${config.pinataJwt}`,
         },
-        body: JSON.stringify({ pinataContent: content }),
+        body: JSON.stringify({
+            pinataContent: content,
+            pinataMetadata: { name: `enact-${hash.slice(0, 8)}`, keyvalues: { descHash: hash } },
+        }),
     });
     if (!res.ok) throw new Error(`Pinata upload failed: ${res.status} ${await res.text()}`);
     const data = await res.json() as { IpfsHash: string };

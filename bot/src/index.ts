@@ -209,12 +209,25 @@ async function decodeDesc(hash: string): Promise<string | null> {
                 return escapeHtml(text);
             }
         }
-        // Try 2: fetch from IPFS via Pinata (MCP creates these with SHA-256 hash)
-        const res = await fetch(`https://gateway.pinata.cloud/ipfs/${hash}`, { signal: AbortSignal.timeout(4000) });
-        if (res.ok) {
-            const data = await res.json();
-            const content = data.description ?? data.result ?? null;
-            if (content) return escapeHtml(String(content).slice(0, 200));
+        // Try 2: search Pinata by metadata descHash (MCP tags uploads with hash)
+        const jwt = process.env.PINATA_JWT;
+        if (jwt) {
+            const searchRes = await fetch(`https://api.pinata.cloud/data/pinList?metadata[keyvalues][descHash]={"value":"${hash}","op":"eq"}&status=pinned&pageLimit=1`, {
+                headers: { 'Authorization': `Bearer ${jwt}` },
+                signal: AbortSignal.timeout(4000),
+            });
+            if (searchRes.ok) {
+                const pins = await searchRes.json() as { rows: Array<{ ipfs_pin_hash: string }> };
+                if (pins.rows?.length > 0) {
+                    const cid = pins.rows[0].ipfs_pin_hash;
+                    const ipfsRes = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`, { signal: AbortSignal.timeout(4000) });
+                    if (ipfsRes.ok) {
+                        const data = await ipfsRes.json();
+                        const content = data.description ?? data.result ?? null;
+                        if (content) return escapeHtml(String(content).slice(0, 200));
+                    }
+                }
+            }
         }
     } catch {}
     return null;
