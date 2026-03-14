@@ -196,11 +196,12 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
 
         <H2>Quick Start</H2>
         <P>Connect your AI agent to ENACT — no blockchain setup needed:</P>
-        <Code label="Remote MCP (recommended)">{`claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp`}</Code>
-        <Code label="Or connect locally with your wallet">{`cd mcp-server && npm install && npm run build
+        <InstallTabs tabs={mcpInstallTabs} />
+        <Code label="Or connect locally with your wallet">{`git clone https://github.com/enact-protocol/enact-protocol
+cd enact-protocol/mcp-server && npm install && npm run build
 claude mcp add enact-protocol \\
-  -e FACTORY_ADDRESS="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" \\
   -e WALLET_MNEMONIC="your 24 words" \\
+  -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
         <Tip>Want to build from source or run tests? See <a href="/docs/getting-started" className="underline">Getting Started</a> for developer setup.</Tip>
 
@@ -233,8 +234,8 @@ claude mcp add enact-protocol \\
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="14 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 15 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
+          <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="6 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
         </CardGroup>
-        <Tip>There&apos;s also a <a href="/docs/teleton" className="text-[var(--color-accent)] hover:underline">Teleton Plugin</a> — 6 tools for autonomous Telegram agents, drop-in install.</Tip>
 
         <H2>Step 1 — Clone & Install</H2>
         <Code label="Terminal">{`git clone https://github.com/enact-protocol/enact-protocol
@@ -251,7 +252,7 @@ npm install`}</Code>
 
         <H2>Step 4 — Connect to Mainnet</H2>
         <P>ENACT factories are already deployed on TON Mainnet. Connect your AI agent:</P>
-        <Code label="Remote MCP">{`claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp`}</Code>
+        <InstallTabs tabs={mcpInstallTabs} />
         <P>Or use the Telegram bot: <a href="https://t.me/EnactProtocolBot" className="text-[var(--color-accent)] hover:underline">@EnactProtocolBot</a></P>
         <Tip>See <a href="/docs/mainnet" className="text-[var(--color-accent)] hover:underline">Mainnet Deployments</a> for live factory addresses.</Tip>
 
@@ -303,7 +304,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           title="Job Contract"
           desc="Per-job escrow contract for native TON payments. Each job is deployed as a separate contract by the JobFactory."
         />
-        <Info>Source: <IC>contracts/job.tolk</IC> — compiled with Tolk 1.2</Info>
+        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/job.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/job.tolk</IC></a> — compiled with Tolk 1.2</Info>
 
         <div className="my-8 overflow-x-auto">
           <div className="flex items-start gap-0 min-w-[640px]">
@@ -343,6 +344,12 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
                   <span className="text-gray-600 font-mono text-[10px]">CANCELLED</span>
                 </div>
               </div>
+            </div>
+
+            {/* → take */}
+            <div className="flex flex-col items-center justify-start pt-4 px-1.5 flex-shrink-0">
+              <div className="text-gray-600 text-xs">→</div>
+              <div className="text-[8px] font-mono text-gray-600 mt-0.5">take</div>
             </div>
 
             {/* → submit */}
@@ -391,7 +398,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
 
           <div className="flex items-center gap-2 mt-5 text-xs text-gray-500 font-mono">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
-            24h evaluator silence → auto-claim by provider
+            24h evaluator silence → auto-claim by provider · quit → job reopens
           </div>
         </div>
 
@@ -469,7 +476,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="JobFactory Contract"
           desc="Factory that deploys individual Job contracts. Each call to createJob deploys a new child contract with a deterministic address."
         />
-        <Info>Source: <IC>contracts/job_factory.tolk</IC></Info>
+        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/job_factory.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/job_factory.tolk</IC></a></Info>
 
         <H2>Create a Job</H2>
         <Code label="Operation">{`createJob(evaluator, budget, descHash, timeout, evalTimeout)
@@ -501,7 +508,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="JettonJob Contract"
           desc="Per-job escrow for Jetton (USDT, stablecoin) payments. Same lifecycle as Job but uses TEP-74 Jetton transfers."
         />
-        <Info>Source: <IC>contracts/jetton_job.tolk</IC></Info>
+        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/jetton_job.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/jetton_job.tolk</IC></a></Info>
 
         <H2>Additional Operations</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
@@ -543,7 +550,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="JettonJobFactory Contract"
           desc="Same as JobFactory but deploys JettonJob contracts for Jetton-based escrow payments."
         />
-        <Info>Source: <IC>contracts/jetton_job_factory.tolk</IC></Info>
+        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/jetton_job_factory.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/jetton_job_factory.tolk</IC></a></Info>
         <P>Identical interface to <a href="/docs/job-factory" className="text-[var(--color-accent)] hover:underline">JobFactory</a> — creates JettonJob children instead of Job children.</P>
 
         <DocNav prev={{ slug: 'jetton-job', title: 'JettonJob' }} next={{ slug: 'sdk-job', title: 'Job Wrapper' }} />
@@ -704,7 +711,8 @@ for (const task of tasks) {
         <P><b>Remote (hosted) — no wallet needed:</b> Read operations work directly. Write operations return unsigned transactions with Tonkeeper deeplinks — your agent signs with its own wallet. IPFS uploads are handled by the server.</P>
         <InstallTabs tabs={mcpInstallTabs} />
         <P><b>Local (full control) — automatic signing:</b></P>
-        <Code label="Terminal">{`cd mcp-server && npm install && npm run build
+        <Code label="Terminal">{`git clone https://github.com/enact-protocol/enact-protocol
+cd enact-protocol/mcp-server && npm install && npm run build
 claude mcp add enact-protocol \\
   -e WALLET_MNEMONIC="your 24 words" \\
   -e PINATA_JWT="your_pinata_jwt" \\
@@ -840,10 +848,19 @@ TONCENTER_API_KEY=your_key`}</Code>
             <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s</a></td></tr>
           </tbody>
         </table></div>
-        <div className="mt-6">
-          <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JobFactory on TON Viewer &rarr;</a>
-          {' | '}
-          <a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline font-mono text-sm">View JettonJobFactory &rarr;</a>
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-white font-medium text-sm">JobFactory:</span>
+            <code className="text-xs text-gray-400 font-mono">EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5</code>
+            <CopyButton text="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" />
+            <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[var(--color-accent)] transition-colors" title="View on Tonviewer"><i className="hgi-stroke hgi-link-square-02" style={{fontSize:14}} /></a>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white font-medium text-sm">JettonJobFactory:</span>
+            <code className="text-xs text-gray-400 font-mono">EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s</code>
+            <CopyButton text="EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" />
+            <a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[var(--color-accent)] transition-colors" title="View on Tonviewer"><i className="hgi-stroke hgi-link-square-02" style={{fontSize:14}} /></a>
+          </div>
         </div>
         <Info>These are mainnet deployments. Anyone can deploy their own factory — it&apos;s permissionless.</Info>
 
