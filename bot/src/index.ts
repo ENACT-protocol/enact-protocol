@@ -301,7 +301,7 @@ bot.callbackQuery('menu_create', async (ctx) => {
 
 bot.callbackQuery('menu_jobs', async (ctx) => {
     await ctx.answerCallbackQuery();
-    await handleJobs(ctx);
+    await handleJobs(ctx, 0);
 });
 
 bot.callbackQuery('menu_status', async (ctx) => {
@@ -951,7 +951,13 @@ bot.command('status', async (ctx) => {
     await handleStatus(ctx, jobId);
 });
 
-bot.command('jobs', async (ctx) => handleJobs(ctx));
+bot.command('jobs', async (ctx) => handleJobs(ctx, 0));
+
+bot.callbackQuery(/^jobs_page_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const page = parseInt(ctx.match![1]);
+    await handleJobs(ctx, page);
+});
 
 // ────────────────────────────────────────────
 // Handlers
@@ -1024,7 +1030,8 @@ async function handleFactory(ctx: any) {
     );
 }
 
-async function handleJobs(ctx: any) {
+async function handleJobs(ctx: any, page: number) {
+    const PAGE_SIZE = 5;
     try {
         const client = await createClient();
         const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
@@ -1036,16 +1043,21 @@ async function handleJobs(ctx: any) {
             return ctx.reply(`${e('📋')} No jobs yet. Create the first one!`, { parse_mode: 'HTML', reply_markup: kb });
         }
 
-        let text = `${eid(EID.browseJobs, '📋')} <b>Jobs (${count} total)</b>\n\n`;
-        const showCount = Math.min(count, 10);
-        const start = count - showCount;
+        const totalPages = Math.ceil(count / PAGE_SIZE);
+        const safePage = Math.min(page, totalPages - 1);
+        const start = Math.max(0, count - (safePage + 1) * PAGE_SIZE);
+        const end = count - safePage * PAGE_SIZE;
+
+        let text = `${eid(EID.browseJobs, '📋')} <b>Jobs (${count} total)</b>`;
+        if (totalPages > 1) text += ` — page ${safePage + 1}/${totalPages}`;
+        text += '\n\n';
 
         const stateIcon: Record<string, string> = {
             OPEN: e('🟢'), FUNDED: e('💰'), SUBMITTED: e('📨'),
             COMPLETED: e('✅'), DISPUTED: e('⚠️'), CANCELLED: e('🚫'),
         };
 
-        for (let i = start; i < count; i++) {
+        for (let i = start; i < end; i++) {
             const addr = await getJobAddress(client, FACTORY_ADDRESS, i);
             try {
                 const s = await getJobStatus(client, addr.toString());
@@ -1057,37 +1069,42 @@ async function handleJobs(ctx: any) {
             } catch {
                 text += `⬜ <b>#${i}</b> — (not initialized)\n`;
             }
-            if (i < count - 1) await new Promise(r => setTimeout(r, 300));
+            if (i < end - 1) await new Promise(r => setTimeout(r, 300));
         }
 
-        // Also show Jetton jobs
-        let jettonCount = 0;
-        try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
-        if (jettonCount > 0) {
-            text += `\n${e('💵')} <b>Jetton Jobs (${jettonCount} total)</b>\n\n`;
-            const jStart = Math.max(0, jettonCount - 5);
-            for (let i = jStart; i < jettonCount; i++) {
-                const addr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, i);
-                try {
-                    const s = await getJobStatus(client, addr.toString());
-                    const icon = stateIcon[s.stateName] ?? '❓';
-                    text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtTon(s.budget)}</b> USDT\n`;
-                } catch {
-                    text += `⬜ <b>J#${i}</b> — (not initialized)\n`;
+        // Also show Jetton jobs (on first page only)
+        if (safePage === 0) {
+            let jettonCount = 0;
+            try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
+            if (jettonCount > 0) {
+                text += `\n${e('💵')} <b>Jetton Jobs (${jettonCount} total)</b>\n\n`;
+                const jStart = Math.max(0, jettonCount - 5);
+                for (let i = jStart; i < jettonCount; i++) {
+                    const addr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, i);
+                    try {
+                        const s = await getJobStatus(client, addr.toString());
+                        const icon = stateIcon[s.stateName] ?? '❓';
+                        text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtTon(s.budget)}</b> USDT\n`;
+                    } catch {
+                        text += `⬜ <b>J#${i}</b> — (not initialized)\n`;
+                    }
+                    if (i < jettonCount - 1) await new Promise(r => setTimeout(r, 300));
                 }
-                if (i < jettonCount - 1) await new Promise(r => setTimeout(r, 300));
             }
         }
 
         const kb = new InlineKeyboard();
-        const btnStart = Math.max(start, count - 5);
-        for (let i = btnStart; i < count; i++) {
+        for (let i = start; i < end; i++) {
             kb.text(`🔭 #${i}`, `status_${i}`);
         }
-        for (let i = Math.max(0, jettonCount - 3); i < jettonCount; i++) {
-            kb.text(`💵 J#${i}`, `jstatus_${i}`);
-        }
-        kb.row().text('✍️ Create Job', 'menu_create')
+        kb.row();
+
+        // Pagination buttons
+        if (safePage < totalPages - 1) kb.text('⬅️ Older', `jobs_page_${safePage + 1}`);
+        if (safePage > 0) kb.text('Newer ➡️', `jobs_page_${safePage - 1}`);
+        if (totalPages > 1) kb.row();
+
+        kb.text('✍️ Create Job', 'menu_create')
           .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
@@ -1262,14 +1279,14 @@ async function handleCancel(ctx: any, jobId: number) {
                 .url('👛 Approve in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('🚫')} <b>Cancel Job #${jobId}</b>\n\nOpen Tonkeeper to approve. Auto-detecting...`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('🚫')} <b>Cancel Job #${jobId}</b>\n\n${e('⚠️')} Cancel works only after timeout expires (24h by default).\n\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
             watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 5); // 5=CANCELLED
             return;
         }
 
         const w = await requireWallet(ctx);
         if (!w) return;
-        await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...`, { parse_mode: 'HTML' });
+        await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...\n${e('⚠️')} Only works after timeout (24h).`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
 
         const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
