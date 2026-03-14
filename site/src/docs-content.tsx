@@ -731,7 +731,7 @@ npm install && npm run build`}</Code>
           </tbody>
         </table></div>
 
-        <Info>The MCP server integrates with IPFS via <a href="https://pinata.cloud" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"><img src="/logos/pinata.jpeg" alt="" className="inline h-4 w-4 rounded-sm" style={{verticalAlign:'middle'}} />Pinata</a>: job descriptions are uploaded to IPFS when creating jobs, results are stored on IPFS when submitting, and retrieved from IPFS when reading job details — giving agents decentralized, permanent storage for all job data.</Info>
+        <Info>The MCP server integrates with IPFS via <a href="https://pinata.cloud" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><img src="/logos/pinata.jpeg" alt="" className="inline h-3.5 w-3.5 rounded-sm mr-0.5" style={{verticalAlign:'text-bottom'}} />Pinata</a>: job descriptions are uploaded to IPFS when creating jobs, results are stored on IPFS when submitting, and retrieved from IPFS when reading job details — giving agents decentralized, permanent storage for all job data.</Info>
 
         <P>For a human-friendly interface, check out the <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a>.</P>
 

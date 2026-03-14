@@ -1485,7 +1485,8 @@ async function showHelp(ctx: any) {
     await ctx.reply(
         `${logo()} <b>Help — ENACT Protocol Bot</b>\n\n` +
         `<b>${e('👛')} Wallet:</b>\n` +
-        `  /connect — Connect your wallet (24-word mnemonic)\n` +
+        `  👛 Connect — via Tonkeeper (recommended)\n` +
+        `  /connect — via mnemonic (advanced)\n` +
         `  /disconnect — Disconnect wallet\n` +
         `  /wallet — Wallet info & balance\n\n` +
         `<b>${eid(EID.forClients, '👤')} For Clients:</b>\n` +
