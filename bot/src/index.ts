@@ -18,6 +18,7 @@ if (!BOT_TOKEN) { console.error('BOT_TOKEN not set'); process.exit(1); }
 const MANIFEST_URL = 'https://www.enact.info/tonconnect-manifest.json';
 
 const bot = new Bot(BOT_TOKEN);
+bot.catch((err) => console.error('Bot error:', err.message ?? err));
 
 // ─── Persistent storage ───
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -193,13 +194,21 @@ function logo(): string {
 // ─── Helpers ───
 
 // ─── Description/result decoding ───
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function decodeHash(hash: string): string | null {
     if (!hash || hash === '0'.repeat(64)) return null;
     try {
-        // Hash is hex-encoded text (first 32 bytes of description)
         const clean = hash.replace(/0+$/, '');
         if (clean.length < 2) return null;
-        return Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
+        const text = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
+        // Only return if it's printable ASCII/UTF-8 (not binary garbage)
+        if (/^[\x20-\x7E\u0080-\uFFFF ]+$/.test(text) && text.length > 1) {
+            return escapeHtml(text);
+        }
+        return null;
     } catch { return null; }
 }
 
