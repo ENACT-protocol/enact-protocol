@@ -117,21 +117,23 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
 
 // ===================== JETTON TRANSFER HELPER =====================
 
-const JETTON_TRANSFER_GAS: int = 60000000;  // 0.06 TON for jetton transfer + forward
-
 fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnExcessTo: address) {
     val body = beginCell()
         .storeUint(OP_JETTON_TRANSFER, 32)
         .storeUint(0, 64)             // query_id
         .storeCoins(jettonAmount)     // Jetton amount
         .storeAddress(recipient)      // destination
-        .storeAddress(recipient)      // response_destination (jetton excess)
+        .storeAddress(returnExcessTo) // response_destination — TON excess from jetton transfer goes back to caller
         .storeBool(false)             // no custom_payload
         .storeCoins(50000000)         // forward_ton_amount = 0.05 TON
         .storeBool(false)             // no forward_payload
         .endCell();
 
-    // Return excess TON to the caller (evaluator/client/provider), not to the payout recipient
+    // First: return msg.value excess to caller (evaluator pays only ~0.003 gas)
+    // Second: send jetton transfer using contract's full remaining balance
+    reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+
+    // Return incoming msg excess to caller
     createMessage({
         bounce: BounceMode.NoBounce,
         dest: returnExcessTo,
@@ -139,13 +141,13 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
         body: beginCell().endCell()
     }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
 
-    // Send jetton transfer using contract's own balance (from fund deposit)
+    // Send jetton payout using contract's stored balance
     createMessage({
         bounce: BounceMode.Only256BitsOfBody,
         dest: jw,
-        value: JETTON_TRANSFER_GAS,
+        value: 0,
         body: body,
-    }).send(SEND_MODE_PAY_FEES_SEPARATELY | SEND_MODE_IGNORE_ERRORS);
+    }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
 }
 
 // ===================== MESSAGES =====================
