@@ -28,7 +28,7 @@ const OPCODES = {
 
 const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 
-const DEFAULT_FACTORY = 'EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5';
+const DEFAULT_FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 
 async function getClient(context) {
     const endpoint = context.env?.TON_ENDPOINT ?? 'https://toncenter.com/api/v2/jsonRPC';

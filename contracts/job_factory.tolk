@@ -152,6 +152,6 @@ get fun get_next_job_id(): int {
 }
 
 get fun version(): int {
-    return 2;
+    return 3;
 }
 

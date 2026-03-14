@@ -280,7 +280,7 @@ await job.sendSubmitResult(provider, toNano('0.01'), resultHash, 0);
 // 3. Evaluator approves — payment releases automatically
 await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
 // On-chain: state SUBMITTED → COMPLETED, 2 TON sent to provider`}</Code>
-        <Tip>This is exactly what <IC>npx blueprint run demo</IC> does. Check <IC>scripts/demo.ts</IC> for the full source. After running, verify the state transitions on <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="underline">Tonviewer</a> — the job address is printed in the demo log.</Tip>
+        <Tip>This is exactly what <IC>npx blueprint run demo</IC> does. Check <IC>scripts/demo.ts</IC> for the full source. After running, verify the state transitions on <a href="https://tonviewer.com/EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX" target="_blank" rel="noopener noreferrer" className="underline">Tonviewer</a> — the job address is printed in the demo log.</Tip>
 
         <H2>Next Steps</H2>
         <CardGroup cols={3}>
@@ -802,7 +802,7 @@ npm install && npm run build`}</Code>
         <Code label="Terminal">{`cp plugins/teleton-enact-plugin.js ~/.teleton/plugins/
 teleton start`}</Code>
         <H3>Environment Variables</H3>
-        <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5
+        <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX
 WALLET_MNEMONIC=word1 word2 ... word24
 TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
@@ -863,7 +863,7 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Contract</th><th>Address</th><th></th></tr></thead>
           <tbody>
-            {[['JobFactory','EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'],['JettonJobFactory','EQCQM7ldFYbOcOckGHGCRmYUYlE2t_yBoYaQU7jXJK3fLdkA']].map(([name,addr])=>(
+            {[['JobFactory','EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX'],['JettonJobFactory','EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj']].map(([name,addr])=>(
               <tr key={name}>
                 <td>{name}</td>
                 <td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}>{addr}</td>

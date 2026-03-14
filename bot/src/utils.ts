@@ -20,8 +20,8 @@ export const FactoryOpcodes = {
     createJob: 0x00000010,
 };
 
-export const FACTORY_ADDRESS = 'EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5';
-export const JETTON_FACTORY_ADDRESS = 'EQCQM7ldFYbOcOckGHGCRmYUYlE2t_yBoYaQU7jXJK3fLdkA';
+export const FACTORY_ADDRESS = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
+export const JETTON_FACTORY_ADDRESS = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 
 export function getStateName(state: number): string {
     return STATE_NAMES[state] ?? `UNKNOWN(${state})`;
