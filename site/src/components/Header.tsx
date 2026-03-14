@@ -8,6 +8,12 @@ const TelegramIcon = () => (
   </svg>
 );
 
+const XIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -30,6 +36,9 @@ export default function Header() {
         <div className="hidden md:flex items-center gap-3">
           <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all">
             <TelegramIcon /> <span className="ml-2">Bot</span>
+          </a>
+          <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
+            <XIcon /> <span className="ml-2">X</span>
           </a>
           <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
             <i className="hgi-stroke hgi-github mr-2" style={{ fontSize: 16 }} /> GitHub
@@ -58,6 +67,9 @@ export default function Header() {
             <div className="border-t border-[var(--color-border)] pt-4 flex items-center gap-3">
               <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all">
                 <TelegramIcon /> <span className="ml-2">Bot</span>
+              </a>
+              <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
+                <XIcon /> <span className="ml-2">X</span>
               </a>
               <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
                 <i className="hgi-stroke hgi-github mr-2" style={{ fontSize: 16 }} /> GitHub

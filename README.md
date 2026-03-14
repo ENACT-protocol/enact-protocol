@@ -13,7 +13,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 [![MCP](https://img.shields.io/badge/MCP-14%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
+[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
 
 </div>
 
@@ -292,6 +292,6 @@ MIT
 
 Built for the [TON AI Agent Hackathon 2026](https://identityhub.app/contests/ai-hackathon) — Agent Infrastructure Track
 
-[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot)
+[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol)
 
 </div>
