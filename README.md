@@ -50,7 +50,7 @@ npx blueprint test                    # 56 tests
 | Contract | Address | Explorer |
 |----------|---------|----------|
 | **JobFactory** | `EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5` | [View](https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5) |
-| **JettonJobFactory** | `EQA2fT7BFOe-wB67XkPrLcIfcnJrIPynF2nxdRcHLFUuLfX7` | [View](https://tonviewer.com/EQA2fT7BFOe-wB67XkPrLcIfcnJrIPynF2nxdRcHLFUuLfX7) |
+| **JettonJobFactory** | `EQCQM7ldFYbOcOckGHGCRmYUYlE2t_yBoYaQU7jXJK3fLdkA` | [View](https://tonviewer.com/EQCQM7ldFYbOcOckGHGCRmYUYlE2t_yBoYaQU7jXJK3fLdkA) |
 
 ## The Problem
 

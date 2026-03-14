@@ -21,7 +21,7 @@ const ERR_BUDGET_NOT_SET: int = 106;
 const ERR_NO_PROVIDER: int = 107;
 const ERR_JETTON_WALLET_NOT_SET: int = 108;
 
-const MIN_STORAGE: int = 10000000;  // 0.01 TON reserve for storage fees
+const MIN_STORAGE: int = 5000000;   // 0.005 TON reserve for storage fees
 
 const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 
