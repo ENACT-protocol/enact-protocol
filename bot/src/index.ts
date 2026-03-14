@@ -1521,11 +1521,8 @@ async function startFactoryWatcher() {
 
     const apiKey = process.env.TONCENTER_API_KEY ?? '';
 
-    // Try SSE first, fall back to polling
-    connectSSE(apiKey).catch((err) => {
-        console.log('SSE unavailable, using polling fallback:', err.message ?? err);
-        startPollingFallback();
-    });
+    // Use polling — SSE has connection limits on toncenter free tier
+    startPollingFallback();
 }
 
 async function connectSSE(apiKey: string) {
