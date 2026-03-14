@@ -420,18 +420,24 @@ server.tool(
 
 server.tool(
     'set_jetton_wallet',
-    'Set the Jetton wallet address for a Jetton job. Must be called before funding.',
+    'Set the USDT Jetton wallet for a Jetton job. Resolves automatically. Must be called before funding.',
     {
         job_address: z.string().describe('Jetton job contract address'),
-        jetton_wallet_address: z.string().describe('Jetton wallet address for this job'),
     },
-    async ({ job_address, jetton_wallet_address }) => {
+    async ({ job_address }) => {
+        const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+        const jobAddr = Address.parse(job_address);
+        const walletRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+            { type: 'slice', cell: beginCell().storeAddress(jobAddr).endCell() },
+        ]);
+        const jettonWalletAddr = walletRes.stack.readAddress();
+
         const body = beginCell()
             .storeUint(JobOpcodes.setJettonWallet, 32)
-            .storeAddress(Address.parse(jetton_wallet_address))
+            .storeAddress(jettonWalletAddr)
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        const result = await sendTransaction(jobAddr, toNano('0.01'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, jetton_wallet: jettonWalletAddr.toString() }) }] };
     }
 );
 

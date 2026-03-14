@@ -792,7 +792,7 @@ bot.command('createjetton', async (ctx) => {
                 `${e('🪙')} Budget: <b>${budgetTon}</b> USDT\n` +
                 `${e('📄')} Description: ${description}\n\n` +
                 `Approve the transaction in Tonkeeper.\n` +
-                `After creation, fund with USDT via your Jetton wallet.`,
+                `USDT wallet is set automatically after creation.`,
                 { parse_mode: 'HTML', reply_markup: kb }
             );
         }
@@ -818,7 +818,17 @@ bot.command('createjetton', async (ctx) => {
         const jobId = jobCount - 1;
         const jobAddr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, jobId);
 
-        saveDescription(jobId + 100000, description); // offset to avoid collision with TON jobs
+        // Auto set USDT jetton wallet
+        const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+        const jwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+            { type: 'slice', cell: beginCell().storeAddress(jobAddr).endCell() },
+        ]);
+        const jobUsdtWallet = jwRes.stack.readAddress();
+        const setJwBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jobUsdtWallet).endCell();
+        await sendTx(client, w, jobAddr, toNano('0.01'), setJwBody);
+        await new Promise(r => setTimeout(r, 5000));
+
+        saveDescription(jobId + 100000, description);
 
         const kb = new InlineKeyboard()
             .text('🔭 Status', `jstatus_${jobId}`)
@@ -831,7 +841,7 @@ bot.command('createjetton', async (ctx) => {
             `${e('💵')} Budget: <b>${budgetTon}</b> USDT\n` +
             `${e('📄')} Description: ${description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
-            `Next: set Jetton wallet and fund with USDT.`,
+            `USDT wallet set automatically. Ready to fund.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
@@ -866,7 +876,7 @@ bot.callbackQuery('check_created_jetton', async (ctx) => {
             `${e('💵')} Budget: <b>${pending.budgetTon}</b> USDT\n` +
             `${e('📄')} Description: ${pending.description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
-            `Next: set Jetton wallet and fund with USDT.`,
+            `USDT wallet set. Ready to fund.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
