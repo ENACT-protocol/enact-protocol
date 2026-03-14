@@ -443,18 +443,22 @@ server.tool(
 
 server.tool(
     'fund_jetton_job',
-    'Fund a USDT job by sending USDT to the job contract. Resolves wallets automatically.',
+    'Fund a USDT job by sending USDT to the job contract. In local mode resolves wallet automatically. In remote mode requires sender_address.',
     {
         job_address: z.string().describe('Jetton job contract address'),
-        amount_usdt: z.string().describe('Amount in USDT (e.g. "10" for 10 USDT, 6 decimals)'),
+        amount_usdt: z.string().describe('Amount in USDT (e.g. "10" for 10 USDT)'),
+        sender_address: z.string().optional().describe('Your TON wallet address (required in remote mode, auto-detected in local mode)'),
     },
-    async ({ job_address, amount_usdt }) => {
+    async ({ job_address, amount_usdt, sender_address }) => {
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
         const jobAddr = Address.parse(job_address);
         const usdtAmount = BigInt(Math.round(parseFloat(amount_usdt) * 1e6));
 
+        const senderAddr = wallet ? wallet.address
+            : sender_address ? Address.parse(sender_address)
+            : (() => { throw new Error('sender_address required in remote mode (no wallet configured)'); })();
+
         // Resolve sender's USDT jetton wallet
-        const senderAddr = wallet ? wallet.address : jobAddr; // fallback for unsigned mode
         const senderWalletRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
             { type: 'slice', cell: beginCell().storeAddress(senderAddr).endCell() },
         ]);
@@ -464,7 +468,7 @@ server.tool(
         const jettonBody = beginCell()
             .storeUint(0x0f8a7ea5, 32) // op: jetton transfer
             .storeUint(0, 64)           // query_id
-            .storeCoins(usdtAmount)     // amount
+            .storeCoins(usdtAmount)     // jetton amount
             .storeAddress(jobAddr)      // destination: job contract
             .storeAddress(senderAddr)   // response_destination
             .storeBit(false)            // no custom_payload
