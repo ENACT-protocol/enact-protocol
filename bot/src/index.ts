@@ -343,7 +343,7 @@ bot.callbackQuery('menu_create', async (ctx) => {
 
 bot.callbackQuery('menu_jobs', async (ctx) => {
     await ctx.answerCallbackQuery();
-    await handleJobs(ctx, 0);
+    await handleJobs(ctx, 0, 'all');
 });
 
 bot.callbackQuery('menu_status', async (ctx) => {
@@ -1023,12 +1023,19 @@ bot.command('status', async (ctx) => {
     await handleStatus(ctx, jobId);
 });
 
-bot.command('jobs', async (ctx) => handleJobs(ctx, 0));
+bot.command('jobs', async (ctx) => handleJobs(ctx, 0, 'all'));
 
-bot.callbackQuery(/^jobs_page_(\d+)$/, async (ctx) => {
+bot.callbackQuery(/^jobs_page_(\d+)_?(.*)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const page = parseInt(ctx.match![1]);
-    await handleJobs(ctx, page);
+    const filter = ctx.match![2] || 'all';
+    await handleJobs(ctx, page, filter);
+});
+
+bot.callbackQuery(/^jobs_filter_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const filter = ctx.match![1];
+    await handleJobs(ctx, 0, filter);
 });
 
 bot.command('evaluate', async (ctx) => {
@@ -1121,84 +1128,83 @@ async function handleFactory(ctx: any) {
     );
 }
 
-async function handleJobs(ctx: any, page: number) {
+async function handleJobs(ctx: any, page: number, filter: string) {
     const PAGE_SIZE = 5;
+    const activeOnly = filter === 'active'; // show only OPEN/FUNDED
     try {
         const client = await createClient();
         const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
+        let jettonCount = 0;
+        try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
 
-        if (count === 0) {
+        if (count === 0 && jettonCount === 0) {
             const kb = new InlineKeyboard()
                 .text('✍️ Create First Job', 'menu_create').row()
                 .text('🏠 Main Menu', 'menu_main');
             return ctx.reply(`${e('📋')} No jobs yet. Create the first one!`, { parse_mode: 'HTML', reply_markup: kb });
         }
 
-        const totalPages = Math.ceil(count / PAGE_SIZE);
-        const safePage = Math.min(page, totalPages - 1);
-        const start = Math.max(0, count - (safePage + 1) * PAGE_SIZE);
-        const end = count - safePage * PAGE_SIZE;
-
-        let text = `${eid(EID.browseJobs, '📋')} <b>Jobs (${count} total)</b>`;
-        if (totalPages > 1) text += ` — page ${safePage + 1}/${totalPages}`;
-        text += '\n\n';
-
         const stateIcon: Record<string, string> = {
             OPEN: e('🟢'), FUNDED: e('💰'), SUBMITTED: e('📨'),
             COMPLETED: e('✅'), DISPUTED: e('⚠️'), CANCELLED: e('🚫'),
         };
 
-        for (let i = start; i < end; i++) {
+        // Collect all jobs first
+        const jobs: Array<{id: number; type: string; state: string; budget: string; icon: string}> = [];
+        for (let i = 0; i < count; i++) {
             const addr = await getJobAddress(client, FACTORY_ADDRESS, i);
             try {
                 const s = await getJobStatus(client, addr.toString());
-                const icon = stateIcon[s.stateName] ?? '❓';
-                const desc = jobDescriptions.get(i);
-                text += `${icon} <b>#${i}</b> — ${s.stateName} | ${ton(fmtTon(s.budget))}`;
-                if (desc) text += `\n     ${e('📄')} <i>${desc.slice(0, 60)}${desc.length > 60 ? '...' : ''}</i>`;
-                text += '\n';
-            } catch {
-                text += `⬜ <b>#${i}</b> — (not initialized)\n`;
-            }
-            if (i < end - 1) await new Promise(r => setTimeout(r, 300));
+                if (!activeOnly || s.stateName === 'OPEN' || s.stateName === 'FUNDED') {
+                    jobs.push({ id: i, type: 'ton', state: s.stateName, budget: ton(fmtTon(s.budget)), icon: stateIcon[s.stateName] ?? '❓' });
+                }
+            } catch {}
+            if (i < count - 1) await new Promise(r => setTimeout(r, 200));
+        }
+        for (let i = 0; i < jettonCount; i++) {
+            const addr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, i);
+            try {
+                const s = await getJobStatus(client, addr.toString());
+                if (!activeOnly || s.stateName === 'OPEN' || s.stateName === 'FUNDED') {
+                    jobs.push({ id: i, type: 'jetton', state: s.stateName, budget: `<b>${fmtUsdt(s.budget)}</b> ${e('💵')}`, icon: stateIcon[s.stateName] ?? '❓' });
+                }
+            } catch {}
+            if (i < jettonCount - 1) await new Promise(r => setTimeout(r, 200));
         }
 
-        // Also show Jetton jobs (on first page only)
-        let jettonCount = 0;
-        if (safePage === 0) {
-            try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
-            if (jettonCount > 0) {
-                text += `\n${e('💵')} <b>Jetton Jobs (${jettonCount} total)</b>\n\n`;
-                const jStart = Math.max(0, jettonCount - 5);
-                for (let i = jStart; i < jettonCount; i++) {
-                    const addr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, i);
-                    try {
-                        const s = await getJobStatus(client, addr.toString());
-                        const icon = stateIcon[s.stateName] ?? '❓';
-                        text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n`;
-                    } catch {
-                        text += `⬜ <b>J#${i}</b> — (not initialized)\n`;
-                    }
-                    if (i < jettonCount - 1) await new Promise(r => setTimeout(r, 300));
-                }
-            }
+        const totalPages = Math.ceil(jobs.length / PAGE_SIZE) || 1;
+        const safePage = Math.min(page, totalPages - 1);
+        const pageJobs = jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+        let text = `${eid(EID.browseJobs, '📋')} <b>Jobs</b> (${jobs.length}${activeOnly ? ' active' : ' total'})`;
+        if (totalPages > 1) text += ` — page ${safePage + 1}/${totalPages}`;
+        text += '\n\n';
+
+        for (const j of pageJobs) {
+            const prefix = j.type === 'jetton' ? 'J#' : '#';
+            text += `${j.icon} <b>${prefix}${j.id}</b> — ${j.state} | ${j.budget}\n`;
         }
+        if (pageJobs.length === 0) text += '<i>No jobs match filter</i>\n';
 
         const kb = new InlineKeyboard();
-        for (let i = start; i < end; i++) {
-            kb.text(`🔭 #${i}`, `status_${i}`);
-        }
-        if (safePage === 0 && jettonCount > 0) {
-            kb.row();
-            for (let i = Math.max(0, jettonCount - 5); i < jettonCount; i++) {
-                kb.text(`💵 J#${i}`, `jstatus_${i}`);
-            }
+        for (const j of pageJobs) {
+            const cb = j.type === 'jetton' ? `jstatus_${j.id}` : `status_${j.id}`;
+            const label = j.type === 'jetton' ? `💵 J#${j.id}` : `🔭 #${j.id}`;
+            kb.text(label, cb);
         }
         kb.row();
 
-        // Pagination buttons
-        if (safePage < totalPages - 1) kb.text('⬅️ Older', `jobs_page_${safePage + 1}`);
-        if (safePage > 0) kb.text('Newer ➡️', `jobs_page_${safePage - 1}`);
+        // Filter buttons
+        if (activeOnly) {
+            kb.text('📋 Show All', 'jobs_filter_all');
+        } else {
+            kb.text('🟢 Active Only', 'jobs_filter_active');
+        }
+        kb.row();
+
+        // Pagination
+        if (safePage < totalPages - 1) kb.text('⬅️ Older', `jobs_page_${safePage + 1}_${filter}`);
+        if (safePage > 0) kb.text('Newer ➡️', `jobs_page_${safePage - 1}_${filter}`);
         if (totalPages > 1) kb.row();
 
         kb.text('✍️ Create Job', 'menu_create')
@@ -1224,7 +1230,7 @@ async function handleStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const resultText = null as string | null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1520,7 +1526,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const resultText = null as string | null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
