@@ -1843,8 +1843,9 @@ async function main() {
     loadWallets();
     loadDescriptions();
     await loadCustomEmoji();
-    bot.start();
-    console.log('ENACT Protocol bot started');
+    // Drop pending updates to avoid 409 conflict with previous instance
+    await bot.api.deleteWebhook({ drop_pending_updates: true });
+    bot.start({ onStart: () => console.log('ENACT Protocol bot started') });
 
     // Start real-time factory watcher (non-blocking)
     startFactoryWatcher().catch(err =>
