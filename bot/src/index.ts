@@ -1544,6 +1544,7 @@ async function connectSSE(apiKey: string) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream',
                     ...(apiKey ? { 'X-API-Key': apiKey } : {}),
                 },
                 body: JSON.stringify({
