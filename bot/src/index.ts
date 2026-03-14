@@ -1530,8 +1530,14 @@ async function startFactoryWatcher() {
 
 async function connectSSE(apiKey: string) {
     const factoryRaw = Address.parse(FACTORY_ADDRESS).toRawString();
+    let failures = 0;
 
     while (true) {
+        if (failures >= 3) {
+            console.log('SSE failed 3 times, switching to polling');
+            startPollingFallback();
+            return;
+        }
         try {
             console.log('Connecting to TON Streaming API v2...');
             const res = await fetch('https://toncenter.com/api/streaming/v2/sse', {
@@ -1572,6 +1578,7 @@ async function connectSSE(apiKey: string) {
             }
         } catch (err: any) {
             console.error('SSE error:', err.message ?? err);
+            failures++;
         }
         await new Promise(r => setTimeout(r, 5000));
     }
