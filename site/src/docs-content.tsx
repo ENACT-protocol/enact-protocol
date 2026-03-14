@@ -748,7 +748,7 @@ npm install && npm run build`}</Code>
         <PageHeader
           label="Integrations"
           title="Telegram Bot"
-          desc="Interactive bot with inline buttons for job management via Telegram. Features real-time transaction detection via TON Streaming API v2. Live at @EnactProtocolBot."
+          desc="Interactive bot with inline buttons for job management via Telegram. Auto-detects on-chain confirmations. Live at @EnactProtocolBot."
         />
 
         <Tip>Live on mainnet: <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="underline">@EnactProtocolBot</a> — open in Telegram and try it now.</Tip>

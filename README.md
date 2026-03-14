@@ -174,7 +174,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 
 ## Telegram Bot
 
-Interactive bot with inline buttons for the full job lifecycle. Features TonConnect wallet integration, real-time transaction detection via TON Streaming API v2, and persistent wallet/description storage.
+Interactive bot with inline buttons for the full job lifecycle. Features TonConnect wallet integration and auto-detection of on-chain confirmations.
 
 **Live:** [@EnactProtocolBot](https://t.me/EnactProtocolBot)
 
