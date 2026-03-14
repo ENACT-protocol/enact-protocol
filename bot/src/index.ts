@@ -372,7 +372,7 @@ bot.callbackQuery('menu_connect_mnemonic', async (ctx) => {
         `${e('🔑')} <b>Connect via Mnemonic</b>\n\n` +
         `Send your 24-word mnemonic phrase:\n` +
         `<code>/connect word1 word2 ... word24</code>\n\n` +
-        `${e('🔒')} Your mnemonic is stored in memory only and is never saved to disk.\n` +
+        `${e('🔒')} Your mnemonic is stored encrypted on the server.\n` +
         `${e('⚠️')} Send this in a <b>private chat</b> with the bot for security.`,
         { parse_mode: 'HTML' }
     );
@@ -540,7 +540,7 @@ bot.command('connect', async (ctx) => {
             `${e('✅')} <b>Wallet Connected!</b>\n\n` +
             `${e('📍')} Address:\n<code>${addr}</code>\n\n` +
             `${e('🪙')} Balance: ${ton((Number(balance) / 1e9).toFixed(2))}\n\n` +
-            `${e('🔒')} Your mnemonic is stored in memory only.`,
+            `${e('🔒')} Your mnemonic is stored encrypted on the server.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {

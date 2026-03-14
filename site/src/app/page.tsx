@@ -40,11 +40,11 @@ export default function Home() {
           </Link>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 mono-label text-[#52525B] mt-4 sm:mt-8">
-          <span>57 tests</span>
+          <span>56 tests</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
-          <span>4 contracts</span>
+          <span>3 contracts</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
-          <span>11 MCP tools</span>
+          <span>14 MCP tools</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>0% fee</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
@@ -282,7 +282,7 @@ export default function Home() {
             {[
               ['1','Smart Contracts','Job · JobFactory · JettonJob · JettonJobFactory'],
               ['2','TypeScript SDK','Wrappers for on-chain interaction'],
-              ['3','MCP Server','11 tools for any LLM agent'],
+              ['3','MCP Server','14 tools for any LLM agent'],
               ['4','Integrations','Telegram Bot · Teleton Plugin'],
             ].map(([n,name,tech],i)=>(
               <div key={n} className={`border-t-subtle ${i===3?'border-b-subtle':''} py-4 sm:py-5 group hover:bg-[rgba(255,255,255,0.02)] transition-colors px-3 sm:px-4 -mx-3 sm:-mx-4`}>
@@ -300,7 +300,7 @@ export default function Home() {
                 ['Auto-Claim','Provider auto-claims after 24h of evaluator silence. No funds ever get stuck.'],
                 ['USDT & Jetton','Pay in native TON or any TEP-74 Jetton. Separate JettonJob contracts for stablecoin escrow.'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. Full job lifecycle in 6 tools.'],
-                ['MCP Server','11 tools via Model Context Protocol. Connect Claude, GPT, Cursor, or any MCP-compatible LLM.'],
+                ['MCP Server','14 tools via Model Context Protocol. Connect Claude, GPT, Cursor, or any MCP-compatible LLM.'],
                 ['Budget & Quit','Negotiate price before funding. Provider can quit before submitting — job reopens.'],
               ].map(([t,d])=>(
                 <div key={t} className="pl-4 border-l-2 border-[var(--color-accent)]/30">
@@ -391,8 +391,8 @@ export default function Home() {
             <p className="text-sm text-gray-400 font-light mb-8 sm:mb-12">Integrations that let any agent interact with ENACT on-chain.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {[
-                ['MCP Server','Model Context Protocol for LLMs. 11 tools covering the full job lifecycle.','Claude · Cursor · GPT · any MCP client'],
-                ['Telegram Bot','13 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot'],
+                ['MCP Server','Model Context Protocol for LLMs. 14 tools covering the full job lifecycle.','Claude · Cursor · GPT · any MCP client'],
+                ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 6 tools — find, take, submit, evaluate.','cp plugin → ~/.teleton/plugins/'],
               ].map(([n,d,t])=>(
                 <div key={n} className="bg-[#0A0A0E] border border-[#1A1A24] p-4 sm:p-5 hover:border-gray-700 transition-colors">
@@ -438,7 +438,7 @@ export default function Home() {
                 </Link>
                 <div className="flex items-center gap-3 text-sm text-gray-500">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>
-                  57 tests passing — full coverage
+                  56 tests passing — full coverage
                 </div>
               </div>
             </div>

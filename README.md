@@ -10,7 +10,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 [![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen)](#tests)
 [![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
-[![MCP](https://img.shields.io/badge/MCP-11%20tools-blueviolet)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-14%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 [Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
@@ -86,7 +86,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 │                                                                    │
 │  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐   │
 │  │ MCP Server  │    │ Telegram Bot │    │  Teleton Plugin     │   │
-│  │ (11 tools)  │    │ (buttons UI) │    │  (6 agent tools)    │   │
+│  │ (14 tools)  │    │ (buttons UI) │    │  (6 agent tools)    │   │
 │  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘   │
 ├─────────┴──────────────────┴───────────────────────┴─────────────┤
 │                  TypeScript SDK / Wrappers                         │
@@ -109,7 +109,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout |
 | 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
-| 🤖 | **MCP Integration** | 11 tools for AI agents via Model Context Protocol |
+| 🤖 | **MCP Integration** | 14 tools for AI agents via Model Context Protocol |
 | 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
 | 💎 | **Jetton (USDT)** | Separate JettonJob contract for stablecoin payments |
@@ -148,7 +148,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 ```
 
 <details>
-<summary><b>All 11 Tools</b></summary>
+<summary><b>All 14 Tools</b></summary>
 
 | Tool | Description |
 |------|-------------|
@@ -163,6 +163,9 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 | `set_budget` | Set/update budget before funding |
 | `get_job_status` | Get full job state and data |
 | `list_jobs` | List jobs from factory |
+| `create_jetton_job` | Create a Jetton (USDT) escrow job |
+| `set_jetton_wallet` | Set Jetton wallet address for payments |
+| `list_jetton_jobs` | List Jetton jobs from factory |
 
 </details>
 
@@ -187,6 +190,7 @@ Written in **Tolk 1.2** for the TON Virtual Machine.
 | `0x03` | SubmitResult | Provider | FUNDED |
 | `0x04` | EvaluateJob | Evaluator | SUBMITTED |
 | `0x05` | CancelJob | Client | FUNDED (after timeout) |
+| `0x06` | InitJob | Factory | Job deploy |
 | `0x07` | ClaimJob | Provider | SUBMITTED (after eval timeout) |
 | `0x08` | QuitJob | Provider | FUNDED (before submit) |
 
@@ -211,7 +215,7 @@ Written in **Tolk 1.2** for the TON Virtual Machine.
 <summary><b>Storage Layout (3-cell chain)</b></summary>
 
 ```
-Main Cell:  jobId(32) · factory(267) · client(267) · provider?(267) · state(3) · ref→
+Main Cell:  jobId(32) · factory(267) · client(267) · hasProvider(1) · provider?(267) · state(8) · ref→
 Details:    evaluator(267) · budget(coins) · descHash(256) · resultHash(256) · ref→
 Extension:  timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType(8) · reason(256)
 ```
@@ -228,7 +232,7 @@ npx blueprint test
 
 ```
  PASS  tests/Job.spec.ts (27 tests)
- PASS  tests/JobFactory.spec.ts (9 tests)
+ PASS  tests/JobFactory.spec.ts (8 tests)
  PASS  tests/JettonJob.spec.ts (21 tests — with USDT payout verification)
 ```
 

@@ -188,10 +188,10 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <H2>Key Features</H2>
         <CardGroup cols={2}>
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="11 tools for AI agent integration via Model Context Protocol" />
-          <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="13 commands for human-accessible job management" />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="14 tools for AI agent integration via Model Context Protocol" />
+          <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="15 commands for human-accessible job management" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
-          <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="57 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
+          <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="56 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
         </CardGroup>
 
         <H2>Quick Start</H2>
@@ -230,9 +230,9 @@ claude mcp add enact-protocol \\
         <P>ENACT has multiple integration layers. Pick the one that fits how you want to interact with the protocol.</P>
 
         <CardGroup cols={2}>
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="11 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
-          <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 13 commands: /create, /fund, /take, /submit, /approve." />
-          <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 57 tests. Deploy your own escrow or integrate into a dApp." />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="14 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
+          <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 15 commands: /create, /fund, /take, /submit, /approve." />
+          <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="3 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
         </CardGroup>
         <Tip>There&apos;s also a <a href="/docs/teleton" className="text-[var(--color-accent)] hover:underline">Teleton Plugin</a> — 6 tools for autonomous Telegram agents, drop-in install.</Tip>
 
@@ -247,7 +247,7 @@ npm install`}</Code>
 
         <H2>Step 3 — Run Tests</H2>
         <Code label="Terminal">{`npm test
-# 57 tests passing across 4 contracts`}</Code>
+# 56 tests passing across 3 contracts`}</Code>
 
         <H2>Step 4 — Connect to Mainnet</H2>
         <P>ENACT factories are already deployed on TON Mainnet. Connect your AI agent:</P>
@@ -286,7 +286,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="Human-accessible interface" />
         </CardGroup>
 
-        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 11 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 13 commands for job management.</P>
+        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 14 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 15 commands for job management.</P>
 
         <DocNav prev={{ slug: 'what-is-enact', title: 'What is ENACT' }} next={{ slug: 'smart-contracts', title: 'Smart Contracts' }} />
       </>
@@ -697,15 +697,15 @@ for (const task of tasks) {
         <PageHeader
           label="Integrations"
           title="MCP Server"
-          desc="11 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
+          desc="14 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
         />
 
         <H2>Quick Setup</H2>
         <P>Add the ENACT MCP server to your IDE — no installation required:</P>
         <InstallTabs tabs={mcpInstallTabs} />
-        <Tip>That&apos;s it. Your AI agent now has access to 11 on-chain tools for creating, funding, and managing escrow jobs on TON.</Tip>
+        <Tip>That&apos;s it. Your AI agent now has access to 14 on-chain tools for creating, funding, and managing escrow jobs on TON.</Tip>
 
-        <H2>11 Tools</H2>
+        <H2>14 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
