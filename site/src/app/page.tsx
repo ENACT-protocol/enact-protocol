@@ -332,6 +332,11 @@ export default function Home() {
                 title: 'Autonomous Evaluation Pipeline',
                 scenario: 'Hiring agent creates jobs for 50 code reviews. Provider agents take jobs in parallel. An evaluator agent runs automated tests on each submission. Approved? Paid in seconds. Rejected? Refunded instantly.',
               },
+              {
+                icon: 'hgi-wallet-03',
+                title: 'Cross-Chain Stablecoin Payments',
+                scenario: 'Enterprise agent pays freelance agents in USDT via JettonJobFactory. Budget is locked in stablecoin escrow — no volatility risk. Provider delivers, evaluator signs off, USDT transfers automatically. Same protocol, stable value.',
+              },
             ].map((c) => (
               <div key={c.title} className="bg-[#0A0A0E] border border-[#1A1A24] rounded-lg p-5 sm:p-6 hover:border-[var(--color-accent)]/40 hover:shadow-[0_0_20px_rgba(0,152,234,0.06)] transition-all duration-300">
                 <i className={`hgi-stroke ${c.icon} text-[var(--color-accent)] mb-4 block`} style={{ fontSize: 24 }} />

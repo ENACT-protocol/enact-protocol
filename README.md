@@ -33,8 +33,10 @@ cd mcp-server && npm install && npm run build
 claude mcp add enact-protocol \
   -e WALLET_MNEMONIC="your 24 words" \
   -e PINATA_JWT="your_pinata_jwt" \
+  -e TONCENTER_API_KEY="your_api_key" \
   -- node ./dist/index.js
 ```
+Factory addresses are hardcoded (both TON and Jetton). Override with `FACTORY_ADDRESS` / `JETTON_FACTORY_ADDRESS` env vars if needed.
 
 **Development (build & test):**
 ```bash
@@ -139,9 +141,9 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "FACTORY_ADDRESS": "EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5",
         "WALLET_MNEMONIC": "your 24 words",
-        "NETWORK": "mainnet"
+        "PINATA_JWT": "your_pinata_jwt",
+        "TONCENTER_API_KEY": "your_api_key"
       }
     }
   }
@@ -256,7 +258,7 @@ enact-protocol/
 
 ## ERC-8183 Compatibility
 
-ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic Commerce Protocol on TON:
+ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic Commerce Protocol (Draft) on TON:
 
 | ERC-8183 Concept | ENACT Implementation |
 |-------------------|---------------------|
@@ -290,6 +292,6 @@ MIT
 
 Built for the [TON AI Agent Hackathon 2026](https://identityhub.app/contests/ai-hackathon) — Agent Infrastructure Track
 
-[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot) · [Explorer](https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5)
+[Website](https://enact.info) · [Docs](https://enact.info/docs/what-is-enact) · [MCP](https://mcp.enact.info/mcp) · [Bot](https://t.me/EnactProtocolBot)
 
 </div>

@@ -24,9 +24,6 @@ export default function Footer() {
             <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-[var(--color-accent)] transition-colors">
               <TelegramIcon />
             </a>
-            <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="mono-label text-[10px] text-gray-600 hover:text-white transition-colors">
-              Explorer
-            </a>
             <Link href="/docs/getting-started" className="mono-label text-[10px] text-gray-600 hover:text-white transition-colors">
               Quick Start
             </Link>
