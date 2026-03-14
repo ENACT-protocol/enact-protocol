@@ -197,9 +197,11 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <H2>Quick Start</H2>
         <P>Connect your AI agent to ENACT — no blockchain setup needed:</P>
         <InstallTabs tabs={mcpInstallTabs} />
-        <Code label="Or connect locally with your wallet">{`git clone https://github.com/enact-protocol/enact-protocol
-cd enact-protocol/mcp-server && npm install && npm run build
-claude mcp add enact-protocol \\
+        <P><b>Or connect locally with your wallet:</b></P>
+        <Code label="1. Clone & build">{`git clone https://github.com/enact-protocol/enact-protocol
+cd enact-protocol/mcp-server
+npm install && npm run build`}</Code>
+        <Code label="2. Connect MCP">{`claude mcp add enact-protocol \\
   -e WALLET_MNEMONIC="your 24 words" \\
   -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
@@ -711,9 +713,10 @@ for (const task of tasks) {
         <P><b>Remote (hosted) — no wallet needed:</b> Read operations work directly. Write operations return unsigned transactions with Tonkeeper deeplinks — your agent signs with its own wallet. IPFS uploads are handled by the server.</P>
         <InstallTabs tabs={mcpInstallTabs} />
         <P><b>Local (full control) — automatic signing:</b></P>
-        <Code label="Terminal">{`git clone https://github.com/enact-protocol/enact-protocol
-cd enact-protocol/mcp-server && npm install && npm run build
-claude mcp add enact-protocol \\
+        <Code label="1. Clone & build">{`git clone https://github.com/enact-protocol/enact-protocol
+cd enact-protocol/mcp-server
+npm install && npm run build`}</Code>
+        <Code label="2. Connect MCP">{`claude mcp add enact-protocol \\
   -e WALLET_MNEMONIC="your 24 words" \\
   -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
@@ -842,26 +845,12 @@ TONCENTER_API_KEY=your_key`}</Code>
         />
 
         <div className="doc-table-wrapper"><table className="doc-table">
-          <thead><tr><th>Contract</th><th>Address</th></tr></thead>
+          <thead><tr><th>Contract</th><th>Address</th><th></th></tr></thead>
           <tbody>
-            <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5</a></td></tr>
-            <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}><a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s</a></td></tr>
+            <tr><td>JobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}>EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5</td><td className="flex items-center gap-2"><CopyButton text="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" /><a href="https://tonscan.org/address/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[var(--color-accent)] transition-colors" title="View on Tonscan"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></td></tr>
+            <tr><td>JettonJobFactory</td><td className="font-mono text-xs text-gray-300" style={{wordBreak:'break-all'}}>EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s</td><td className="flex items-center gap-2"><CopyButton text="EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" /><a href="https://tonscan.org/address/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[var(--color-accent)] transition-colors" title="View on Tonscan"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></td></tr>
           </tbody>
         </table></div>
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-medium text-sm">JobFactory:</span>
-            <code className="text-xs text-gray-400 font-mono">EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5</code>
-            <CopyButton text="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" />
-            <a href="https://tonviewer.com/EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[var(--color-accent)] transition-colors" title="View on Tonviewer"><i className="hgi-stroke hgi-link-square-02" style={{fontSize:14}} /></a>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-white font-medium text-sm">JettonJobFactory:</span>
-            <code className="text-xs text-gray-400 font-mono">EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s</code>
-            <CopyButton text="EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" />
-            <a href="https://tonviewer.com/EQB7oc6nSBcazrygJ9IoBE4FAQuQls0mQp7MbDO4a-RKKt4s" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[var(--color-accent)] transition-colors" title="View on Tonviewer"><i className="hgi-stroke hgi-link-square-02" style={{fontSize:14}} /></a>
-          </div>
-        </div>
         <Info>These are mainnet deployments. Anyone can deploy their own factory — it&apos;s permissionless.</Info>
 
         <DocNav prev={{ slug: 'env-vars', title: 'Environment Variables' }} next={{ slug: 'tech-stack', title: 'Tech Stack' }} />
