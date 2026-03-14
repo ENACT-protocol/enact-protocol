@@ -101,6 +101,8 @@ export async function getJobStatus(client: TonClient, jobAddress: string) {
         provider: providerAddr?.toString() ?? 'none',
         evaluator: evaluatorAddr.toString(),
         budget,
+        descHash: descHash.toString(16).padStart(64, '0'),
+        resultHash: resultHash.toString(16).padStart(64, '0'),
         timeout, createdAt, evalTimeout, submittedAt, resultType,
         reason: reason.toString(),
     };

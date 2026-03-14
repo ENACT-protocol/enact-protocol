@@ -192,6 +192,22 @@ function logo(): string {
 
 // ─── Helpers ───
 
+// ─── IPFS content fetch ───
+const ipfsCache = new Map<string, string>();
+
+async function fetchIPFS(hash: string): Promise<string | null> {
+    if (!hash || hash === '0'.repeat(64)) return null;
+    if (ipfsCache.has(hash)) return ipfsCache.get(hash)!;
+    try {
+        const res = await fetch(`https://gateway.pinata.cloud/ipfs/${hash}`, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const text = data.description ?? data.result ?? JSON.stringify(data);
+        ipfsCache.set(hash, text);
+        return text;
+    } catch { return null; }
+}
+
 function getUserId(ctx: any): number {
     return ctx.from?.id ?? 0;
 }
@@ -245,8 +261,8 @@ bot.command('start', async (ctx) => {
         .text('✍️ Create Job', 'menu_create')
         .text('📋 Browse Jobs', 'menu_jobs').row()
         .text('🔭 Job Status', 'menu_status')
-        .text('👛 Wallet', 'menu_wallet').row()
-        .text('📊 Factories', 'menu_factory')
+        .text('⚖️ Evaluate', 'menu_evaluate').row()
+        .text('👛 Wallet', 'menu_wallet')
         .text('❓ Help', 'menu_help');
 
     await ctx.reply(
@@ -271,8 +287,8 @@ bot.callbackQuery('menu_main', async (ctx) => {
         .text('✍️ Create Job', 'menu_create')
         .text('📋 Browse Jobs', 'menu_jobs').row()
         .text('🔭 Job Status', 'menu_status')
-        .text('👛 Wallet', 'menu_wallet').row()
-        .text('📊 Factories', 'menu_factory')
+        .text('⚖️ Evaluate', 'menu_evaluate').row()
+        .text('👛 Wallet', 'menu_wallet')
         .text('❓ Help', 'menu_help');
 
     await ctx.reply(
@@ -381,6 +397,18 @@ bot.callbackQuery('menu_connect_mnemonic', async (ctx) => {
 bot.callbackQuery('menu_factory', async (ctx) => {
     await ctx.answerCallbackQuery();
     await handleFactory(ctx);
+});
+
+bot.callbackQuery('menu_evaluate', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+        `${e('⚖️')} <b>Evaluate a Job</b>\n\n` +
+        `Send the command:\n` +
+        `<code>/evaluate job_id</code>\n\n` +
+        `Example: <code>/evaluate 0</code>\n\n` +
+        `${e('💡')} You must be the evaluator of the job. The bot will show the submitted result and let you approve or reject.`,
+        { parse_mode: 'HTML' }
+    );
 });
 
 bot.callbackQuery('menu_help', async (ctx) => {
@@ -959,6 +987,20 @@ bot.callbackQuery(/^jobs_page_(\d+)$/, async (ctx) => {
     await handleJobs(ctx, page);
 });
 
+bot.command('evaluate', async (ctx) => {
+    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
+    if (isNaN(jobId)) {
+        return ctx.reply(
+            `${e('⚖️')} <b>Evaluate a Job</b>\n\n` +
+            `Usage: <code>/evaluate job_id</code>\n\n` +
+            `Example: <code>/evaluate 0</code>\n\n` +
+            `Shows job details + result, then lets you approve or reject.`,
+            { parse_mode: 'HTML' }
+        );
+    }
+    await handleStatus(ctx, jobId);
+});
+
 // ────────────────────────────────────────────
 // Handlers
 // ────────────────────────────────────────────
@@ -1132,12 +1174,14 @@ async function handleStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId);
+        const desc = jobDescriptions.get(jobId) ?? await fetchIPFS(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await fetchIPFS(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `${e('📄')} Description: ${desc}\n` : '') +
+            (desc ? `${e('📄')} Description: <i>${desc.slice(0, 200)}</i>\n` : '') +
+            (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
@@ -1424,12 +1468,14 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId + 100000);
+        const desc = jobDescriptions.get(jobId + 100000) ?? await fetchIPFS(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await fetchIPFS(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtTon(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `${e('📄')} Description: ${desc}\n` : '') +
+            (desc ? `${e('📄')} Description: <i>${desc.slice(0, 200)}</i>\n` : '') +
+            (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
@@ -1494,9 +1540,11 @@ async function showHelp(ctx: any) {
         `  /createjetton — Create a USDT (Jetton) job\n` +
         `  /fund — Fund a job with ${eid(EID.tonCoin, '💎')}\n` +
         `  /budget — Change job budget\n` +
+        `  /cancel — Cancel after timeout (24h)\n\n` +
+        `<b>${e('⚖️')} For Evaluators:</b>\n` +
+        `  /evaluate — Review job + approve or reject\n` +
         `  /approve — Approve submitted result\n` +
-        `  /reject — Reject submitted result\n` +
-        `  /cancel — Cancel after timeout\n\n` +
+        `  /reject — Reject submitted result\n\n` +
         `<b>${eid(EID.forProviders, '🔧')} For Providers:</b>\n` +
         `  /take — Take an open job\n` +
         `  /submit — Submit your result\n` +
