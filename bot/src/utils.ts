@@ -132,6 +132,15 @@ export function fmtTon(nanotons: bigint | string): string {
     }
 }
 
+export function fmtUsdt(units: bigint | string): string {
+    try {
+        const val = typeof units === 'bigint' ? units : BigInt(units);
+        return (Number(val) / 1e6).toFixed(2);
+    } catch {
+        return '0.00';
+    }
+}
+
 export function explorerLink(addr: string): string {
     return `https://tonscan.org/address/${addr}`;
 }

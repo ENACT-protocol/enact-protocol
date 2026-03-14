@@ -8,7 +8,7 @@ import TonConnect, { IStorage } from '@tonconnect/sdk';
 import {
     createClient, createWalletFromMnemonic, sendTx,
     getJobStatus, getFactoryJobCount, getJobAddress,
-    FactoryOpcodes, JobOpcodes, fmtTon, explorerLink,
+    FactoryOpcodes, JobOpcodes, fmtTon, fmtUsdt, explorerLink,
     FACTORY_ADDRESS, JETTON_FACTORY_ADDRESS,
 } from './utils';
 
@@ -1203,7 +1203,7 @@ async function handleJobs(ctx: any, page: number) {
                     try {
                         const s = await getJobStatus(client, addr.toString());
                         const icon = stateIcon[s.stateName] ?? '❓';
-                        text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtTon(s.budget)}</b> ${e('💵')}\n`;
+                        text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n`;
                     } catch {
                         text += `⬜ <b>J#${i}</b> — (not initialized)\n`;
                     }
@@ -1502,14 +1502,17 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
             .storeUint(0n, 256)
             .endCell();
 
+        // Use 0.06 TON gas — Jetton jobs need extra for USDT payout. Excess refunded.
+        const evalGas = toNano('0.06');
+
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), evalGas, body);
             const kb = new InlineKeyboard()
                 .url('👛 Approve in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
             await ctx.reply(
-                `${approved ? e('✅') : e('❌')} <b>${approved ? 'Approve' : 'Reject'} Job #${jobId}</b>\n\nOpen Tonkeeper to approve. Auto-detecting...`,
+                `${approved ? e('✅') : e('❌')} <b>${approved ? 'Approve' : 'Reject'} Job #${jobId}</b>\n\nOpen Tonkeeper to approve.`,
                 { parse_mode: 'HTML', reply_markup: kb }
             );
             watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), approved ? 3 : 4);
@@ -1519,7 +1522,7 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
         const w = await requireWallet(ctx);
         if (!w) return;
         await ctx.reply(`${e('⏳')} ${approved ? 'Approving' : 'Rejecting'} job #${jobId}...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await sendTx(client, w, jobAddr, evalGas, body);
 
         const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
         if (approved) {
@@ -1550,7 +1553,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
-            `${e('💵')} Budget: <b>${fmtTon(s.budget)}</b> ${e('💵')}\n` +
+            `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
             (desc ? `${e('📄')} Description: <i>${desc.slice(0, 200)}</i>\n` : '') +
             (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
