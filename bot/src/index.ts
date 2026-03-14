@@ -1011,8 +1011,14 @@ bot.command('quit', async (ctx) => {
 });
 
 bot.command('status', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/status job_id</code>`, { parse_mode: 'HTML' });
+    const arg = ctx.message?.text?.split(' ')[1] ?? '';
+    if (arg.toLowerCase().startsWith('j')) {
+        const jobId = parseInt(arg.slice(1));
+        if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/status j0</code> (USDT) or <code>/status 0</code> (TON)`, { parse_mode: 'HTML' });
+        return handleJettonStatus(ctx, jobId);
+    }
+    const jobId = parseInt(arg);
+    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/status 0</code> (TON) or <code>/status j0</code> (USDT)`, { parse_mode: 'HTML' });
     await handleStatus(ctx, jobId);
 });
 
@@ -1025,17 +1031,22 @@ bot.callbackQuery(/^jobs_page_(\d+)$/, async (ctx) => {
 });
 
 bot.command('evaluate', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) {
+    const arg = ctx.message?.text?.split(' ')[1] ?? '';
+    if (!arg) {
         return ctx.reply(
             `${e('⚖️')} <b>Evaluate a Job</b>\n\n` +
-            `Usage: <code>/evaluate job_id</code>\n\n` +
-            `Example: <code>/evaluate 0</code>\n\n` +
+            `Usage:\n<code>/evaluate 0</code> — TON job\n<code>/evaluate j0</code> — USDT job\n\n` +
             `Shows job details + result, then lets you approve or reject.`,
             { parse_mode: 'HTML' }
         );
     }
-    await handleStatus(ctx, jobId);
+    if (arg.toLowerCase().startsWith('j')) {
+        const jobId = parseInt(arg.slice(1));
+        if (!isNaN(jobId)) return handleJettonStatus(ctx, jobId);
+    }
+    const jobId = parseInt(arg);
+    if (!isNaN(jobId)) return handleStatus(ctx, jobId);
+    return ctx.reply(`${e('❌')} Usage: <code>/evaluate 0</code> or <code>/evaluate j0</code>`, { parse_mode: 'HTML' });
 });
 
 // ────────────────────────────────────────────

@@ -442,8 +442,44 @@ server.tool(
 );
 
 server.tool(
+    'fund_jetton_job',
+    'Fund a USDT job by sending USDT to the job contract. Resolves wallets automatically.',
+    {
+        job_address: z.string().describe('Jetton job contract address'),
+        amount_usdt: z.string().describe('Amount in USDT (e.g. "10" for 10 USDT, 6 decimals)'),
+    },
+    async ({ job_address, amount_usdt }) => {
+        const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+        const jobAddr = Address.parse(job_address);
+        const usdtAmount = BigInt(Math.round(parseFloat(amount_usdt) * 1e6));
+
+        // Resolve sender's USDT jetton wallet
+        const senderAddr = wallet ? wallet.address : jobAddr; // fallback for unsigned mode
+        const senderWalletRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+            { type: 'slice', cell: beginCell().storeAddress(senderAddr).endCell() },
+        ]);
+        const senderJettonWallet = senderWalletRes.stack.readAddress();
+
+        // Build jetton transfer body
+        const jettonBody = beginCell()
+            .storeUint(0x0f8a7ea5, 32) // op: jetton transfer
+            .storeUint(0, 64)           // query_id
+            .storeCoins(usdtAmount)     // amount
+            .storeAddress(jobAddr)      // destination: job contract
+            .storeAddress(senderAddr)   // response_destination
+            .storeBit(false)            // no custom_payload
+            .storeCoins(toNano('0.05')) // forward_ton_amount
+            .storeBit(false)            // no forward_payload
+            .endCell();
+
+        const result = await sendTransaction(senderJettonWallet, toNano('0.1'), jettonBody);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, usdt_amount: amount_usdt, sender_jetton_wallet: senderJettonWallet.toString() }) }] };
+    }
+);
+
+server.tool(
     'list_jetton_jobs',
-    'List Jetton (USDT) jobs created by the JettonJobFactory.',
+    'List USDT jobs created by the JettonJobFactory.',
     {
         from_id: z.number().default(0).describe('Start job ID'),
         count: z.number().default(10).describe('Number of jobs to list'),
