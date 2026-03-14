@@ -95,11 +95,12 @@ export async function getJobStatus(client: TonClient, jobAddress: string) {
     const reason = result.stack.readBigNumber();
     const state = result.stack.readNumber();
 
+    const uf = { bounceable: false };
     return {
         jobId, state, stateName: getStateName(state),
-        client: clientAddr.toString(),
-        provider: providerAddr?.toString() ?? 'none',
-        evaluator: evaluatorAddr.toString(),
+        client: clientAddr.toString(uf),
+        provider: providerAddr?.toString(uf) ?? 'none',
+        evaluator: evaluatorAddr.toString(uf),
         budget,
         descHash: descHash.toString(16).padStart(64, '0'),
         resultHash: resultHash.toString(16).padStart(64, '0'),

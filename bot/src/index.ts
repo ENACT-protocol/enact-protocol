@@ -192,19 +192,14 @@ function logo(): string {
 
 // ─── Helpers ───
 
-// ─── IPFS content fetch ───
-const ipfsCache = new Map<string, string>();
-
-async function fetchIPFS(hash: string): Promise<string | null> {
+// ─── Description/result decoding ───
+function decodeHash(hash: string): string | null {
     if (!hash || hash === '0'.repeat(64)) return null;
-    if (ipfsCache.has(hash)) return ipfsCache.get(hash)!;
     try {
-        const res = await fetch(`https://gateway.pinata.cloud/ipfs/${hash}`, { signal: AbortSignal.timeout(5000) });
-        if (!res.ok) return null;
-        const data = await res.json();
-        const text = data.description ?? data.result ?? JSON.stringify(data);
-        ipfsCache.set(hash, text);
-        return text;
+        // Hash is hex-encoded text (first 32 bytes of description)
+        const clean = hash.replace(/0+$/, '');
+        if (clean.length < 2) return null;
+        return Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
     } catch { return null; }
 }
 
@@ -263,6 +258,7 @@ bot.command('start', async (ctx) => {
         .text('🔭 Job Status', 'menu_status')
         .text('⚖️ Evaluate', 'menu_evaluate').row()
         .text('👛 Wallet', 'menu_wallet')
+        .text('📊 Factories', 'menu_factory').row()
         .text('❓ Help', 'menu_help');
 
     await ctx.reply(
@@ -289,6 +285,7 @@ bot.callbackQuery('menu_main', async (ctx) => {
         .text('🔭 Job Status', 'menu_status')
         .text('⚖️ Evaluate', 'menu_evaluate').row()
         .text('👛 Wallet', 'menu_wallet')
+        .text('📊 Factories', 'menu_factory').row()
         .text('❓ Help', 'menu_help');
 
     await ctx.reply(
@@ -351,7 +348,7 @@ bot.callbackQuery('menu_connect', async (ctx) => {
     // Listen for connection
     connector.onStatusChange(async (wallet) => {
         if (wallet) {
-            const addr = Address.parseRaw(wallet.account.address).toString();
+            const addr = Address.parseRaw(wallet.account.address).toString({ bounceable: false });
             userTcAddresses.set(userId, addr);
             saveWallets();
             try {
@@ -553,7 +550,7 @@ bot.command('connect', async (ctx) => {
     try {
         const client = await createClient();
         const w = await createWalletFromMnemonic(client, words);
-        const addr = w.wallet.address.toString();
+        const addr = w.wallet.address.toString({ bounceable: false });
         const balance = await client.getBalance(w.wallet.address);
 
         const userId = getUserId(ctx);
@@ -1029,7 +1026,7 @@ async function handleWallet(ctx: any) {
 
         if (mode === 'mnemonic') {
             const w = await createWalletFromMnemonic(client, userWallets.get(userId)!);
-            addr = w.wallet.address.toString();
+            addr = w.wallet.address.toString({ bounceable: false });
             balance = await client.getBalance(w.wallet.address);
         } else {
             addr = userTcAddresses.get(userId)!;
@@ -1174,8 +1171,8 @@ async function handleStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId) ?? await fetchIPFS(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await fetchIPFS(s.resultHash) : null;
+        const desc = jobDescriptions.get(jobId) ?? decodeHash(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? decodeHash(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1468,8 +1465,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId + 100000) ?? await fetchIPFS(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await fetchIPFS(s.resultHash) : null;
+        const desc = jobDescriptions.get(jobId + 100000) ?? decodeHash(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? decodeHash(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
