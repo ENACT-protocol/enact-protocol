@@ -407,7 +407,7 @@ server.tool(
         const body = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
             .storeAddress(Address.parse(evaluator_address))
-            .storeCoins(toNano(budget_jetton))
+            .storeCoins(BigInt(Math.round(parseFloat(budget_jetton) * 1e6))) // USDT: 6 decimals
             .storeUint(BigInt('0x' + hash), 256)
             .storeUint(timeout_seconds, 32)
             .storeUint(evaluation_timeout_seconds, 32)

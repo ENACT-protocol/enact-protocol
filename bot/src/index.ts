@@ -795,10 +795,11 @@ bot.command('createjetton', async (ctx) => {
 
         if (mode === 'tonconnect') {
             const addr = userTcAddresses.get(userId)!;
+            const usdtBudget = BigInt(Math.round(parseFloat(budgetTon) * 1e6)); // USDT: 6 decimals
             const createBody = beginCell()
                 .storeUint(FactoryOpcodes.createJob, 32)
                 .storeAddress(Address.parse(addr))
-                .storeCoins(toNano(budgetTon))
+                .storeCoins(usdtBudget)
                 .storeUint(descHash, 256)
                 .storeUint(86400, 32)
                 .storeUint(86400, 32)
@@ -829,10 +830,11 @@ bot.command('createjetton', async (ctx) => {
 
         await ctx.reply(`${e('⏳')} Creating Jetton job...`, { parse_mode: 'HTML' });
 
+        const usdtBudget = BigInt(Math.round(parseFloat(budgetTon) * 1e6)); // USDT: 6 decimals
         const createBody = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
             .storeAddress(w.wallet.address)
-            .storeCoins(toNano(budgetTon))
+            .storeCoins(usdtBudget)
             .storeUint(descHash, 256)
             .storeUint(86400, 32)
             .storeUint(86400, 32)
