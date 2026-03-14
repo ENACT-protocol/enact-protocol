@@ -210,7 +210,8 @@ server.tool(
             .storeUint(approved ? 1 : 0, 8)
             .storeUint(reasonInt, 256)
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        // 0.06 TON needed for USDT payout gas. For TON jobs excess returns immediately.
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -223,7 +224,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -236,7 +237,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );

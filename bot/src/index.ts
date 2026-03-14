@@ -1474,7 +1474,7 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
             .storeUint(0n, 256)
             .endCell();
 
-        const evalGas = toNano('0.01');
+        const evalGas = toNano('0.06');
 
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), evalGas, body);
