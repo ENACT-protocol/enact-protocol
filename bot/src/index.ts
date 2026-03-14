@@ -289,11 +289,12 @@ bot.callbackQuery('menu_create', async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.reply(
         `${e('✍️')} <b>Create a Job</b>\n\n` +
-        `Send the command:\n` +
-        `<code>/create {amount in TON} {description}</code>\n\n` +
-        `Example:\n` +
-        `<code>/create 5 Write a smart contract</code>\n\n` +
-        `${e('🪙')} The amount is the job budget in ${eid(EID.tonCoin, '💎')}. The job will be created in OPEN state.`,
+        `${e('💎')} <b>TON payment:</b>\n` +
+        `<code>/create {amount} {description}</code>\n` +
+        `Example: <code>/create 5 Write a smart contract</code>\n\n` +
+        `${e('💵')} <b>USDT (Jetton) payment:</b>\n` +
+        `<code>/createjetton {amount} {description}</code>\n` +
+        `Example: <code>/createjetton 10 Audit this code</code>`,
         { parse_mode: 'HTML' }
     );
 });
@@ -684,6 +685,149 @@ bot.command('create', async (ctx) => {
     }
 });
 
+bot.command('createjetton', async (ctx) => {
+    const args = ctx.message?.text?.split(' ').slice(1) ?? [];
+    if (args.length < 2) {
+        return ctx.reply(
+            `${e('💵')} <b>Create a Jetton (USDT) Job</b>\n\n` +
+            `Usage:\n<code>/createjetton {amount} {description}</code>\n\n` +
+            `Example: <code>/createjetton 10 Audit smart contract</code>`,
+            { parse_mode: 'HTML' }
+        );
+    }
+
+    const budgetTon = args[0];
+    if (isNaN(Number(budgetTon)) || Number(budgetTon) <= 0) {
+        return ctx.reply(`${e('❌')} Budget must be a positive number.`, { parse_mode: 'HTML' });
+    }
+
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
+
+    const description = args.slice(1).join(' ');
+    const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
+
+    try {
+        const client = await createClient();
+
+        if (mode === 'tonconnect') {
+            const addr = userTcAddresses.get(userId)!;
+            const createBody = beginCell()
+                .storeUint(FactoryOpcodes.createJob, 32)
+                .storeAddress(Address.parse(addr))
+                .storeCoins(toNano(budgetTon))
+                .storeUint(descHash, 256)
+                .storeUint(86400, 32)
+                .storeUint(86400, 32)
+                .endCell();
+
+            const createLink = tonTransferLink(JETTON_FACTORY_ADDRESS, toNano('0.03'), createBody);
+
+            pendingCreate.set(userId, { budgetTon, description });
+            pendingChats.set(userId, ctx.chat!.id);
+
+            const kb = new InlineKeyboard()
+                .url('1️⃣ Create Jetton Job', createLink).row()
+                .text('🔄 Check Manually', 'check_created_jetton').row()
+                .text('🏠 Main Menu', 'menu_main');
+
+            return ctx.reply(
+                `${e('💵')} <b>Create Jetton Job</b>\n\n` +
+                `${e('🪙')} Budget: <b>${budgetTon}</b> USDT\n` +
+                `${e('📄')} Description: ${description}\n\n` +
+                `Approve the transaction in Tonkeeper.\n` +
+                `After creation, fund with USDT via your Jetton wallet.`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+
+        await ctx.reply(`${e('⏳')} Creating Jetton job...`, { parse_mode: 'HTML' });
+
+        const createBody = beginCell()
+            .storeUint(FactoryOpcodes.createJob, 32)
+            .storeAddress(w.wallet.address)
+            .storeCoins(toNano(budgetTon))
+            .storeUint(descHash, 256)
+            .storeUint(86400, 32)
+            .storeUint(86400, 32)
+            .endCell();
+
+        await sendTx(client, w, Address.parse(JETTON_FACTORY_ADDRESS), toNano('0.03'), createBody);
+        await new Promise(r => setTimeout(r, 10000));
+
+        const jobCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS);
+        const jobId = jobCount - 1;
+        const jobAddr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, jobId);
+
+        saveDescription(jobId + 100000, description); // offset to avoid collision with TON jobs
+
+        const kb = new InlineKeyboard()
+            .text('🔭 Status', `jstatus_${jobId}`)
+            .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
+            .text('🏠 Main Menu', 'menu_main');
+
+        await ctx.reply(
+            `${e('✅')} <b>Jetton Job Created!</b>\n\n` +
+            `${e('🆔')} ID: <code>${jobId}</code>\n` +
+            `${e('💵')} Budget: <b>${budgetTon}</b> USDT\n` +
+            `${e('📄')} Description: ${description}\n` +
+            `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
+            `Next: set Jetton wallet and fund with USDT.`,
+            { parse_mode: 'HTML', reply_markup: kb }
+        );
+    } catch (err: any) {
+        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+    }
+});
+
+bot.callbackQuery('check_created_jetton', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = getUserId(ctx);
+    const pending = pendingCreate.get(userId);
+    if (!pending) {
+        return ctx.reply(`${e('❌')} No pending job creation found.`, { parse_mode: 'HTML' });
+    }
+    try {
+        const client = await createClient();
+        const jobCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS);
+        const jobId = jobCount - 1;
+        const jobAddr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, jobId);
+
+        saveDescription(jobId + 100000, pending.description);
+        pendingCreate.delete(userId);
+
+        const kb = new InlineKeyboard()
+            .text('🔭 Status', `jstatus_${jobId}`)
+            .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
+            .text('🏠 Main Menu', 'menu_main');
+
+        await ctx.reply(
+            `${e('✅')} <b>Jetton Job Created!</b>\n\n` +
+            `${e('🆔')} ID: <code>${jobId}</code>\n` +
+            `${e('💵')} Budget: <b>${pending.budgetTon}</b> USDT\n` +
+            `${e('📄')} Description: ${pending.description}\n` +
+            `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
+            `Next: set Jetton wallet and fund with USDT.`,
+            { parse_mode: 'HTML', reply_markup: kb }
+        );
+    } catch (err: any) {
+        await ctx.reply(
+            `${e('⏳')} Job not found yet. Wait ~10 seconds and try again.`,
+            { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🔄 Check Again', 'check_created_jetton').row().text('🏠 Menu', 'menu_main') }
+        );
+    }
+});
+
+bot.callbackQuery(/^jstatus_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const jobId = parseInt(ctx.match![1]);
+    await handleJettonStatus(ctx, jobId);
+});
+
 bot.command('fund', async (ctx) => {
     const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
     if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/fund job_id</code>`, { parse_mode: 'HTML' });
@@ -916,10 +1060,32 @@ async function handleJobs(ctx: any) {
             if (i < count - 1) await new Promise(r => setTimeout(r, 300));
         }
 
+        // Also show Jetton jobs
+        let jettonCount = 0;
+        try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
+        if (jettonCount > 0) {
+            text += `\n${e('💵')} <b>Jetton Jobs (${jettonCount} total)</b>\n\n`;
+            const jStart = Math.max(0, jettonCount - 5);
+            for (let i = jStart; i < jettonCount; i++) {
+                const addr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, i);
+                try {
+                    const s = await getJobStatus(client, addr.toString());
+                    const icon = stateIcon[s.stateName] ?? '❓';
+                    text += `${icon} <b>J#${i}</b> — ${s.stateName} | <b>${fmtTon(s.budget)}</b> USDT\n`;
+                } catch {
+                    text += `⬜ <b>J#${i}</b> — (not initialized)\n`;
+                }
+                if (i < jettonCount - 1) await new Promise(r => setTimeout(r, 300));
+            }
+        }
+
         const kb = new InlineKeyboard();
         const btnStart = Math.max(start, count - 5);
         for (let i = btnStart; i < count; i++) {
             kb.text(`🔭 #${i}`, `status_${i}`);
+        }
+        for (let i = Math.max(0, jettonCount - 3); i < jettonCount; i++) {
+            kb.text(`💵 J#${i}`, `jstatus_${i}`);
         }
         kb.row().text('✍️ Create Job', 'menu_create')
           .text('🏠 Menu', 'menu_main');
@@ -1222,6 +1388,70 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
     }
 }
 
+async function handleJettonStatus(ctx: any, jobId: number) {
+    const userId = getUserId(ctx);
+    try {
+        const client = await createClient();
+        const jobAddr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, jobId);
+        const s = await getJobStatus(client, jobAddr.toString());
+
+        const stateIcon: Record<string, string> = {
+            OPEN: e('🟢'), FUNDED: e('💰'), SUBMITTED: e('📨'),
+            COMPLETED: e('✅'), DISPUTED: e('⚠️'), CANCELLED: e('🚫'),
+        };
+        const icon = stateIcon[s.stateName] ?? '❓';
+
+        const desc = jobDescriptions.get(jobId + 100000);
+        let text =
+            `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
+            `${e('📊')} State: <b>${s.stateName}</b>\n` +
+            `${e('💵')} Budget: <b>${fmtTon(s.budget)}</b> USDT\n` +
+            (desc ? `${e('📄')} Description: ${desc}\n` : '') +
+            `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
+            `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
+            `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
+            `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h\n` +
+            `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
+
+        const kb = new InlineKeyboard();
+        const userAddr = userTcAddresses.get(userId) ?? '';
+        const isClient = userAddr && s.client === userAddr;
+        const isProvider = userAddr && s.provider === userAddr;
+        const isEvaluator = userAddr && s.evaluator === userAddr;
+
+        switch (s.stateName) {
+            case 'OPEN':
+                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                break;
+            case 'FUNDED':
+                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                if (isClient) kb.text('🚫 Cancel', `cancel_${jobId}`);
+                break;
+            case 'SUBMITTED':
+                if (isEvaluator || isClient) {
+                    kb.text('✅ Approve', `approve_${jobId}`)
+                      .text('❌ Reject', `reject_${jobId}`).row();
+                }
+                if (isProvider) kb.text('⏰ Claim (timeout)', `claim_${jobId}`);
+                break;
+            case 'COMPLETED':
+                text += `\n\n${e('🎉')} Job completed!`;
+                break;
+            case 'CANCELLED':
+                text += `\n\n${e('🚫')} Job cancelled.`;
+                break;
+        }
+
+        kb.row()
+          .url('🔗 Explorer', explorerLink(jobAddr.toString()))
+          .text('🏠 Menu', 'menu_main');
+
+        await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
+    } catch (err: any) {
+        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+    }
+}
+
 async function showHelp(ctx: any) {
     const kb = new InlineKeyboard()
         .text('✍️ Create Job', 'menu_create')
@@ -1236,7 +1466,8 @@ async function showHelp(ctx: any) {
         `  /disconnect — Disconnect wallet\n` +
         `  /wallet — Wallet info & balance\n\n` +
         `<b>${eid(EID.forClients, '👤')} For Clients:</b>\n` +
-        `  /create — Create a new job\n` +
+        `  /create — Create a TON job\n` +
+        `  /createjetton — Create a USDT (Jetton) job\n` +
         `  /fund — Fund a job with ${eid(EID.tonCoin, '💎')}\n` +
         `  /budget — Change job budget\n` +
         `  /approve — Approve submitted result\n` +

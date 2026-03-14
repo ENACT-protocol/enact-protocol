@@ -18,6 +18,7 @@ const JobOpcodes = {
     claim: 0x00000007,
     quit: 0x00000008,
     setBudget: 0x00000009,
+    setJettonWallet: 0x0000000a,
 };
 
 let client: TonClient;
@@ -357,6 +358,85 @@ server.tool(
             content: [{
                 type: 'text' as const,
                 text: JSON.stringify({ totalJobs: nextId, jobs }, null, 2),
+            }],
+        };
+    }
+);
+
+// ===== JETTON JOB TOOLS =====
+
+server.tool(
+    'create_jetton_job',
+    'Create a new Jetton (USDT) job. After creation, use set_jetton_wallet and set_budget, then fund with Jetton transfer.',
+    {
+        evaluator_address: z.string().describe('TON address of the evaluator'),
+        budget_jetton: z.string().describe('Budget in Jetton units (e.g. "5" for 5 USDT)'),
+        description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
+        timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h)'),
+        evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout (default 24h)'),
+    },
+    async ({ evaluator_address, budget_jetton, description, timeout_seconds, evaluation_timeout_seconds }) => {
+        const { cid, hash } = await uploadToIPFS({ type: 'jetton_job_description', description, createdAt: new Date().toISOString() });
+        cidMap.set(hash, cid);
+
+        const body = beginCell()
+            .storeUint(FactoryOpcodes.createJob, 32)
+            .storeAddress(Address.parse(evaluator_address))
+            .storeCoins(toNano(budget_jetton))
+            .storeUint(BigInt('0x' + hash), 256)
+            .storeUint(timeout_seconds, 32)
+            .storeUint(evaluation_timeout_seconds, 32)
+            .endCell();
+
+        const result = await sendTransaction(config.jettonFactoryAddress, toNano('0.03'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', type: 'jetton_job', ipfs_cid: cid, description_hash: hash, ...result }) }] };
+    }
+);
+
+server.tool(
+    'set_jetton_wallet',
+    'Set the Jetton wallet address for a Jetton job. Must be called before funding.',
+    {
+        job_address: z.string().describe('Jetton job contract address'),
+        jetton_wallet_address: z.string().describe('Jetton wallet address for this job'),
+    },
+    async ({ job_address, jetton_wallet_address }) => {
+        const body = beginCell()
+            .storeUint(JobOpcodes.setJettonWallet, 32)
+            .storeAddress(Address.parse(jetton_wallet_address))
+            .endCell();
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+    }
+);
+
+server.tool(
+    'list_jetton_jobs',
+    'List Jetton (USDT) jobs created by the JettonJobFactory.',
+    {
+        from_id: z.number().default(0).describe('Start job ID'),
+        count: z.number().default(10).describe('Number of jobs to list'),
+    },
+    async ({ from_id, count }) => {
+        const addr = config.jettonFactoryAddress;
+        const nextIdResult = await client.runMethod(addr, 'get_next_job_id');
+        const nextId = nextIdResult.stack.readNumber();
+
+        const jobs: any[] = [];
+        const end = Math.min(from_id + count, nextId);
+
+        for (let i = from_id; i < end; i++) {
+            const addrResult = await client.runMethod(addr, 'get_job_address', [
+                { type: 'int', value: BigInt(i) },
+            ]);
+            const jobAddr = addrResult.stack.readAddress();
+            jobs.push({ jobId: i, address: jobAddr.toString(), type: 'jetton' });
+        }
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ totalJettonJobs: nextId, jobs }, null, 2),
             }],
         };
     }

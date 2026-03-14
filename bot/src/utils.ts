@@ -13,6 +13,7 @@ export const JobOpcodes = {
     claim: 0x00000007,
     quit: 0x00000008,
     setBudget: 0x00000009,
+    setJettonWallet: 0x0000000a,
 };
 
 export const FactoryOpcodes = {
