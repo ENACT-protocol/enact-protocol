@@ -1843,9 +1843,21 @@ async function main() {
     loadWallets();
     loadDescriptions();
     await loadCustomEmoji();
-    // Drop pending updates to avoid 409 conflict with previous instance
-    await bot.api.deleteWebhook({ drop_pending_updates: true });
-    bot.start({ onStart: () => console.log('ENACT Protocol bot started') });
+    // Retry start with delay — previous Render instance may still be running
+    for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+            await bot.api.deleteWebhook({ drop_pending_updates: true });
+            bot.start({ onStart: () => console.log('ENACT Protocol bot started') });
+            break;
+        } catch (err: any) {
+            if (err.error_code === 409 && attempt < 4) {
+                console.log(`Bot conflict (attempt ${attempt + 1}/5), waiting 10s...`);
+                await new Promise(r => setTimeout(r, 10000));
+            } else {
+                throw err;
+            }
+        }
+    }
 
     // Start real-time factory watcher (non-blocking)
     startFactoryWatcher().catch(err =>
