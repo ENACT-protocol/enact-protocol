@@ -1073,8 +1073,8 @@ async function handleJobs(ctx: any, page: number) {
         }
 
         // Also show Jetton jobs (on first page only)
+        let jettonCount = 0;
         if (safePage === 0) {
-            let jettonCount = 0;
             try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
             if (jettonCount > 0) {
                 text += `\n${e('💵')} <b>Jetton Jobs (${jettonCount} total)</b>\n\n`;
@@ -1096,6 +1096,12 @@ async function handleJobs(ctx: any, page: number) {
         const kb = new InlineKeyboard();
         for (let i = start; i < end; i++) {
             kb.text(`🔭 #${i}`, `status_${i}`);
+        }
+        if (safePage === 0 && jettonCount > 0) {
+            kb.row();
+            for (let i = Math.max(0, jettonCount - 5); i < jettonCount; i++) {
+                kb.text(`💵 J#${i}`, `jstatus_${i}`);
+            }
         }
         kb.row();
 

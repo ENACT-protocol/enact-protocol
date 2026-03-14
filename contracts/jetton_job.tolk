@@ -125,16 +125,19 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address) {
         .storeAddress(recipient)      // destination
         .storeAddress(recipient)      // response_destination (excess TON)
         .storeBool(false)             // no custom_payload
-        .storeCoins(1)                // forward_ton_amount = 1 nanoton
+        .storeCoins(50000000)         // forward_ton_amount = 0.05 TON (enough to create recipient jetton wallet)
         .storeBool(false)             // no forward_payload (inline empty)
         .endCell();
 
+    // Reserve minimal storage, send all remaining balance with jetton transfer
+    // This ensures enough TON for forward_ton_amount (0.05 TON) even if evaluate was sent with small gas
+    reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
     createMessage({
         bounce: BounceMode.Only256BitsOfBody,
         dest: jw,
         value: 0,
         body: body,
-    }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+    }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
 }
 
 // ===================== MESSAGES =====================
