@@ -123,25 +123,16 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
         .storeUint(0, 64)             // query_id
         .storeCoins(jettonAmount)     // Jetton amount
         .storeAddress(recipient)      // destination
-        .storeAddress(returnExcessTo) // response_destination — TON excess from jetton transfer goes back to caller
+        .storeAddress(returnExcessTo) // response_destination — ALL excess TON goes back to caller
         .storeBool(false)             // no custom_payload
         .storeCoins(50000000)         // forward_ton_amount = 0.05 TON
         .storeBool(false)             // no forward_payload
         .endCell();
 
-    // First: return msg.value excess to caller (evaluator pays only ~0.003 gas)
-    // Second: send jetton transfer using contract's full remaining balance
+    // Send entire contract balance with jetton transfer.
+    // Evaluator's msg.value excess + contract's stored balance all go to jetton wallet.
+    // Jetton wallet returns unused TON to response_destination (= returnExcessTo).
     reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
-
-    // Return incoming msg excess to caller
-    createMessage({
-        bounce: BounceMode.NoBounce,
-        dest: returnExcessTo,
-        value: 0,
-        body: beginCell().endCell()
-    }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
-
-    // Send jetton payout using contract's stored balance
     createMessage({
         bounce: BounceMode.Only256BitsOfBody,
         dest: jw,

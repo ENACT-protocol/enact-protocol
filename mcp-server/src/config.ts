@@ -2,7 +2,7 @@ import { Address } from '@ton/core';
 
 export const config = {
     factoryAddress: Address.parse(process.env.FACTORY_ADDRESS || 'EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5'),
-    jettonFactoryAddress: Address.parse(process.env.JETTON_FACTORY_ADDRESS || 'EQB967QrI5Ou4LOqZE7wNXVA1mJllyipeGjDK54vLQu6V3NK'),
+    jettonFactoryAddress: Address.parse(process.env.JETTON_FACTORY_ADDRESS || 'EQA2fT7BFOe-wB67XkPrLcIfcnJrIPynF2nxdRcHLFUuLfX7'),
     walletMnemonic: process.env.WALLET_MNEMONIC?.split(' ') ?? [],
     network: (process.env.NETWORK ?? 'mainnet') as 'testnet' | 'mainnet',
     endpoint: process.env.NETWORK === 'testnet'
