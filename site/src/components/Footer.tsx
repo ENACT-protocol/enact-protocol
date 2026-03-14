@@ -24,13 +24,13 @@ export default function Footer() {
             <div className="text-xs font-mono mt-1 text-gray-700">Built for TON AI Agent Hackathon 2026</div>
           </div>
           <div className="flex flex-wrap items-center gap-4 sm:gap-5">
-            <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-white transition-colors">
-              <i className="hgi-stroke hgi-github" style={{ fontSize: 18 }} />
+            <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-white transition-colors flex items-center" style={{ height: 18 }}>
+              <i className="hgi-stroke hgi-github" style={{ fontSize: 18, lineHeight: 1 }} />
             </a>
-            <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-[var(--color-accent)] transition-colors">
+            <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-[var(--color-accent)] transition-colors flex items-center" style={{ height: 18 }}>
               <TelegramIcon />
             </a>
-            <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-white transition-colors">
+            <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-white transition-colors flex items-center" style={{ height: 18 }}>
               <XIcon />
             </a>
             <Link href="/docs/getting-started" className="mono-label text-[10px] text-gray-600 hover:text-white transition-colors">
