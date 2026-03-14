@@ -198,18 +198,26 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function decodeHash(hash: string): string | null {
+async function decodeDesc(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
     try {
+        // Try 1: decode as hex-encoded text (bot creates these)
         const clean = hash.replace(/0+$/, '');
-        if (clean.length < 2) return null;
-        const text = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
-        // Only return if it's printable ASCII/UTF-8 (not binary garbage)
-        if (/^[\x20-\x7E\u0080-\uFFFF ]+$/.test(text) && text.length > 1) {
-            return escapeHtml(text);
+        if (clean.length >= 2) {
+            const text = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
+            if (/^[\x20-\x7E]+$/.test(text) && text.length > 2) {
+                return escapeHtml(text);
+            }
         }
-        return null;
-    } catch { return null; }
+        // Try 2: fetch from IPFS via Pinata (MCP creates these with SHA-256 hash)
+        const res = await fetch(`https://gateway.pinata.cloud/ipfs/${hash}`, { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+            const data = await res.json();
+            const content = data.description ?? data.result ?? null;
+            if (content) return escapeHtml(String(content).slice(0, 200));
+        }
+    } catch {}
+    return null;
 }
 
 function getUserId(ctx: any): number {
@@ -1180,8 +1188,8 @@ async function handleStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId) ?? decodeHash(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? decodeHash(s.resultHash) : null;
+        const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1474,8 +1482,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId + 100000) ?? decodeHash(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? decodeHash(s.resultHash) : null;
+        const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
