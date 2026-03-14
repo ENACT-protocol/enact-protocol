@@ -198,63 +198,16 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-async function decodeDesc(hash: string): Promise<string | null> {
+function decodeDesc(hash: string): string | null {
     if (!hash || hash === '0'.repeat(64)) return null;
     try {
-        // Try 1: decode as hex-encoded text (bot creates these)
+        // Decode hex-encoded text (bot creates these directly)
         const clean = hash.replace(/0+$/, '');
         if (clean.length >= 2) {
             const text = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
             if (/^[\x20-\x7E]+$/.test(text) && text.length > 2) {
                 return escapeHtml(text);
             }
-        }
-        // Try 2: search Pinata pins and match by SHA-256
-        const jwt = process.env.PINATA_JWT;
-        if (jwt) {
-            // First try metadata search (new uploads have descHash tag)
-            try {
-                const searchRes = await fetch(`https://api.pinata.cloud/data/pinList?metadata[keyvalues][descHash]={"value":"${hash}","op":"eq"}&status=pinned&pageLimit=1`, {
-                    headers: { 'Authorization': `Bearer ${jwt}` },
-                    signal: AbortSignal.timeout(4000),
-                });
-                if (searchRes.ok) {
-                    const pins = await searchRes.json() as { rows: Array<{ ipfs_pin_hash: string }> };
-                    if (pins.rows?.length > 0) {
-                        const cid = pins.rows[0].ipfs_pin_hash;
-                        const ipfsRes = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`, { signal: AbortSignal.timeout(4000) });
-                        if (ipfsRes.ok) {
-                            const data = await ipfsRes.json();
-                            const content = data.description ?? data.result ?? null;
-                            if (content) return escapeHtml(String(content).slice(0, 200));
-                        }
-                    }
-                }
-            } catch {}
-            // Fallback: list all pins and check content hash
-            try {
-                const listRes = await fetch(`https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=20`, {
-                    headers: { 'Authorization': `Bearer ${jwt}` },
-                    signal: AbortSignal.timeout(5000),
-                });
-                if (listRes.ok) {
-                    const { createHash } = await import('crypto');
-                    const pins = await listRes.json() as { rows: Array<{ ipfs_pin_hash: string }> };
-                    for (const pin of pins.rows) {
-                        try {
-                            const ipfsRes = await fetch(`https://gateway.pinata.cloud/ipfs/${pin.ipfs_pin_hash}`, { signal: AbortSignal.timeout(3000) });
-                            if (!ipfsRes.ok) continue;
-                            const text = await ipfsRes.text();
-                            const contentHash = createHash('sha256').update(text, 'utf-8').digest('hex');
-                            if (contentHash === hash) {
-                                const data = JSON.parse(text);
-                                const content = data.description ?? data.result ?? null;
-                                if (content) return escapeHtml(String(content).slice(0, 200));
-                            }
-                        } catch { continue; }
-                    }
-                }
-            } catch {}
         }
     } catch {}
     return null;
@@ -1251,8 +1204,8 @@ async function handleStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const desc = jobDescriptions.get(jobId) ?? decodeDesc(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1548,8 +1501,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         };
         const icon = stateIcon[s.stateName] ?? '❓';
 
-        const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const desc = jobDescriptions.get(jobId + 100000) ?? decodeDesc(s.descHash);
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
