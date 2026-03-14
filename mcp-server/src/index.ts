@@ -472,7 +472,7 @@ server.tool(
             .storeBit(false)            // no forward_payload
             .endCell();
 
-        const result = await sendTransaction(senderJettonWallet, toNano('0.1'), jettonBody);
+        const result = await sendTransaction(senderJettonWallet, toNano('0.065'), jettonBody);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, usdt_amount: amount_usdt, sender_jetton_wallet: senderJettonWallet.toString() }) }] };
     }
 );
