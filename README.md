@@ -98,7 +98,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 │                TON Smart Contracts (Tolk 1.2)                      │
 │                                                                    │
 │            JobFactory ──deploy──► Job (per-job escrow)             │
-│       JettonJobFactory ──deploy──► JettonJob (USDT escrow)        │
+│       JettonJobFactory ──deploy──► JettonJob (USDT only)          │
 │                                                                    │
 │            3 roles · 9 opcodes · 6 states · 0% fee                │
 └───────────────────────────────────────────────────────────────────┘
@@ -115,7 +115,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | 🤖 | **MCP Integration** | 14 tools for AI agents via Model Context Protocol |
 | 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
-| 💎 | **Jetton (USDT)** | Separate JettonJob contract for stablecoin payments |
+| 💎 | **USDT Payments** | JettonJob contract for USDT stablecoin escrow (auto-resolved wallet) |
 | 🆓 | **0% Protocol Fee** | No fees — all funds go directly to the provider |
 
 ## MCP Server
@@ -166,9 +166,9 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 | `set_budget` | Set/update budget before funding |
 | `get_job_status` | Get full job state and data |
 | `list_jobs` | List jobs from factory |
-| `create_jetton_job` | Create a Jetton (USDT) escrow job |
-| `set_jetton_wallet` | Set Jetton wallet address for payments |
-| `list_jetton_jobs` | List Jetton jobs from factory |
+| `create_jetton_job` | Create a USDT escrow job |
+| `set_jetton_wallet` | Set USDT wallet (auto-resolved) |
+| `list_jetton_jobs` | List USDT jobs from factory |
 
 </details>
 

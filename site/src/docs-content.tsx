@@ -516,7 +516,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Opcode</th><th>Operation</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td>0x0a</td><td className="text-white">SetJettonWallet</td><td>Register Jetton wallet address</td></tr>
+            <tr><td>0x0a</td><td className="text-white">SetJettonWallet</td><td>Set USDT wallet (auto-resolved)</td></tr>
             <tr><td>0x7362d09c</td><td className="text-white">transfer_notification</td><td>Jetton funding callback</td></tr>
           </tbody>
         </table></div>
@@ -524,8 +524,8 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
         <H2>How Funding Works</H2>
         <div className="mt-4">
           {[
-            ['1', 'SetJettonWallet', 'Client calls setJettonWallet with the contract\'s Jetton wallet address'],
-            ['2', 'Transfer Jettons', 'Client sends Jettons to the contract\'s Jetton wallet'],
+            ['1', 'SetJettonWallet', 'Client calls setJettonWallet (USDT wallet auto-resolved from master)'],
+            ['2', 'Transfer USDT', 'Client sends USDT to the contract\'s Jetton wallet'],
             ['3', 'Verify', 'Contract receives transfer_notification, verifies sender = client, amount >= budget'],
             ['4', 'State Change', 'State transitions OPEN → FUNDED'],
           ].map(([n, title, desc]) => (
@@ -535,7 +535,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
             </div>
           ))}
         </div>
-        <P>On completion: contract sends <IC>transfer</IC> message to Jetton wallet to pay provider.</P>
+        <P>On completion: contract sends USDT transfer to provider automatically.</P>
 
         <DocNav prev={{ slug: 'job-factory', title: 'JobFactory' }} next={{ slug: 'jetton-job-factory', title: 'JettonJobFactory' }} />
       </>
@@ -725,7 +725,7 @@ npm install && npm run build`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_jetton, description','Deploy USDT job + IPFS'],['set_jetton_wallet','job_address, jetton_wallet_address','Set Jetton wallet'],['list_jetton_jobs','from_id, count','List Jetton jobs']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_jetton, description','Deploy USDT job + IPFS'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>

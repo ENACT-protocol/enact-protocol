@@ -335,7 +335,7 @@ bot.callbackQuery('menu_create', async (ctx) => {
         `${e('💎')} <b>TON payment:</b>\n` +
         `<code>/create {amount} {description}</code>\n` +
         `Example: <code>/create 5 Write a smart contract</code>\n\n` +
-        `${e('💵')} <b>USDT (Jetton) payment:</b>\n` +
+        `${e('💵')} <b>USDT payment:</b>\n` +
         `<code>/createjetton {amount} {description}</code>\n` +
         `Example: <code>/createjetton 10 Audit this code</code>`,
         { parse_mode: 'HTML' }
@@ -1574,7 +1574,7 @@ async function showHelp(ctx: any) {
         `  /wallet — Wallet info & balance\n\n` +
         `<b>${eid(EID.forClients, '👤')} For Clients:</b>\n` +
         `  /create — Create a TON job\n` +
-        `  /createjetton — Create a USDT (Jetton) job\n` +
+        `  /createjetton — Create a USDT job\n` +
         `  /fund — Fund a job with ${eid(EID.tonCoin, '💎')}\n` +
         `  /budget — Change job budget\n` +
         `  /cancel — Cancel after timeout (24h)\n\n` +
