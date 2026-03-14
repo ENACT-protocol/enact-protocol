@@ -4,7 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 import { z } from 'zod';
 import { createHash } from 'crypto';
-import { Address, beginCell, toNano, TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
+import { Address, beginCell, Cell, toNano, TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { config } from './config.js';
 
@@ -22,27 +22,49 @@ const JobOpcodes = {
 };
 
 let client: TonClient;
-let wallet: WalletContractV5R1;
-let keyPair: { publicKey: Buffer; secretKey: Buffer };
+let wallet: WalletContractV5R1 | undefined;
+let keyPair: { publicKey: Buffer; secretKey: Buffer } | undefined;
 
 async function init() {
     client = new TonClient({ endpoint: config.endpoint, apiKey: config.apiKey });
     if (config.walletMnemonic.length > 0) {
         keyPair = await mnemonicToPrivateKey(config.walletMnemonic);
         wallet = WalletContractV5R1.create({ publicKey: keyPair.publicKey, workchain: 0 });
+        console.error(`ENACT MCP: signing mode (wallet ${wallet.address.toString()})`);
+    } else {
+        console.error('ENACT MCP: unsigned mode (no wallet — returns prepared transactions)');
     }
 }
 
-async function sendTransaction(to: Address, value: bigint, body: any) {
-    const contract = client.open(wallet);
-    const seqno = await contract.getSeqno();
-    await contract.sendTransfer({
-        seqno,
-        secretKey: keyPair.secretKey,
-        sendMode: SendMode.PAY_GAS_SEPARATELY,
-        messages: [internal({ to, value, body, bounce: true })],
-    });
-    return { seqno, walletAddress: wallet.address.toString() };
+function prepareTransaction(to: Address, value: bigint, body: Cell) {
+    const boc = body.toBoc().toString('base64');
+    const bocUrl = boc.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const toStr = to.toString();
+    return {
+        to: toStr,
+        value_nano: value.toString(),
+        payload_boc_base64: boc,
+        tonkeeper_url: `https://app.tonkeeper.com/transfer/${toStr}?amount=${value}&bin=${bocUrl}`,
+    };
+}
+
+async function sendTransaction(to: Address, value: bigint, body: Cell) {
+    if (wallet && keyPair) {
+        const contract = client.open(wallet);
+        const seqno = await contract.getSeqno();
+        await contract.sendTransfer({
+            seqno,
+            secretKey: keyPair.secretKey,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            messages: [internal({ to, value, body, bounce: true })],
+        });
+        return { status: 'executed' as const, seqno, walletAddress: wallet.address.toString() };
+    }
+    return {
+        status: 'prepared' as const,
+        message: 'Transaction prepared. Sign and send with your wallet.',
+        ...prepareTransaction(to, value, body),
+    };
 }
 
 // ─── IPFS via Pinata REST API ───
@@ -116,7 +138,7 @@ server.tool(
             .endCell();
 
         const result = await sendTransaction(config.factoryAddress, toNano('0.03'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ipfs_cid: cid, description_hash: hash, ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, description_hash: hash }) }] };
     }
 );
 
@@ -131,7 +153,7 @@ server.tool(
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
         const total = toNano(amount_ton) + toNano('0.01');
         const result = await sendTransaction(Address.parse(job_address), total, body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -144,7 +166,7 @@ server.tool(
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -166,7 +188,7 @@ server.tool(
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ipfs_cid: cid, result_hash: hash, ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash }) }] };
     }
 );
 
@@ -186,7 +208,7 @@ server.tool(
             .storeUint(reasonInt, 256)
             .endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -199,7 +221,7 @@ server.tool(
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -212,7 +234,7 @@ server.tool(
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -225,7 +247,7 @@ server.tool(
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -242,7 +264,7 @@ server.tool(
             .storeCoins(toNano(budget_ton))
             .endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 
@@ -389,7 +411,7 @@ server.tool(
             .endCell();
 
         const result = await sendTransaction(config.jettonFactoryAddress, toNano('0.03'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', type: 'jetton_job', ipfs_cid: cid, description_hash: hash, ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, type: 'jetton_job', ipfs_cid: cid, description_hash: hash }) }] };
     }
 );
 
@@ -406,7 +428,7 @@ server.tool(
             .storeAddress(Address.parse(jetton_wallet_address))
             .endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'sent', ...result }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
 

@@ -21,17 +21,18 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 ## Quick Start
 
-**Connect MCP to your AI agent (remote — no setup needed):**
+**Remote (no wallet needed) — read ops + unsigned transactions:**
 ```bash
 claude mcp add enact-protocol --transport http https://mcp.enact.info/mcp
 ```
+Read tools work directly. Write tools return unsigned transactions with Tonkeeper deeplinks — your agent signs with its own wallet.
 
-**Or connect locally with your own wallet:**
+**Local (full control) — automatic signing:**
 ```bash
 cd mcp-server && npm install && npm run build
 claude mcp add enact-protocol \
-  -e FACTORY_ADDRESS="EQBWzGqJmn5BpUPyWmLsEM5uBzTOUct-n0-uj-5-uAA89Hk5" \
   -e WALLET_MNEMONIC="your 24 words" \
+  -e PINATA_JWT="your_pinata_jwt" \
   -- node ./dist/index.js
 ```
 

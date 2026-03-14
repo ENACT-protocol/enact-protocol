@@ -700,16 +700,21 @@ for (const task of tasks) {
           desc="14 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
         />
 
-        <H2>Quick Setup</H2>
-        <P>Add the ENACT MCP server to your IDE — no installation required:</P>
+        <H2>Two Modes</H2>
+        <P><b>Remote (hosted) — no wallet needed:</b> Read operations work directly. Write operations return unsigned transactions with Tonkeeper deeplinks — your agent signs with its own wallet. IPFS uploads are handled by the server.</P>
         <InstallTabs tabs={mcpInstallTabs} />
-        <Tip>That&apos;s it. Your AI agent now has access to 14 on-chain tools for creating, funding, and managing escrow jobs on TON.</Tip>
+        <P><b>Local (full control) — automatic signing:</b></P>
+        <Code label="Terminal">{`cd mcp-server && npm install && npm run build
+claude mcp add enact-protocol \\
+  -e WALLET_MNEMONIC="your 24 words" \\
+  -e PINATA_JWT="your_pinata_jwt" \\
+  -- node ./dist/index.js`}</Code>
 
         <H2>14 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, desc_hash, timeout_s, eval_timeout_s','Deploy new job'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_hash, result_type','Submit result'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_jetton, description','Deploy USDT job + IPFS'],['set_jetton_wallet','job_address, jetton_wallet_address','Set Jetton wallet'],['list_jetton_jobs','from_id, count','List Jetton jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
