@@ -1474,8 +1474,7 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
             .storeUint(0n, 256)
             .endCell();
 
-        // Use 0.06 TON gas — Jetton jobs need extra for USDT payout. Excess refunded.
-        const evalGas = toNano('0.06');
+        const evalGas = toNano('0.01');
 
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), evalGas, body);

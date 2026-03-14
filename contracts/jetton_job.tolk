@@ -117,27 +117,35 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
 
 // ===================== JETTON TRANSFER HELPER =====================
 
-fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address) {
+const JETTON_TRANSFER_GAS: int = 60000000;  // 0.06 TON for jetton transfer + forward
+
+fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnExcessTo: address) {
     val body = beginCell()
         .storeUint(OP_JETTON_TRANSFER, 32)
         .storeUint(0, 64)             // query_id
         .storeCoins(jettonAmount)     // Jetton amount
         .storeAddress(recipient)      // destination
-        .storeAddress(recipient)      // response_destination (excess TON)
+        .storeAddress(recipient)      // response_destination (jetton excess)
         .storeBool(false)             // no custom_payload
-        .storeCoins(50000000)         // forward_ton_amount = 0.05 TON (enough to create recipient jetton wallet)
-        .storeBool(false)             // no forward_payload (inline empty)
+        .storeCoins(50000000)         // forward_ton_amount = 0.05 TON
+        .storeBool(false)             // no forward_payload
         .endCell();
 
-    // Reserve minimal storage, send all remaining balance with jetton transfer
-    // This ensures enough TON for forward_ton_amount (0.05 TON) even if evaluate was sent with small gas
-    reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+    // Return excess TON to the caller (evaluator/client/provider), not to the payout recipient
+    createMessage({
+        bounce: BounceMode.NoBounce,
+        dest: returnExcessTo,
+        value: 0,
+        body: beginCell().endCell()
+    }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
+
+    // Send jetton transfer using contract's own balance (from fund deposit)
     createMessage({
         bounce: BounceMode.Only256BitsOfBody,
         dest: jw,
-        value: 0,
+        value: JETTON_TRANSFER_GAS,
         body: body,
-    }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
+    }).send(SEND_MODE_PAY_FEES_SEPARATELY | SEND_MODE_IGNORE_ERRORS);
 }
 
 // ===================== MESSAGES =====================
@@ -337,10 +345,10 @@ fun onInternalMessage(in: InMessage) {
 
             if (msg.approved != 0) {
                 saveData(jobId, factory, client, provider, STATE_COMPLETED, newDet);
-                sendJettonPayout(jettonWallet, budget, provider!);
+                sendJettonPayout(jettonWallet, budget, provider!, evaluator);
             } else {
                 saveData(jobId, factory, client, provider, STATE_DISPUTED, newDet);
-                sendJettonPayout(jettonWallet, budget, client);
+                sendJettonPayout(jettonWallet, budget, client, evaluator);
             }
         }
 
@@ -355,7 +363,7 @@ fun onInternalMessage(in: InMessage) {
             assert(blockchain.now() >= evalDeadline) throw ERR_EVAL_TIMEOUT_NOT_EXPIRED;
 
             saveData(jobId, factory, client, provider, STATE_COMPLETED, detCell);
-            sendJettonPayout(jettonWallet, budget, provider!);
+            sendJettonPayout(jettonWallet, budget, provider!, provider!);
         }
 
         CancelJob => {
@@ -368,7 +376,7 @@ fun onInternalMessage(in: InMessage) {
             assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
             saveData(jobId, factory, client, provider, STATE_CANCELLED, detCell);
-            sendJettonPayout(jettonWallet, budget, client);
+            sendJettonPayout(jettonWallet, budget, client, client);
         }
 
         else => {
