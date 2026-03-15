@@ -1394,9 +1394,10 @@ async function handleFactory(ctx: any) {
 
 async function handleJobs(ctx: any, page: number, filter: string) {
     const PAGE_SIZE = 5;
-    const activeOnly = filter === 'active';
-    const tonOnly = filter === 'ton';
-    const usdtOnly = filter === 'usdt';
+    const [statusF, typeF] = filter.includes('_') ? filter.split('_') : [filter === 'active' ? 'active' : 'all', filter === 'ton' ? 'ton' : filter === 'usdt' ? 'usdt' : 'all'];
+    const activeOnly = statusF === 'active';
+    const tonOnly = typeF === 'ton';
+    const usdtOnly = typeF === 'usdt';
     const needsFilter = activeOnly || tonOnly || usdtOnly;
     try {
         const client = await createClient();
@@ -1475,7 +1476,11 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         const safePage = Math.min(page, totalPages - 1);
         const pageJobs = needsFilter ? jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) : jobs;
 
-        const filterLabel = filter === 'active' ? ' active' : filter === 'ton' ? ' TON' : filter === 'usdt' ? ' USDT' : ' total';
+        const parts = [];
+        if (activeOnly) parts.push('active');
+        if (tonOnly) parts.push('TON');
+        if (usdtOnly) parts.push('USDT');
+        const filterLabel = parts.length > 0 ? ' ' + parts.join(' ') : ' total';
         let text = `${eid(EID.browseJobs, '📋')} <b>Jobs</b> (${needsFilter ? jobs.length : totalForPages}${filterLabel})`;
         if (totalPages > 1) text += ` — page ${safePage + 1}/${totalPages}`;
         text += '\n\n';
@@ -1494,18 +1499,21 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         }
         kb.row();
 
-        // Filter buttons — fixed order, current highlighted with ·
-        const filters: Array<[string, string]> = [
-            ['All', 'all'], ['Active', 'active'], ['TON', 'ton'], ['USDT', 'usdt'],
-        ];
-        for (const [label, f] of filters) {
-            kb.text(f === filter ? `• ${label}` : label, f === filter ? 'noop' : `jobs_filter_${f}`);
-        }
+        // Filter buttons — two groups: status (All/Active) + type (TON/USDT)
+        // filter format: "status_type" e.g. "all_all", "active_ton", "all_usdt"
+        const [statusF, typeF] = filter.includes('_') ? filter.split('_') : [filter === 'active' ? 'active' : 'all', filter === 'ton' ? 'ton' : filter === 'usdt' ? 'usdt' : 'all'];
+        const mkFilter = (s: string, t: string) => `${s}_${t}`;
+        kb.text(statusF === 'all' ? '✅ All' : '❌ All', `jobs_filter_${mkFilter('all', typeF)}`)
+          .text(statusF === 'active' ? '✅ Active' : '❌ Active', `jobs_filter_${mkFilter('active', typeF)}`)
+          .text(typeF === 'all' ? '✅ Both' : '❌ Both', `jobs_filter_${mkFilter(statusF, 'all')}`)
+          .text(typeF === 'ton' ? '✅ TON' : '❌ TON', `jobs_filter_${mkFilter(statusF, 'ton')}`)
+          .text(typeF === 'usdt' ? '✅ USDT' : '❌ USDT', `jobs_filter_${mkFilter(statusF, 'usdt')}`);
         kb.row();
 
         // Pagination
-        if (safePage < totalPages - 1) kb.text('⬅️ Older', `jobs_page_${safePage + 1}_${filter}`);
-        if (safePage > 0) kb.text('Newer ➡️', `jobs_page_${safePage - 1}_${filter}`);
+        const fullFilter = `${statusF}_${typeF}`;
+        if (safePage < totalPages - 1) kb.text('⬅️ Older', `jobs_page_${safePage + 1}_${fullFilter}`);
+        if (safePage > 0) kb.text('Newer ➡️', `jobs_page_${safePage - 1}_${fullFilter}`);
         if (totalPages > 1) kb.row();
 
         kb.text('✍️ Create Job', 'menu_create')
