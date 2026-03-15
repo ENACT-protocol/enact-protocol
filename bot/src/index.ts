@@ -877,8 +877,17 @@ bot.command('createjetton', async (ctx) => {
             const predAddrRes = await client.runMethod(Address.parse(JETTON_FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(predictedId) }]);
             const predictedAddr = predAddrRes.stack.readAddress();
 
-            // USDT fund deeplink: send USDT to job via client's jetton wallet
+            // Step 2: Set USDT wallet deeplink
             const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+            await new Promise(r => setTimeout(r, 1500));
+            const jobJwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(predictedAddr).endCell() }
+            ]);
+            const jobJw = jobJwRes.stack.readAddress();
+            const setWalletBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jobJw).endCell();
+            const setWalletLink = tonTransferLink(predictedAddr.toString(), toNano('0.01'), setWalletBody);
+
+            // Step 3: Fund USDT deeplink
             await new Promise(r => setTimeout(r, 1500));
             const cjwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
                 { type: 'slice', cell: beginCell().storeAddress(Address.parse(addr)).endCell() }
@@ -899,7 +908,8 @@ bot.command('createjetton', async (ctx) => {
 
             const kb = new InlineKeyboard()
                 .url('1️⃣ Create Job', createLink).row()
-                .url(`2️⃣ Fund ${budgetTon} USDT`, fundLink).row()
+                .url('2️⃣ Set USDT Wallet', setWalletLink).row()
+                .url(`3️⃣ Fund ${budgetTon} USDT`, fundLink).row()
                 .text('🔄 Check Manually', 'check_created_jetton').row()
                 .text('🏠 Main Menu', 'menu_main');
 
@@ -908,10 +918,11 @@ bot.command('createjetton', async (ctx) => {
                 `${e('🪙')} Budget: <b>${budgetTon}</b> USDT\n` +
                 `${e('📄')} Description: ${description}\n` +
                 `${e('⚖️')} Evaluator: ${evalLabel}\n\n` +
-                `Approve <b>both</b> transactions in Tonkeeper:\n` +
+                `Approve <b>all 3</b> transactions in Tonkeeper:\n` +
                 `1️⃣ Create job (~0.03 TON gas)\n` +
-                `2️⃣ Fund with ${budgetTon} USDT\n\n` +
-                `${e('💡')} Wait ~15s between approvals. USDT wallet is set automatically.` +
+                `2️⃣ Set USDT wallet (~0.01 TON gas)\n` +
+                `3️⃣ Fund with ${budgetTon} USDT\n\n` +
+                `${e('💡')} Wait ~15s between each approval.` +
                 (jEvaluatorStr === AI_EVALUATOR ? `\n\n${e('🤖')} AI Evaluator will review this job.` : ''),
                 { parse_mode: 'HTML', reply_markup: kb }
             );
