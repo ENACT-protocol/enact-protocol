@@ -987,8 +987,8 @@ bot.command('createjetton', async (ctx) => {
                 `Approve <b>all 3</b> transactions in Tonkeeper:\n` +
                 `1️⃣ Create job (~0.03 TON gas)\n` +
                 `2️⃣ Set USDT wallet (~0.01 TON gas)\n` +
-                `3️⃣ Fund with ${budgetTon} USDT\n\n` +
-                `${e('💡')} Wait ~15s between each approval.` +
+                `3️⃣ Fund with ${budgetTon} USDT (~0.1 TON gas, ~0.04 refunded)\n\n` +
+                `${e('💡')} Wait ~15s between each approval. You need ~0.15 TON for gas.` +
                 (jEvaluatorStr === AI_EVALUATOR ? `\n\n${e('🤖')} AI Evaluator will review this job.` : ''),
                 { parse_mode: 'HTML', reply_markup: kb }
             );
