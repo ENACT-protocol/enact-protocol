@@ -943,12 +943,9 @@ bot.command('submit', async (ctx) => {
         }
     } catch {}
 
-    const w = await requireWallet(ctx);
-    if (!w) return;
     const resultHash = BigInt('0x' + Buffer.from(resultText).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
-        await ctx.reply(`${e('⏳')} Submitting result...`, { parse_mode: 'HTML' });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell()
@@ -956,6 +953,25 @@ bot.command('submit', async (ctx) => {
             .storeUint(resultHash, 256)
             .storeUint(0, 8)
             .endCell();
+
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const kb = new InlineKeyboard()
+                .url('👛 Submit in Tonkeeper', link).row()
+                .text('🔭 Status', `status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            await ctx.reply(
+                `${e('📨')} <b>Submit Result for Job #${jobId}</b>\n\n` +
+                `Open Tonkeeper to approve.`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+            watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 2); // 2=SUBMITTED
+            return;
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Submitting result...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
 
         const kb = new InlineKeyboard()
