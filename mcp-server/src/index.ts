@@ -94,8 +94,10 @@ async function uploadToIPFS(content: object): Promise<{ cid: string; hash: strin
     return { cid: data.IpfsHash, hash };
 }
 
+const IPFS_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
+
 async function fetchFromIPFS(cid: string): Promise<any> {
-    const res = await fetch(`https://green-known-basilisk-878.mypinata.cloud/ipfs/${cid}`);
+    const res = await fetch(`${IPFS_GW}/${cid}`);
     if (!res.ok) throw new Error(`IPFS fetch failed: ${res.status}`);
     return res.json();
 }
