@@ -269,6 +269,19 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 | Dispute Resolution | DISPUTED state + auto-claim timeout |
 | Agent Discovery | MCP + Teleton plugin |
 
+## AI Evaluator Agent
+
+Autonomous agent that monitors submitted jobs, reviews results using Google Gemini, and auto-approves or rejects — no human in the loop.
+
+```bash
+WALLET_MNEMONIC="evaluator 24 words" \
+GEMINI_API_KEY="your_key" \
+TONCENTER_API_KEY="your_key" \
+npx ts-node scripts/evaluator-agent.ts
+```
+
+Use `--dry-run` to preview decisions without sending transactions.
+
 ## Tech Stack
 
 | Layer | Technology |

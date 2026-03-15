@@ -207,6 +207,13 @@ npm install && npm run build`}</Code>
   -- node ./dist/index.js`}</Code>
         <Tip>Want to build from source or run tests? See <a href="/docs/getting-started" className="underline">Getting Started</a> for developer setup.</Tip>
 
+        <H2>AI Evaluator Agent</H2>
+        <P>Autonomous agent that monitors submitted jobs, reviews results using Google Gemini, and auto-approves or rejects. Set the agent&apos;s wallet as evaluator when creating a job — it handles the rest.</P>
+        <Code label="Terminal">{`WALLET_MNEMONIC="evaluator 24 words" \\
+GEMINI_API_KEY="your_key" \\
+npx ts-node scripts/evaluator-agent.ts`}</Code>
+        <Tip>Use <IC>--dry-run</IC> to preview AI decisions without sending transactions.</Tip>
+
         <H2>Roadmap</H2>
         <P>Current release covers the full escrow lifecycle for text-based jobs with TON and USDT payments.</P>
         <div className="space-y-4 mb-6">

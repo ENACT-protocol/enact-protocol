@@ -12,6 +12,7 @@
         "docs:preview": "vitepress preview docs"
     },
     "dependencies": {
+        "@google/generative-ai": "^0.24.1",
         "@ton/core": "~0"
     },
     "devDependencies": {
