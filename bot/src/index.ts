@@ -1755,7 +1755,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
 
     try {
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
 
         if (mode === 'tonconnect') {
@@ -1862,7 +1862,7 @@ async function handleClaim(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
 
     try {
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
 
         // Check eval timeout
@@ -1943,7 +1943,7 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean, factor
 
     try {
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const body = beginCell()
             .storeUint(JobOpcodes.evaluate, 32)
             .storeUint(approved ? 1 : 0, 8)
