@@ -1761,9 +1761,17 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await new Promise(r => setTimeout(r, 8000));
 
-        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
-        await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${factory === JETTON_FACTORY_ADDRESS ? 'j' : ''}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
+        const newStatus = await getJobStatus(client, jobAddr.toString());
+        const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
+        const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
+        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
+        if (newStatus.provider !== 'none') {
+            await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${prefix}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
+        } else {
+            await ctx.reply(`${e('⚠️')} Transaction sent but not confirmed yet. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
+        }
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
