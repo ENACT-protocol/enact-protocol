@@ -331,13 +331,12 @@ bot.callbackQuery('menu_create', async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.reply(
         `${e('✍️')} <b>Create a Job</b>\n\n` +
-        `${e('💎')} <b>TON payment:</b>\n` +
-        `<code>/create {amount} {description}</code>\n` +
-        `<code>/create {amount} {description} {evaluator}</code>\n\n` +
-        `${e('💵')} <b>USDT payment:</b>\n` +
-        `<code>/createjetton {amount} {description}</code>\n\n` +
-        `${e('💡')} Evaluator is optional — defaults to you.\n` +
-        `To set a custom evaluator, add their address as the last parameter.`,
+        `${e('💎')} <b>TON:</b>\n` +
+        `<code>/create {amount} {description} {evaluator?}</code>\n\n` +
+        `${e('💵')} <b>USDT:</b>\n` +
+        `<code>/createjetton {amount} {description} {evaluator?}</code>\n\n` +
+        `${e('💡')} <b>evaluator?</b> — optional, defaults to you.\n` +
+        `Add a TON address as the last parameter to set a custom evaluator.`,
         { parse_mode: 'HTML' }
     );
 });
@@ -784,7 +783,17 @@ bot.command('createjetton', async (ctx) => {
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
-    const description = args.slice(1).join(' ');
+    const lastArg = args[args.length - 1];
+    const isEvalAddr = lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
+    let jEvaluatorStr = '';
+    let jDescArgs: string[];
+    if (isEvalAddr && args.length >= 3) {
+        jEvaluatorStr = lastArg;
+        jDescArgs = args.slice(1, -1);
+    } else {
+        jDescArgs = args.slice(1);
+    }
+    const description = jDescArgs.join(' ');
     const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
@@ -792,10 +801,11 @@ bot.command('createjetton', async (ctx) => {
 
         if (mode === 'tonconnect') {
             const addr = userTcAddresses.get(userId)!;
+            const jettonEvaluator = jEvaluatorStr ? Address.parse(jEvaluatorStr) : Address.parse(addr);
             const usdtBudget = BigInt(Math.round(parseFloat(budgetTon) * 1e6)); // USDT: 6 decimals
             const createBody = beginCell()
                 .storeUint(FactoryOpcodes.createJob, 32)
-                .storeAddress(Address.parse(addr))
+                .storeAddress(jettonEvaluator)
                 .storeCoins(usdtBudget)
                 .storeUint(descHash, 256)
                 .storeUint(86400, 32)
@@ -828,9 +838,10 @@ bot.command('createjetton', async (ctx) => {
         await ctx.reply(`${e('⏳')} Creating Jetton job...`, { parse_mode: 'HTML' });
 
         const usdtBudget = BigInt(Math.round(parseFloat(budgetTon) * 1e6)); // USDT: 6 decimals
+        const jMnemonicEval = jEvaluatorStr ? Address.parse(jEvaluatorStr) : w.wallet.address;
         const createBody = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
-            .storeAddress(w.wallet.address)
+            .storeAddress(jMnemonicEval)
             .storeCoins(usdtBudget)
             .storeUint(descHash, 256)
             .storeUint(86400, 32)
@@ -1724,8 +1735,8 @@ async function showHelp(ctx: any) {
         `  /disconnect — Disconnect wallet\n` +
         `  /wallet — Wallet info & balance\n\n` +
         `<b>${eid(EID.forClients, '👤')} For Clients:</b>\n` +
-        `  /create — Create a TON job\n` +
-        `  /createjetton — Create a USDT job\n` +
+        `  /create — Create a TON job (evaluator optional)\n` +
+        `  /createjetton — Create a USDT job (evaluator optional)\n` +
         `  /fund — Fund a job with ${eid(EID.tonCoin, '💎')}\n` +
         `  /budget — Change job budget\n` +
         `  /cancel — Cancel after timeout (24h)\n\n` +
