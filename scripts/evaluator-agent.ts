@@ -27,7 +27,7 @@ const API_KEY = process.env.TONCENTER_API_KEY ?? '';
 const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const PINATA_JWT = process.env.PINATA_JWT ?? '';
 const DRY_RUN = process.argv.includes('--dry-run');
-const INTERVAL = 30_000; // 30 seconds
+const INTERVAL = 60_000; // 60 seconds
 
 const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
@@ -185,6 +185,7 @@ Submitted result: ${result}`;
                         let reason = '';
 
                         try {
+                            log(`🧠 Calling Gemini for ${jobKey}...`);
                             const geminiResult = await model.generateContent(prompt);
                             const text = geminiResult.response.text().trim();
                             log(`🧠 Gemini raw: ${text}`);
