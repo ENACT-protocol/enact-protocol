@@ -815,7 +815,7 @@ bot.command('create', async (ctx) => {
                 .text('🔄 Check Manually', 'check_created').row()
                 .text('🏠 Main Menu', 'menu_main');
 
-            const tonEvalLabel = evaluatorStr === AI_EVALUATOR ? '🤖 AI Evaluator' : evaluatorAddr.toString({ bounceable: false }).slice(0, 12) + '...';
+            const tonEvalLabel = evaluatorStr === AI_EVALUATOR ? '🤖 AI Evaluator' : `<code>${evaluatorAddr.toString({ bounceable: false })}</code>`;
             return ctx.reply(
                 `${e('✍️')} <b>Create & Fund Job</b>\n\n` +
                 `${e('🪙')} Budget: ${ton(budgetTon)}\n` +
@@ -970,7 +970,7 @@ bot.command('createjetton', async (ctx) => {
             pendingCreate.set(userId, { budgetTon, description });
             pendingChats.set(userId, ctx.chat!.id);
 
-            const evalLabel = jEvaluatorStr === AI_EVALUATOR ? '🤖 AI Evaluator' : jettonEvaluator.toString({ bounceable: false }).slice(0, 12) + '...';
+            const evalLabel = jEvaluatorStr === AI_EVALUATOR ? '🤖 AI Evaluator' : `<code>${jettonEvaluator.toString({ bounceable: false })}</code>`;
 
             const kb = new InlineKeyboard()
                 .url('1️⃣ Create Job', createLink).row()
@@ -1065,9 +1065,10 @@ bot.callbackQuery('check_created_jetton', async (ctx) => {
         pendingCreate.delete(userId);
 
         const kb = new InlineKeyboard()
-            .text('🔭 Status', `jstatus_${jobId}`)
-            .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
-            .text('🏠 Main Menu', 'menu_main');
+            .text('💰 Fund USDT', `jfund_${jobId}`)
+            .text('🔭 Status', `jstatus_${jobId}`).row()
+            .url('🔗 Explorer', explorerLink(jobAddr.toString()))
+            .text('🏠 Menu', 'menu_main');
 
         await respond(ctx,
             `${e('✅')} <b>Jetton Job Created!</b>\n\n` +
@@ -1075,7 +1076,7 @@ bot.callbackQuery('check_created_jetton', async (ctx) => {
             `${e('💵')} Budget: <b>${pending.budgetTon}</b> USDT\n` +
             `${e('📄')} Description: ${pending.description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
-            `USDT wallet set. Ready to fund.`,
+            `Use the Fund button or <code>/fund j${jobId}</code>`,
             { reply_markup: kb }
         );
     } catch (err: any) {
