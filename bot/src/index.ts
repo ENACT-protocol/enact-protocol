@@ -248,6 +248,15 @@ function getUserId(ctx: any): number {
     return ctx.from?.id ?? 0;
 }
 
+/** Reply or edit: if triggered by callback (button click), edit the message. Otherwise send new. */
+async function respond(ctx: any, text: string, opts: any = {}) {
+    const o = { parse_mode: 'HTML' as const, ...opts };
+    if (ctx.callbackQuery) {
+        try { return await ctx.editMessageText(text, o); } catch {}
+    }
+    return ctx.reply(text, o);
+}
+
 /** Get user's wallet address (TonConnect or mnemonic), UQ format */
 async function getUserAddr(userId: number): Promise<string> {
     const tc = userTcAddresses.get(userId);
@@ -342,27 +351,26 @@ bot.callbackQuery('menu_main', async (ctx) => {
         .text('📊 Factories', 'menu_factory').row()
         .text('❓ Help', 'menu_help');
 
-    await ctx.reply(
+    await respond(ctx,
         `${logo()} <b>ENACT Protocol</b>\n\n` +
         `Trustless escrow for AI agent jobs on TON.\n\n` +
         `${e('👛')} Wallet: ${connected ? '<b>Connected</b>' : '<i>Not connected</i>'}\n` +
         `${e('🔗')} Network: TON Mainnet\n\n` +
         `Choose an action:`,
-        { parse_mode: 'HTML', reply_markup: kb }
+        { reply_markup: kb }
     );
 });
 
 bot.callbackQuery('menu_create', async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.reply(
+    await respond(ctx,
         `${e('✍️')} <b>Create a Job</b>\n\n` +
         `${e('💎')} <b>TON:</b>\n` +
         `<code>/create {amount} {description} {evaluator?}</code>\n\n` +
         `${e('💵')} <b>USDT:</b>\n` +
         `<code>/createjetton {amount} {description} {evaluator?}</code>\n\n` +
         `${e('💡')} <b>evaluator?</b> — optional, defaults to you.\n` +
-        `Add a TON address as the last parameter to set a custom evaluator.`,
-        { parse_mode: 'HTML' }
+        `Add a TON address as the last parameter to set a custom evaluator.`
     );
 });
 
@@ -373,12 +381,11 @@ bot.callbackQuery('menu_jobs', async (ctx) => {
 
 bot.callbackQuery('menu_status', async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.reply(
+    await respond(ctx,
         `${e('🔭')} <b>Check Job Status</b>\n\n` +
         `Send the command:\n` +
         `<code>/status job_id</code>\n\n` +
-        `Example: <code>/status 0</code>`,
-        { parse_mode: 'HTML' }
+        `Example: <code>/status 0</code>`
     );
 });
 
@@ -435,13 +442,12 @@ bot.callbackQuery('menu_connect', async (ctx) => {
 
 bot.callbackQuery('menu_connect_mnemonic', async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.reply(
+    await respond(ctx,
         `${e('🔑')} <b>Connect via Mnemonic</b>\n\n` +
         `Send your 24-word mnemonic phrase:\n` +
         `<code>/connect word1 word2 ... word24</code>\n\n` +
         `${e('🔒')} Your mnemonic is stored encrypted on the server.\n` +
-        `${e('⚠️')} Send this in a <b>private chat</b> with the bot for security.`,
-        { parse_mode: 'HTML' }
+        `${e('⚠️')} Send this in a <b>private chat</b> with the bot for security.`
     );
 });
 
@@ -452,13 +458,12 @@ bot.callbackQuery('menu_factory', async (ctx) => {
 
 bot.callbackQuery('menu_evaluate', async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.reply(
+    await respond(ctx,
         `${e('⚖️')} <b>Evaluate a Job</b>\n\n` +
         `Send the command:\n` +
         `<code>/evaluate job_id</code>\n\n` +
         `Example: <code>/evaluate 0</code>\n\n` +
-        `${e('💡')} You must be the evaluator of the job. The bot will show the submitted result and let you approve or reject.`,
-        { parse_mode: 'HTML' }
+        `${e('💡')} You must be the evaluator of the job. The bot will show the submitted result and let you approve or reject.`
     );
 });
 
@@ -476,9 +481,9 @@ bot.callbackQuery('menu_disconnect', async (ctx) => {
     if (tc) { try { await tc.disconnect(); } catch {} }
     userConnectors.delete(userId);
     saveWallets();
-    await ctx.reply(
+    await respond(ctx,
         `${e('✅')} Wallet disconnected.`,
-        { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
+        { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
 
@@ -487,7 +492,7 @@ bot.callbackQuery('check_created', async (ctx) => {
     const userId = getUserId(ctx);
     const pending = pendingCreate.get(userId);
     if (!pending) {
-        return ctx.reply(`${e('❌')} No pending job creation found.`, { parse_mode: 'HTML' });
+        return respond(ctx, `${e('❌')} No pending job creation found.`);
     }
     try {
         const client = await createClient();
@@ -510,20 +515,20 @@ bot.callbackQuery('check_created', async (ctx) => {
             .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
             .text('🏠 Main Menu', 'menu_main');
 
-        await ctx.reply(
+        await respond(ctx,
             `${e('✅')} <b>Job Created!</b>\n\n` +
             `${e('🆔')} ID: <code>${jobId}</code>\n` +
             `${e('🪙')} Budget: ${ton(pending.budgetTon)}\n` +
             `${e('📄')} Description: ${pending.description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
             `Now press <b>"Fund"</b> to deposit ${ton(pending.budgetTon)} into escrow.`,
-            { parse_mode: 'HTML', reply_markup: kb }
+            { reply_markup: kb }
         );
     } catch (err: any) {
-        await ctx.reply(
+        await respond(ctx,
             `${e('⏳')} Job not found on-chain yet. Wait ~10 seconds and try again.\n\n` +
             `${e('💡')} Press "Check if Created" again after Tonkeeper confirms.`,
-            { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🔄 Check Again', 'check_created').row().text('🏠 Menu', 'menu_main') }
+            { reply_markup: new InlineKeyboard().text('🔄 Check Again', 'check_created').row().text('🏠 Menu', 'menu_main') }
         );
     }
 });
@@ -570,10 +575,9 @@ bot.callbackQuery(/^status_(\d+)$/, async (ctx) => {
 bot.callbackQuery(/^submit_prompt_(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const jobId = parseInt(ctx.match![1]);
-    await ctx.reply(
+    await respond(ctx,
         `${e('📨')} <b>Submit Result for Job #${jobId}</b>\n\n` +
-        `Send:\n<code>/submit ${jobId} your result text here</code>`,
-        { parse_mode: 'HTML' }
+        `Send:\n<code>/submit ${jobId} your result text here</code>`
     );
 });
 
@@ -916,7 +920,7 @@ bot.callbackQuery('check_created_jetton', async (ctx) => {
     const userId = getUserId(ctx);
     const pending = pendingCreate.get(userId);
     if (!pending) {
-        return ctx.reply(`${e('❌')} No pending job creation found.`, { parse_mode: 'HTML' });
+        return respond(ctx, `${e('❌')} No pending job creation found.`);
     }
     try {
         const client = await createClient();
@@ -932,19 +936,19 @@ bot.callbackQuery('check_created_jetton', async (ctx) => {
             .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
             .text('🏠 Main Menu', 'menu_main');
 
-        await ctx.reply(
+        await respond(ctx,
             `${e('✅')} <b>Jetton Job Created!</b>\n\n` +
             `${e('🆔')} ID: <code>${jobId}</code>\n` +
             `${e('💵')} Budget: <b>${pending.budgetTon}</b> USDT\n` +
             `${e('📄')} Description: ${pending.description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
             `USDT wallet set. Ready to fund.`,
-            { parse_mode: 'HTML', reply_markup: kb }
+            { reply_markup: kb }
         );
     } catch (err: any) {
-        await ctx.reply(
+        await respond(ctx,
             `${e('⏳')} Job not found yet. Wait ~10 seconds and try again.`,
-            { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🔄 Check Again', 'check_created_jetton').row().text('🏠 Menu', 'menu_main') }
+            { reply_markup: new InlineKeyboard().text('🔄 Check Again', 'check_created_jetton').row().text('🏠 Menu', 'menu_main') }
         );
     }
 });
@@ -1206,11 +1210,11 @@ async function handleWallet(ctx: any) {
             .text('👛 Connect Wallet', 'menu_connect').row()
             .text('🏠 Main Menu', 'menu_main');
 
-        return ctx.reply(
+        return respond(ctx,
             `${e('👛')} <b>Wallet</b>\n\n` +
             `${e('🚫')} No wallet connected.\n\n` +
             `Connect your wallet to create jobs, fund escrow, and interact with ENACT contracts.`,
-            { parse_mode: 'HTML', reply_markup: kb }
+            { reply_markup: kb }
         );
     }
 
@@ -1235,15 +1239,15 @@ async function handleWallet(ctx: any) {
             .text('🔌 Disconnect', 'menu_disconnect').row()
             .text('🏠 Main Menu', 'menu_main');
 
-        await ctx.reply(
+        await respond(ctx,
             `${e('👛')} <b>Your Wallet</b>\n\n` +
             `${e('📍')} Address:\n<code>${addr}</code>\n\n` +
             `${e('🪙')} Balance: ${ton((Number(balance) / 1e9).toFixed(2))}\n` +
             `${e('🔗')} Mode: <b>${modeLabel}</b>`,
-            { parse_mode: 'HTML', reply_markup: kb }
+            { reply_markup: kb }
         );
     } catch (err: any) {
-        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+        await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
 }
 
@@ -1253,14 +1257,14 @@ async function handleFactory(ctx: any) {
         .url('💵 JettonJobFactory', explorerLink(JETTON_FACTORY_ADDRESS)).row()
         .text('🏠 Main Menu', 'menu_main');
 
-    await ctx.reply(
+    await respond(ctx,
         `${logo()} <b>ENACT Factories</b>\n` +
         `${e('🔗')} TON Mainnet\n\n` +
         `${e('💎')} <b>JobFactory</b> (TON payments):\n` +
         `<code>${FACTORY_ADDRESS}</code>\n\n` +
         `${e('💵')} <b>JettonJobFactory</b> (USDT payments):\n` +
         `<code>${JETTON_FACTORY_ADDRESS}</code>`,
-        { parse_mode: 'HTML', reply_markup: kb }
+        { reply_markup: kb }
     );
 }
 
@@ -1277,7 +1281,7 @@ async function handleJobs(ctx: any, page: number, filter: string) {
             const kb = new InlineKeyboard()
                 .text('✍️ Create First Job', 'menu_create').row()
                 .text('🏠 Main Menu', 'menu_main');
-            return ctx.reply(`${e('📋')} No jobs yet. Create the first one!`, { parse_mode: 'HTML', reply_markup: kb });
+            return respond(ctx, `${e('📋')} No jobs yet. Create the first one!`, { reply_markup: kb });
         }
 
         const stateIcon: Record<string, string> = {
@@ -1346,9 +1350,9 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         kb.text('✍️ Create Job', 'menu_create')
           .text('🏠 Menu', 'menu_main');
 
-        await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
+        await respond(ctx, text, { reply_markup: kb });
     } catch (err: any) {
-        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+        await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
 }
 
@@ -1420,9 +1424,9 @@ async function handleStatus(ctx: any, jobId: number) {
           .url('🔗 Explorer', explorerLink(jobAddr.toString()))
           .text('🏠 Menu', 'menu_main');
 
-        await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
+        await respond(ctx, text, { reply_markup: kb });
     } catch (err: any) {
-        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+        await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
 }
 
@@ -1751,9 +1755,9 @@ async function handleJettonStatus(ctx: any, jobId: number) {
           .url('🔗 Explorer', explorerLink(jobAddr.toString()))
           .text('🏠 Menu', 'menu_main');
 
-        await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb });
+        await respond(ctx, text, { reply_markup: kb });
     } catch (err: any) {
-        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+        await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
 }
 
@@ -1764,7 +1768,7 @@ async function showHelp(ctx: any) {
         .text('👛 Wallet', 'menu_wallet')
         .text('🏠 Menu', 'menu_main');
 
-    await ctx.reply(
+    await respond(ctx,
         `${logo()} <b>Help — ENACT Protocol Bot</b>\n\n` +
         `<b>${e('👛')} Wallet:</b>\n` +
         `  👛 Connect — via Tonkeeper (recommended)\n` +
@@ -1792,7 +1796,7 @@ async function showHelp(ctx: any) {
         `  /factory — Factory contract addresses\n\n` +
         `${e('💡')} Job lifecycle:\n` +
         `OPEN → FUNDED → SUBMITTED → COMPLETED`,
-        { parse_mode: 'HTML', reply_markup: kb }
+        { reply_markup: kb }
     );
 }
 
