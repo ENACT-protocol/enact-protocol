@@ -925,11 +925,26 @@ bot.command('submit', async (ctx) => {
         );
     }
 
-    const w = await requireWallet(ctx);
-    if (!w) return;
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
 
     const jobId = parseInt(args[0]);
     const resultText = args.slice(1).join(' ');
+
+    // Verify caller is the provider
+    try {
+        const client = await createClient();
+        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const status = await getJobStatus(client, jobAddr.toString());
+        const userAddr = mode === 'tonconnect' ? userTcAddresses.get(userId) : null;
+        if (userAddr && status.provider !== userAddr) {
+            return ctx.reply(`${e('❌')} You are not the provider of this job.`, { parse_mode: 'HTML' });
+        }
+    } catch {}
+
+    const w = await requireWallet(ctx);
+    if (!w) return;
     const resultHash = BigInt('0x' + Buffer.from(resultText).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
@@ -1389,7 +1404,29 @@ async function handleTake(ctx: any, jobId: number) {
                 .url('👛 Approve in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('🤝')} <b>Take Job #${jobId}</b>\n\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('🤝')} <b>Take Job #${jobId}</b>\n\nOpen Tonkeeper to approve. Auto-detecting...`, { parse_mode: 'HTML', reply_markup: kb });
+            // Poll for provider field change
+            const existingW = tcWatchers.get(userId);
+            if (existingW) clearInterval(existingW);
+            let takeAttempts = 0;
+            const takeTimer = setInterval(async () => {
+                takeAttempts++;
+                if (takeAttempts > 40) { clearInterval(takeTimer); tcWatchers.delete(userId); return; }
+                try {
+                    const c = await createClient();
+                    const s = await getJobStatus(c, jobAddr.toString());
+                    if (s.provider !== 'none') {
+                        clearInterval(takeTimer); tcWatchers.delete(userId);
+                        const tkb = new InlineKeyboard()
+                            .text('🔭 Status', `status_${jobId}`)
+                            .text('🏠 Menu', 'menu_main');
+                        await bot.api.sendMessage(ctx.chat!.id,
+                            `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${jobId} your_result_text</code>`,
+                            { parse_mode: 'HTML', reply_markup: tkb });
+                    }
+                } catch {}
+            }, 3000);
+            tcWatchers.set(userId, takeTimer);
             return;
         }
 
