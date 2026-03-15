@@ -201,6 +201,30 @@ function escapeHtml(s: string): string {
 const PINATA_GW = 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
 const descCache = new Map<string, string>();
 
+/** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */
+async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: bigint }> {
+    const jwt = process.env.PINATA_JWT;
+    if (!jwt) {
+        // Fallback: hex encode (first 32 bytes)
+        const text = JSON.stringify(content);
+        const hex = Buffer.from(text).toString('hex').padEnd(64, '0').slice(0, 64);
+        return { hash: hex, hashBig: BigInt('0x' + hex) };
+    }
+    const { createHash } = await import('crypto');
+    const json = JSON.stringify(content);
+    const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
+    const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+        body: JSON.stringify({
+            pinataContent: content,
+            pinataMetadata: { name: `enact-${hash.slice(0, 8)}`, keyvalues: { descHash: hash } },
+        }),
+    });
+    if (!res.ok) throw new Error(`IPFS upload failed: ${res.status}`);
+    return { hash, hashBig: BigInt('0x' + hash) };
+}
+
 async function decodeDesc(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
     if (descCache.has(hash)) return descCache.get(hash)!;
@@ -710,9 +734,9 @@ bot.command('create', async (ctx) => {
         descArgs = args.slice(1);
     }
     const description = descArgs.join(' ');
-    const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
+        const { hashBig: descHash } = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
         const client = await createClient();
 
         if (mode === 'tonconnect') {
@@ -850,9 +874,9 @@ bot.command('createjetton', async (ctx) => {
         jDescArgs = args.slice(1);
     }
     const description = jDescArgs.join(' ');
-    const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
+        const { hashBig: descHash } = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
         const client = await createClient();
 
         if (mode === 'tonconnect') {
@@ -1078,15 +1102,14 @@ bot.command('submit', async (ctx) => {
         return ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
 
-    const resultHash = BigInt('0x' + Buffer.from(resultText).toString('hex').padEnd(64, '0').slice(0, 64));
-
     try {
+        const { hashBig: resultHash } = await uploadToIPFS({ type: 'job_result', result: resultText, submittedAt: new Date().toISOString() });
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
             .storeUint(resultHash, 256)
-            .storeUint(0, 8)
+            .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
 
         if (mode === 'tonconnect') {
