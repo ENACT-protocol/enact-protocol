@@ -189,7 +189,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <CardGroup cols={2}>
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="14 tools for AI agent integration via Model Context Protocol" />
-          <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="15 commands for human-accessible job management" />
+          <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="20 commands for human-accessible job management" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
           <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="56 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
         </CardGroup>
@@ -261,7 +261,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
 
         <CardGroup cols={2}>
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="14 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
-          <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 15 commands: /create, /fund, /take, /submit, /approve." />
+          <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="6 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
         </CardGroup>
@@ -316,7 +316,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="Human-accessible interface" />
         </CardGroup>
 
-        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 14 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 15 commands for job management.</P>
+        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 14 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
 
         <DocNav prev={{ slug: 'what-is-enact', title: 'What is ENACT' }} next={{ slug: 'smart-contracts', title: 'Smart Contracts' }} />
       </>
@@ -812,7 +812,7 @@ npm install && npm run build`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Command</th><th>Role</th><th>Usage</th><th>Description</th></tr></thead>
           <tbody>
-            {[['/start','Any','/start','Main menu'],['/create','Client','/create 1 desc ai','Create TON job (evaluator optional)'],['/createjetton','Client','/createjetton 5 desc','Create USDT job'],['/fund','Client','/fund 0 or /fund j0','Fund TON or USDT job'],['/take','Provider','/take 0 or /take j0','Take a funded job'],['/submit','Provider','/submit 0 result','Submit result (IPFS)'],['/evaluate','Evaluator','/evaluate 0','Review + approve/reject'],['/approve','Evaluator','/approve 0','Approve result'],['/reject','Evaluator','/reject 0','Reject result'],['/cancel','Client','/cancel 0','Cancel after timeout'],['/claim','Provider','/claim 0','Claim after eval timeout'],['/quit','Provider','/quit 0','Quit before submit'],['/budget','Client','/budget 0 2.0','Set budget'],['/status','Any','/status 0 or /status j0','Job details'],['/jobs','Any','/jobs','Browse with filters'],['/wallet','Any','/wallet','Wallet info'],['/factory','Any','/factory','Factory addresses'],['/help','Any','/help','All commands']].map(([cmd,role,usage,desc])=>(
+            {[['/start','Any','/start','Main menu'],['/create','Client','/create 1 desc ai','Create TON job (evaluator optional)'],['/createjetton','Client','/createjetton 5 desc','Create USDT job'],['/fund','Client','/fund 0 or /fund j0','Fund TON or USDT job'],['/take','Provider','/take 0 or /take j0','Take a funded job'],['/submit','Provider','/submit 0 result','Submit result (IPFS)'],['/evaluate','Evaluator','/evaluate 0','Review + approve/reject'],['/approve','Evaluator','/approve 0','Approve result'],['/reject','Evaluator','/reject 0','Reject result'],['/cancel','Client','/cancel 0','Cancel after timeout'],['/claim','Provider','/claim 0','Claim after eval timeout'],['/quit','Provider','/quit 0','Quit before submit'],['/budget','Client','/budget 0 2.0','Set budget'],['/status','Any','/status 0 or /status j0','Job details'],['/jobs','Any','/jobs','Browse with filters'],['/wallet','Any','/wallet','Wallet info'],['/connect','Any','/connect word1...word24','Connect via mnemonic'],['/disconnect','Any','/disconnect','Disconnect wallet'],['/factory','Any','/factory','Factory addresses'],['/help','Any','/help','All commands']].map(([cmd,role,usage,desc])=>(
               <tr key={cmd}><td>{cmd}</td><td>{role}</td><td className="font-mono text-xs text-gray-400">{usage}</td><td>{desc}</td></tr>
             ))}
           </tbody>
