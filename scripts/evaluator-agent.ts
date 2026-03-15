@@ -233,7 +233,7 @@ Submitted result: ${result}`;
                                 sendMode: SendMode.PAY_GAS_SEPARATELY,
                                 messages: [internal({
                                     to: jobAddr,
-                                    value: toNano('0.06'), // extra for USDT payout
+                                    value: toNano(factory.label === 'USDT' ? '0.06' : '0.01'),
                                     body,
                                     bounce: true,
                                 })],
