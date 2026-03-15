@@ -257,6 +257,16 @@ async function respond(ctx: any, text: string, opts: any = {}) {
     return ctx.reply(text, o);
 }
 
+/** Parse job arg: "0" → {id:0, jetton:false}, "j0" → {id:0, jetton:true} */
+function parseJobArg(arg: string): { id: number; jetton: boolean } | null {
+    if (arg.toLowerCase().startsWith('j')) {
+        const id = parseInt(arg.slice(1));
+        return isNaN(id) ? null : { id, jetton: true };
+    }
+    const id = parseInt(arg);
+    return isNaN(id) ? null : { id, jetton: false };
+}
+
 /** Get user's wallet address (TonConnect or mnemonic), UQ format */
 async function getUserAddr(userId: number): Promise<string> {
     const tc = userTcAddresses.get(userId);
@@ -1006,15 +1016,15 @@ bot.callbackQuery(/^jstatus_(\d+)$/, async (ctx) => {
 });
 
 bot.command('fund', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/fund job_id</code>`, { parse_mode: 'HTML' });
-    await handleFund(ctx, jobId);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/fund 0</code> or <code>/fund j0</code>`, { parse_mode: 'HTML' });
+    await handleFund(ctx, parsed.id, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('take', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/take job_id</code>`, { parse_mode: 'HTML' });
-    await handleTake(ctx, jobId);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/take 0</code> or <code>/take j0</code>`, { parse_mode: 'HTML' });
+    await handleTake(ctx, parsed.id, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('submit', async (ctx) => {
@@ -1135,15 +1145,15 @@ bot.command('submit', async (ctx) => {
 });
 
 bot.command('approve', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/approve job_id</code>`, { parse_mode: 'HTML' });
-    await handleEvaluate(ctx, jobId, true);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/approve 0</code> or <code>/approve j0</code>`, { parse_mode: 'HTML' });
+    await handleEvaluate(ctx, parsed.id, true, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('reject', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/reject job_id</code>`, { parse_mode: 'HTML' });
-    await handleEvaluate(ctx, jobId, false);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/reject 0</code> or <code>/reject j0</code>`, { parse_mode: 'HTML' });
+    await handleEvaluate(ctx, parsed.id, false, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('budget', async (ctx) => {
@@ -1180,21 +1190,21 @@ bot.command('budget', async (ctx) => {
 });
 
 bot.command('cancel', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/cancel job_id</code>`, { parse_mode: 'HTML' });
-    await handleCancel(ctx, jobId);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/cancel 0</code> or <code>/cancel j0</code>`, { parse_mode: 'HTML' });
+    await handleCancel(ctx, parsed.id, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('claim', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/claim job_id</code>`, { parse_mode: 'HTML' });
-    await handleClaim(ctx, jobId);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/claim 0</code> or <code>/claim j0</code>`, { parse_mode: 'HTML' });
+    await handleClaim(ctx, parsed.id, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('quit', async (ctx) => {
-    const jobId = parseInt(ctx.message?.text?.split(' ')[1] ?? '');
-    if (isNaN(jobId)) return ctx.reply(`${e('❌')} Usage: <code>/quit job_id</code>`, { parse_mode: 'HTML' });
-    await handleQuit(ctx, jobId);
+    const parsed = parseJobArg(ctx.message?.text?.split(' ')[1] ?? '');
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/quit 0</code> or <code>/quit j0</code>`, { parse_mode: 'HTML' });
+    await handleQuit(ctx, parsed.id, parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS);
 });
 
 bot.command('status', async (ctx) => {
@@ -1476,14 +1486,14 @@ async function handleStatus(ctx: any, jobId: number) {
     }
 }
 
-async function handleFund(ctx: any, jobId: number) {
+async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
     try {
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
         const amount = status.budget + toNano('0.01');
@@ -1526,7 +1536,7 @@ async function handleFund(ctx: any, jobId: number) {
     }
 }
 
-async function handleTake(ctx: any, jobId: number) {
+async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
@@ -1580,14 +1590,14 @@ async function handleTake(ctx: any, jobId: number) {
     }
 }
 
-async function handleCancel(ctx: any, jobId: number) {
+async function handleCancel(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
     try {
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
         const deadline = status.createdAt + status.timeout;
         const now = Math.floor(Date.now() / 1000);
@@ -1625,7 +1635,7 @@ async function handleCancel(ctx: any, jobId: number) {
     }
 }
 
-async function handleClaim(ctx: any, jobId: number) {
+async function handleClaim(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
@@ -1674,14 +1684,14 @@ async function handleClaim(ctx: any, jobId: number) {
     }
 }
 
-async function handleQuit(ctx: any, jobId: number) {
+async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
     try {
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
 
         if (mode === 'tonconnect') {
@@ -1706,7 +1716,7 @@ async function handleQuit(ctx: any, jobId: number) {
     }
 }
 
-async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
+async function handleEvaluate(ctx: any, jobId: number, approved: boolean, factory = FACTORY_ADDRESS) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
