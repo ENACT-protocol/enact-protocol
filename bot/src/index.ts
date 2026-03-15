@@ -542,6 +542,16 @@ bot.callbackQuery(/^status_(\d+)$/, async (ctx) => {
     await handleStatus(ctx, jobId);
 });
 
+bot.callbackQuery(/^submit_prompt_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const jobId = parseInt(ctx.match![1]);
+    await ctx.reply(
+        `${e('📨')} <b>Submit Result for Job #${jobId}</b>\n\n` +
+        `Send:\n<code>/submit ${jobId} your result text here</code>`,
+        { parse_mode: 'HTML' }
+    );
+});
+
 bot.callbackQuery(/^approve_(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const jobId = parseInt(ctx.match![1]);
@@ -943,6 +953,29 @@ bot.command('submit', async (ctx) => {
             `Awaiting evaluation from the evaluator.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
+
+        // Notify evaluator if connected to bot
+        try {
+            const status = await getJobStatus(client, jobAddr.toString());
+            const desc = jobDescriptions.get(jobId) ?? await decodeDesc(status.descHash) ?? '';
+            for (const [uid, addr] of userTcAddresses) {
+                if (addr === status.evaluator) {
+                    const evalKb = new InlineKeyboard()
+                        .text('✅ Approve', `approve_${jobId}`)
+                        .text('❌ Reject', `reject_${jobId}`).row()
+                        .text('🔭 View Job', `status_${jobId}`);
+                    await bot.api.sendMessage(uid,
+                        `${e('⚖️')} <b>Job #${jobId} — Evaluation Needed</b>\n\n` +
+                        (desc ? `${e('📄')} Description: <i>${desc.slice(0, 150)}</i>\n` : '') +
+                        `${e('🪙')} Budget: ${ton(fmtTon(status.budget))}\n` +
+                        `${eid(EID.forProviders, '🔧')} Provider: <code>${status.provider}</code>\n\n` +
+                        `Please review and approve or reject.`,
+                        { parse_mode: 'HTML', reply_markup: evalKb }
+                    );
+                    break;
+                }
+            }
+        } catch {}
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
@@ -1257,7 +1290,12 @@ async function handleStatus(ctx: any, jobId: number) {
                 if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
                 break;
             case 'FUNDED':
-                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                if (s.provider === 'none') {
+                    if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                } else if (isProvider) {
+                    kb.text('📨 Submit Result', `submit_prompt_${jobId}`);
+                    kb.text('🚪 Quit', `quit_${jobId}`);
+                }
                 if (isClient) kb.text('🚫 Cancel', `cancel_${jobId}`);
                 break;
             case 'SUBMITTED':
@@ -1351,8 +1389,7 @@ async function handleTake(ctx: any, jobId: number) {
                 .url('👛 Approve in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('🤝')} <b>Take Job #${jobId}</b>\n\nOpen Tonkeeper to approve. Auto-detecting...`, { parse_mode: 'HTML', reply_markup: kb });
-            // Take doesn't change state from FUNDED, but provider gets set — watch for SUBMITTED as next expected action
+            await ctx.reply(`${e('🤝')} <b>Take Job #${jobId}</b>\n\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
             return;
         }
 
@@ -1550,7 +1587,12 @@ async function handleJettonStatus(ctx: any, jobId: number) {
                 if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
                 break;
             case 'FUNDED':
-                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                if (s.provider === 'none') {
+                    if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                } else if (isProvider) {
+                    kb.text('📨 Submit Result', `submit_prompt_${jobId}`);
+                    kb.text('🚪 Quit', `quit_${jobId}`);
+                }
                 if (isClient) kb.text('🚫 Cancel', `cancel_${jobId}`);
                 break;
             case 'SUBMITTED':
