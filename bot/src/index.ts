@@ -659,6 +659,20 @@ bot.callbackQuery(/^reject_(\d+)$/, async (ctx) => {
     await handleEvaluate(ctx, jobId, false);
 });
 
+// Jetton job action callbacks
+bot.callbackQuery(/^jfund_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleFund(ctx, parseInt(ctx.match![1]), JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^jtake_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleTake(ctx, parseInt(ctx.match![1]), JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^jcancel_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleCancel(ctx, parseInt(ctx.match![1]), JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^jclaim_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleClaim(ctx, parseInt(ctx.match![1]), JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^jquit_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleQuit(ctx, parseInt(ctx.match![1]), JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^japprove_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleEvaluate(ctx, parseInt(ctx.match![1]), true, JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^jreject_(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await handleEvaluate(ctx, parseInt(ctx.match![1]), false, JETTON_FACTORY_ADDRESS); });
+bot.callbackQuery(/^jsubmit_prompt_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const jobId = parseInt(ctx.match![1]);
+    await respond(ctx, `${e('📨')} <b>Submit Result for Jetton Job #${jobId}</b>\n\nSend:\n<code>/submit j${jobId} your result text here</code>`);
+});
+
 // ────────────────────────────────────────────
 // Text commands
 // ────────────────────────────────────────────
@@ -2009,23 +2023,23 @@ async function handleJettonStatus(ctx: any, jobId: number) {
 
         switch (s.stateName) {
             case 'OPEN':
-                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                if (!isClient) kb.text('🤝 Take Job', `jtake_${jobId}`);
                 break;
             case 'FUNDED':
                 if (s.provider === 'none') {
-                    if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
+                    if (!isClient) kb.text('🤝 Take Job', `jtake_${jobId}`);
                 } else if (isProvider) {
-                    kb.text('📨 Submit Result', `submit_prompt_${jobId}`);
-                    kb.text('🚪 Quit', `quit_${jobId}`);
+                    kb.text('📨 Submit Result', `jsubmit_prompt_${jobId}`);
+                    kb.text('🚪 Quit', `jquit_${jobId}`);
                 }
-                if (isClient) kb.text('🚫 Cancel', `cancel_${jobId}`);
+                if (isClient) kb.text('🚫 Cancel', `jcancel_${jobId}`);
                 break;
             case 'SUBMITTED':
                 if (isEvaluator || isClient) {
-                    kb.text('✅ Approve', `approve_${jobId}`)
-                      .text('❌ Reject', `reject_${jobId}`).row();
+                    kb.text('✅ Approve', `japprove_${jobId}`)
+                      .text('❌ Reject', `jreject_${jobId}`).row();
                 }
-                if (isProvider) kb.text('⏰ Claim (timeout)', `claim_${jobId}`);
+                if (isProvider) kb.text('⏰ Claim (timeout)', `jclaim_${jobId}`);
                 break;
             case 'COMPLETED':
                 text += `\n\n${e('🎉')} Job completed!`;
