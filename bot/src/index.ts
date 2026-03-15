@@ -1446,7 +1446,7 @@ async function handleStatus(ctx: any, jobId: number) {
             (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
-            `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
+            `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
             `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h${s.createdAt > 0 ? (() => { const left = (s.createdAt + s.timeout) - Math.floor(Date.now()/1000); return left > 0 ? ' | ' + Math.floor(left/3600) + 'h ' + Math.floor((left%3600)/60) + 'm left' : ' | expired'; })() : ''}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
 
@@ -1859,7 +1859,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
-            `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
+            `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
             `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h${s.createdAt > 0 ? (() => { const left = (s.createdAt + s.timeout) - Math.floor(Date.now()/1000); return left > 0 ? ' | ' + Math.floor(left/3600) + 'h ' + Math.floor((left%3600)/60) + 'm left' : ' | expired'; })() : ''}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
 
