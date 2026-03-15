@@ -1374,7 +1374,7 @@ async function handleStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1724,7 +1724,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
-        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +

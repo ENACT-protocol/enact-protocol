@@ -45,7 +45,7 @@ export default function Footer() {
 
       {/* ── watermark: logo + ENACT, centered, gradient fade ── */}
       <div
-        className="relative h-[140px] sm:h-[160px] md:h-[220px] lg:h-[280px] flex items-end justify-center pointer-events-none select-none"
+        className="relative h-[100px] sm:h-[160px] md:h-[220px] lg:h-[280px] flex items-center justify-center pointer-events-none select-none"
         style={{
           WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 60%, transparent 100%)',
           maskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 60%, transparent 100%)',
@@ -56,7 +56,7 @@ export default function Footer() {
           alt=""
           className="flex-shrink-0"
           style={{
-            height: 'clamp(4rem, 14vw, 14rem)',
+            height: 'clamp(2.5rem, 14vw, 14rem)',
             width: 'auto',
             opacity: 0.14,
             marginRight: 'clamp(4px, 0.5vw, 10px)',
@@ -66,7 +66,7 @@ export default function Footer() {
         <span
           className="font-serif italic leading-[0.82] tracking-tight"
           style={{
-            fontSize: 'clamp(3.5rem, 14vw, 14rem)',
+            fontSize: 'clamp(2.5rem, 14vw, 14rem)',
             background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
