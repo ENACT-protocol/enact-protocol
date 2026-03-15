@@ -73,9 +73,9 @@ export default function Footer() {
         </span>
       </div>
       {/* Mobile: simple text, no mask/overflow issues */}
-      <div className="sm:hidden flex items-center justify-center py-8 pointer-events-none select-none gap-2">
-        <img src="/enact_logo.png" alt="" style={{ height: '2rem', width: 'auto', opacity: 0.15 }} draggable={false} />
-        <span className="font-serif italic text-3xl tracking-tight" style={{ color: 'rgba(255,255,255,0.12)' }}>ENACT</span>
+      <div className="sm:hidden flex items-center justify-center py-10 pointer-events-none select-none gap-3">
+        <img src="/enact_logo.png" alt="" style={{ height: '3.5rem', width: 'auto', opacity: 0.15 }} draggable={false} />
+        <span className="font-serif italic text-6xl tracking-tight" style={{ color: 'rgba(255,255,255,0.12)' }}>ENACT</span>
       </div>
     </footer>
   );
