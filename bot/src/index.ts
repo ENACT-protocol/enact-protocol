@@ -1582,7 +1582,6 @@ async function handleStatus(ctx: any, jobId: number) {
         switch (s.stateName) {
             case 'OPEN':
                 if (isClient) kb.text('💰 Fund', `fund_${jobId}`);
-                if (!isClient) kb.text('🤝 Take Job', `take_${jobId}`);
                 break;
             case 'FUNDED':
                 if (s.provider === 'none') {
@@ -2023,7 +2022,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
 
         switch (s.stateName) {
             case 'OPEN':
-                if (!isClient) kb.text('🤝 Take Job', `jtake_${jobId}`);
+                if (isClient) kb.text('💰 Fund', `jfund_${jobId}`);
                 break;
             case 'FUNDED':
                 if (s.provider === 'none') {
