@@ -20,6 +20,8 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 ---
 
+Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), or via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk).
+
 ## Quick Start
 
 **Remote (no wallet needed) — read ops + unsigned transactions:**
