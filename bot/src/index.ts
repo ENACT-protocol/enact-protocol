@@ -896,7 +896,7 @@ bot.command('createjetton', async (ctx) => {
             `Example: <code>/createjetton 5 Audit this code ai 12h</code>\n\n` +
             `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
             `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).\n` +
-            `${e('🪙')} Requires ~0.15 TON for gas (create + set wallet + fund).`,
+            `${e('🪙')} Gas: ~0.14 TON total (create 0.03 + set wallet 0.01 + fund 0.1). Most is refunded.`,
             { parse_mode: 'HTML' }
         );
     }

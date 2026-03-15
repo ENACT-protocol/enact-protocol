@@ -460,7 +460,8 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
               ['Fund Job','budget + 0.01 TON','~0.004 TON','~0.006 TON'],
               ['Take / Submit / Evaluate','0.01 TON','~0.003 TON','~0.007 TON'],
               ['Cancel / Claim / Quit','0.01 TON','~0.003 TON','~0.007 TON'],
-              ['Fund USDT Job','0.1 TON (gas only, ~0.04 refunded)','~0.057 TON','~0.04 TON'],
+              ['Set USDT Wallet','0.01 TON','~0.003 TON','~0.007 TON'],
+              ['Fund USDT Job','0.1 TON (gas only)','~0.057 TON','~0.04 TON'],
             ].map(([op,gas,actual,refund])=>(
               <tr key={op}><td>{op}</td><td>{gas}</td><td>{actual}</td><td>{refund}</td></tr>
             ))}
