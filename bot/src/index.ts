@@ -1794,7 +1794,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
-        await new Promise(r => setTimeout(r, 8000));
+        await new Promise(r => setTimeout(r, 12000));
 
         const newStatus = await getJobStatus(client, jobAddr.toString());
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
