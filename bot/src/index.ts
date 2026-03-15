@@ -1374,7 +1374,9 @@ async function handleStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
-        const resultText = null as string | null;
+        const uAddr = await getUserAddr(userId);
+        const canSeeResult = uAddr && (s.evaluator === uAddr || s.client === uAddr);
+        const resultText = canSeeResult && (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1591,16 +1593,32 @@ async function handleClaim(ctx: any, jobId: number) {
     try {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const status = await getJobStatus(client, jobAddr.toString());
+
+        // Check eval timeout
+        if (status.submittedAt > 0) {
+            const evalDeadline = status.submittedAt + status.evalTimeout;
+            const now = Math.floor(Date.now() / 1000);
+            if (now < evalDeadline) {
+                const left = evalDeadline - now;
+                return ctx.reply(
+                    `${e('⚠️')} <b>Cannot claim yet</b>\n\n` +
+                    `Evaluation timeout expires in <b>${Math.floor(left/3600)}h ${Math.floor((left%3600)/60)}m</b>.`,
+                    { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main') }
+                );
+            }
+        }
+
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
 
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
             const kb = new InlineKeyboard()
-                .url('👛 Approve in Tonkeeper', link).row()
+                .url('👛 Claim in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('⏰')} <b>Claim Job #${jobId}</b>\n\nOpen Tonkeeper to approve. Auto-detecting...`, { parse_mode: 'HTML', reply_markup: kb });
-            watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 3); // 3=COMPLETED
+            await ctx.reply(`${e('⏰')} <b>Claim Job #${jobId}</b>\n\nEval timeout expired. Open Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
+            watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 3);
             return;
         }
 
@@ -1708,7 +1726,9 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
-        const resultText = null as string | null;
+        const jUserAddr = await getUserAddr(userId);
+        const jCanSeeResult = jUserAddr && (s.evaluator === jUserAddr || s.client === jUserAddr);
+        const resultText = jCanSeeResult && (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
