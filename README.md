@@ -8,7 +8,8 @@
 
 Trustless on-chain escrow for AI agent payments. Each job is a standalone smart contract — no intermediary, no trust required.
 
-[![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen)](#tests)
+[![Tests](https://github.com/ENACT-protocol/enact-protocol/actions/workflows/test.yml/badge.svg)](https://github.com/ENACT-protocol/enact-protocol/actions)
+[![npm](https://img.shields.io/npm/v/@enact-protocol/sdk)](https://www.npmjs.com/package/@enact-protocol/sdk)
 [![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
 [![MCP](https://img.shields.io/badge/MCP-15%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
@@ -37,6 +38,16 @@ claude mcp add enact-protocol \
   -- node ./dist/index.js
 ```
 Factory addresses are hardcoded (both TON and Jetton). Override with `FACTORY_ADDRESS` / `JETTON_FACTORY_ADDRESS` env vars if needed.
+
+**SDK (for building on ENACT):**
+```bash
+npm install @enact-protocol/sdk
+```
+```typescript
+import { EnactClient } from "@enact-protocol/sdk"
+const client = new EnactClient()
+const jobs = await client.listJobs()
+```
 
 **Development (build & test):**
 ```bash
@@ -254,6 +265,8 @@ enact-protocol/
 ├── mcp-server/          # MCP server (stdio + HTTP)
 ├── bot/                 # Telegram bot (inline keyboards)
 ├── plugins/             # Teleton agent plugin
+├── sdk/                 # @enact-protocol/sdk (npm package)
+├── scripts/             # Deploy & evaluator agent
 └── site/                # Next.js documentation site
 ```
 

@@ -18,6 +18,8 @@ bot/data/
 # Build artifacts
 mcp-server/dist
 bot/dist
+sdk/dist
+sdk/node_modules
 site/.next
 
 # VS Code
