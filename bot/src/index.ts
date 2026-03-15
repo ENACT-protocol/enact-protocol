@@ -431,8 +431,8 @@ bot.callbackQuery('menu_create', async (ctx) => {
         `<code>/create {amount} {description} {evaluator?}</code>\n\n` +
         `${e('💵')} <b>USDT:</b>\n` +
         `<code>/createjetton {amount} {description} {evaluator?}</code>\n\n` +
-        `${e('💡')} <b>evaluator?</b> — optional, defaults to you.\n` +
-        `Use <b>ai</b> for AI auto-evaluation, or a TON address for custom evaluator.`,
+        `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
+        `Add <b>{N}h</b> at the end for custom timeout (default 24h, min 1h).`,
         { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
@@ -775,6 +775,13 @@ bot.command('create', async (ctx) => {
     } else {
         descArgs = args.slice(1);
     }
+    // Parse optional timeout: look for {N}h pattern in descArgs
+    let timeoutSec = 86400; // default 24h
+    const timeoutMatch = descArgs[descArgs.length - 1]?.match(/^(\d+)h$/i);
+    if (timeoutMatch && descArgs.length > 1) {
+        timeoutSec = Math.max(3600, Math.min(parseInt(timeoutMatch[1]) * 3600, 2592000)); // 1h-30d
+        descArgs = descArgs.slice(0, -1);
+    }
     const description = descArgs.join(' ');
 
     try {
@@ -789,8 +796,8 @@ bot.command('create', async (ctx) => {
                 .storeAddress(evaluatorAddr)
                 .storeCoins(toNano(budgetTon))
                 .storeUint(descHash, 256)
-                .storeUint(86400, 32)
-                .storeUint(86400, 32)
+                .storeUint(timeoutSec, 32)
+                .storeUint(timeoutSec, 32)
                 .endCell();
 
             // Pre-compute the job address so we can show both deeplinks at once
@@ -842,8 +849,8 @@ bot.command('create', async (ctx) => {
             .storeAddress(mnemonicEvaluator)
             .storeCoins(toNano(budgetTon))
             .storeUint(descHash, 256)
-            .storeUint(86400, 32)
-            .storeUint(86400, 32)
+            .storeUint(timeoutSec, 32)
+            .storeUint(timeoutSec, 32)
             .endCell();
 
         await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
@@ -914,6 +921,12 @@ bot.command('createjetton', async (ctx) => {
         jDescArgs = args.slice(1, -1);
     } else {
         jDescArgs = args.slice(1);
+    }
+    let timeoutSec = 86400;
+    const jTimeoutMatch = jDescArgs[jDescArgs.length - 1]?.match(/^(\d+)h$/i);
+    if (jTimeoutMatch && jDescArgs.length > 1) {
+        timeoutSec = Math.max(3600, Math.min(parseInt(jTimeoutMatch[1]) * 3600, 2592000));
+        jDescArgs = jDescArgs.slice(0, -1);
     }
     const description = jDescArgs.join(' ');
 
@@ -1006,8 +1019,8 @@ bot.command('createjetton', async (ctx) => {
             .storeAddress(jMnemonicEval)
             .storeCoins(usdtBudget)
             .storeUint(descHash, 256)
-            .storeUint(86400, 32)
-            .storeUint(86400, 32)
+            .storeUint(timeoutSec, 32)
+            .storeUint(timeoutSec, 32)
             .endCell();
 
         await sendTx(client, w, Address.parse(JETTON_FACTORY_ADDRESS), toNano('0.03'), createBody);
