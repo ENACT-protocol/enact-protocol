@@ -1026,7 +1026,7 @@ bot.command('createjetton', async (ctx) => {
             `${e('💵')} Budget: <b>${budgetTon}</b> USDT\n` +
             `${e('📄')} Description: ${description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
-            `USDT wallet set automatically. Ready to fund.`,
+            `USDT wallet set. Use <code>/fund j${jobId}</code> to fund with USDT.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
@@ -1389,6 +1389,9 @@ async function handleFactory(ctx: any) {
 async function handleJobs(ctx: any, page: number, filter: string) {
     const PAGE_SIZE = 5;
     const activeOnly = filter === 'active';
+    const tonOnly = filter === 'ton';
+    const usdtOnly = filter === 'usdt';
+    const needsFilter = activeOnly || tonOnly || usdtOnly;
     try {
         const client = await createClient();
         const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
@@ -1417,19 +1420,25 @@ async function handleJobs(ctx: any, page: number, filter: string) {
                 const addr = await getJobAddress(client, factory, id);
                 const s = await getJobStatus(client, addr.toString());
                 if (activeOnly && s.stateName !== 'OPEN' && s.stateName !== 'FUNDED') return null;
+                if (tonOnly && type !== 'ton') return null;
+                if (usdtOnly && type !== 'jetton') return null;
                 const budget = type === 'jetton' ? `<b>${fmtUsdt(s.budget)}</b> ${e('💵')}` : ton(fmtTon(s.budget));
                 return { id, type, state: s.stateName, budget, icon: stateIcon[s.stateName] ?? '❓' };
             } catch { return null; }
         }
 
         // Build ordered index: newest first (TON count-1..0, then Jetton count-1..0)
+        // Interleave: newest from each factory first
         const allIds: Array<{factory: string; id: number; type: string}> = [];
-        for (let i = count - 1; i >= 0; i--) allIds.push({ factory: FACTORY_ADDRESS, id: i, type: 'ton' });
-        for (let i = jettonCount - 1; i >= 0; i--) allIds.push({ factory: JETTON_FACTORY_ADDRESS, id: i, type: 'jetton' });
+        let ti = count - 1, ji = jettonCount - 1;
+        while (ti >= 0 || ji >= 0) {
+            if (ji >= 0) { allIds.push({ factory: JETTON_FACTORY_ADDRESS, id: ji, type: 'jetton' }); ji--; }
+            if (ti >= 0) { allIds.push({ factory: FACTORY_ADDRESS, id: ti, type: 'ton' }); ti--; }
+        }
 
         // For active filter we need to scan more, but for 'all' just take the page slice
         let jobs: JobEntry[];
-        if (activeOnly) {
+        if (needsFilter) {
             // Fetch all in parallel batches of 5
             const allJobs: (JobEntry | null)[] = [];
             for (let batch = 0; batch < allIds.length; batch += 5) {
@@ -1445,12 +1454,13 @@ async function handleJobs(ctx: any, page: number, filter: string) {
             jobs = results.filter(Boolean) as JobEntry[];
         }
 
-        const totalForPages = activeOnly ? jobs.length : total;
+        const totalForPages = needsFilter ? jobs.length : total;
         const totalPages = Math.ceil(totalForPages / PAGE_SIZE) || 1;
         const safePage = Math.min(page, totalPages - 1);
-        const pageJobs = activeOnly ? jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) : jobs;
+        const pageJobs = needsFilter ? jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) : jobs;
 
-        let text = `${eid(EID.browseJobs, '📋')} <b>Jobs</b> (${jobs.length}${activeOnly ? ' active' : ' total'})`;
+        const filterLabel = filter === 'active' ? ' active' : filter === 'ton' ? ' TON' : filter === 'usdt' ? ' USDT' : ' total';
+        let text = `${eid(EID.browseJobs, '📋')} <b>Jobs</b> (${needsFilter ? jobs.length : totalForPages}${filterLabel})`;
         if (totalPages > 1) text += ` — page ${safePage + 1}/${totalPages}`;
         text += '\n\n';
 
@@ -1469,10 +1479,11 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         kb.row();
 
         // Filter buttons
-        if (activeOnly) {
-            kb.text('📋 Show All', 'jobs_filter_all');
-        } else {
-            kb.text('🟢 Active Only', 'jobs_filter_active');
+        const filters: Array<[string, string]> = [
+            ['📋 All', 'all'], ['🟢 Active', 'active'], ['💎 TON', 'ton'], ['💵 USDT', 'usdt'],
+        ];
+        for (const [label, f] of filters) {
+            if (f !== filter) kb.text(label, `jobs_filter_${f}`);
         }
         kb.row();
 
@@ -1647,7 +1658,7 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
             const link = tonTransferLink(jobAddr.toString(), amount, body);
             const kb = new InlineKeyboard()
                 .url('👛 Approve in Tonkeeper', link).row()
-                .text('🔭 Status', `status_${jobId}`)
+                .text('🔭 Status', isJetton ? `jstatus_${jobId}` : `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
             await ctx.reply(
                 `${e('💰')} <b>Fund Job #${jobId}</b>\n\n` +
@@ -1659,16 +1670,34 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
             return;
         }
 
-        const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        const amount = status.budget + toNano('0.01');
         const w = await requireWallet(ctx);
         if (!w) return;
 
-        await ctx.reply(`${e('⏳')} Funding job #${jobId}...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, amount, body);
+        if (isJetton) {
+            // Mnemonic USDT fund: jetton transfer
+            const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+            const cjwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(w.wallet.address).endCell() }
+            ]);
+            const clientJw = cjwRes.stack.readAddress();
+            const jettonBody = beginCell()
+                .storeUint(0x0f8a7ea5, 32).storeUint(0, 64)
+                .storeCoins(status.budget)
+                .storeAddress(jobAddr).storeAddress(w.wallet.address)
+                .storeBit(false).storeCoins(toNano('0.05')).storeBit(false)
+                .endCell();
+            await ctx.reply(`${e('⏳')} Funding USDT job #${jobId}...`, { parse_mode: 'HTML' });
+            await sendTx(client, w, clientJw, toNano('0.1'), jettonBody);
+        } else {
+            const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+            const amount = status.budget + toNano('0.01');
+            await ctx.reply(`${e('⏳')} Funding job #${jobId}...`, { parse_mode: 'HTML' });
+            await sendTx(client, w, jobAddr, amount, body);
+        }
 
+        const statusCb = isJetton ? `jstatus_${jobId}` : `status_${jobId}`;
         const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
+            .text('🔭 Status', statusCb)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
