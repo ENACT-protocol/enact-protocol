@@ -970,7 +970,7 @@ bot.command('submit', async (ctx) => {
     const jobId = parseInt(args[0]);
     const resultText = args.slice(1).join(' ');
 
-    // Verify job exists and caller is the provider
+    // Verify job exists, state=FUNDED, and caller is the provider
     try {
         const client = await createClient();
         const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
@@ -979,12 +979,20 @@ bot.command('submit', async (ctx) => {
         }
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
-        const userAddr = userTcAddresses.get(userId) ?? '';
-        if (userAddr && status.provider !== 'none' && status.provider !== userAddr) {
-            return ctx.reply(`${e('❌')} You are not the provider of this job.`, { parse_mode: 'HTML' });
-        }
         if (status.stateName !== 'FUNDED') {
-            return ctx.reply(`${e('❌')} Job is in ${status.stateName} state, cannot submit.`, { parse_mode: 'HTML' });
+            return ctx.reply(`${e('❌')} Job is in <b>${status.stateName}</b> state, cannot submit.`, { parse_mode: 'HTML' });
+        }
+        if (status.provider === 'none') {
+            return ctx.reply(`${e('❌')} No provider assigned to this job yet.`, { parse_mode: 'HTML' });
+        }
+        // Check wallet matches provider
+        let userAddr = userTcAddresses.get(userId) ?? '';
+        if (!userAddr && userWallets.has(userId)) {
+            const w = await createWalletFromMnemonic(client, userWallets.get(userId)!);
+            userAddr = w.wallet.address.toString({ bounceable: false });
+        }
+        if (userAddr && status.provider !== userAddr) {
+            return ctx.reply(`${e('❌')} You are not the provider of this job.`, { parse_mode: 'HTML' });
         }
     } catch (err: any) {
         return ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
