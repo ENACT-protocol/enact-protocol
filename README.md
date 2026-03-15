@@ -192,6 +192,15 @@ Interactive bot with inline buttons for the full job lifecycle. Features TonConn
 
 **Live:** [@EnactProtocolBot](https://t.me/EnactProtocolBot)
 
+<details>
+<summary><b>Screenshots</b></summary>
+
+| Browse Jobs | Job Details |
+|:-----------:|:-----------:|
+| <img src="assets/bot-browse.png" width="300" /> | <img src="assets/bot-details.png" width="300" /> |
+
+</details>
+
 ## Smart Contracts
 
 Written in **Tolk 1.2** for the TON Virtual Machine.
