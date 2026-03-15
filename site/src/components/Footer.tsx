@@ -44,9 +44,9 @@ export default function Footer() {
       </div>
 
       {/* ── watermark: logo + ENACT ── */}
-      <div className="relative h-[80px] sm:h-[140px] md:h-[200px] lg:h-[260px] flex items-center justify-center pointer-events-none select-none overflow-hidden">
-        <img src="/enact_logo.png" alt="" className="flex-shrink-0" style={{ height: 'clamp(2rem, 12vw, 12rem)', width: 'auto', opacity: 0.14, marginRight: 'clamp(4px, 0.5vw, 8px)' }} draggable={false} />
-        <span className="font-serif italic leading-[0.82] tracking-tight" style={{ fontSize: 'clamp(2rem, 12vw, 12rem)', background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>ENACT</span>
+      <div className="flex items-center justify-center py-6 sm:py-10 md:py-16 lg:py-20 pointer-events-none select-none">
+        <img src="/enact_logo.png" alt="" style={{ height: '2.5rem', width: 'auto', opacity: 0.14, marginRight: '6px' }} className="sm:!h-[5rem] md:!h-[8rem] lg:!h-[11rem]" draggable={false} />
+        <span className="font-serif italic tracking-tight text-[2.5rem] sm:text-[5rem] md:text-[8rem] lg:text-[11rem] leading-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>ENACT</span>
       </div>
     </footer>
   );
