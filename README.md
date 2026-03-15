@@ -271,7 +271,7 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 
 ## AI Evaluator Agent
 
-Autonomous agent that monitors submitted jobs, reviews results using Google Gemini, and auto-approves or rejects — no human in the loop.
+Autonomous agent that monitors submitted jobs, reviews results using LLM (Groq by default), and auto-approves or rejects — no human in the loop. Works with any OpenAI-compatible API.
 
 Default AI Evaluator: `UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu`
 
