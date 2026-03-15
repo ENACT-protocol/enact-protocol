@@ -428,11 +428,11 @@ bot.callbackQuery('menu_create', async (ctx) => {
     await respond(ctx,
         `${e('✍️')} <b>Create a Job</b>\n\n` +
         `${e('💎')} <b>TON:</b>\n` +
-        `<code>/create {amount} {description} {evaluator?}</code>\n\n` +
+        `<code>/create {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
         `${e('💵')} <b>USDT:</b>\n` +
-        `<code>/createjetton {amount} {description} {evaluator?}</code>\n\n` +
+        `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
         `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
-        `Add <b>{N}h</b> at the end for custom timeout (default 24h, min 1h).`,
+        `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
         { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
@@ -743,10 +743,12 @@ bot.command('create', async (ctx) => {
     if (args.length < 2) {
         return ctx.reply(
             `${e('✍️')} <b>Create a Job</b>\n\n` +
-            `Usage:\n<code>/create {amount} {description}</code>\n` +
-            `<code>/create {amount} {description} ai</code>\n` +
-            `<code>/create {amount} {description} {evaluator_address}</code>\n\n` +
-            `${e('💡')} Evaluator: defaults to you. Use <b>ai</b> for AI auto-evaluation.`,
+            `${e('💎')} <b>TON:</b>\n` +
+            `<code>/create {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
+            `${e('💵')} <b>USDT:</b>\n` +
+            `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
+            `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
+            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
             { parse_mode: 'HTML' }
         );
     }
@@ -891,9 +893,13 @@ bot.command('createjetton', async (ctx) => {
     const args = ctx.message?.text?.split(' ').slice(1) ?? [];
     if (args.length < 2) {
         return ctx.reply(
-            `${e('💵')} <b>Create a Jetton (USDT) Job</b>\n\n` +
-            `Usage:\n<code>/createjetton {amount} {description}</code>\n\n` +
-            `Example: <code>/createjetton 10 Audit smart contract</code>`,
+            `${e('✍️')} <b>Create a Job</b>\n\n` +
+            `${e('💎')} <b>TON:</b>\n` +
+            `<code>/create {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
+            `${e('💵')} <b>USDT:</b>\n` +
+            `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
+            `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
+            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
             { parse_mode: 'HTML' }
         );
     }
