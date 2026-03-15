@@ -198,32 +198,44 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+const PINATA_GW = 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
+const descCache = new Map<string, string>();
+
 async function decodeDesc(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
+    if (descCache.has(hash)) return descCache.get(hash)!;
     try {
         // Try 1: hex-encoded text (bot creates these)
         const clean = hash.replace(/0+$/, '');
         if (clean.length >= 2) {
             const text = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
             if (/^[\x20-\x7E]+$/.test(text) && text.length > 2) {
-                return escapeHtml(text);
+                const result = escapeHtml(text);
+                descCache.set(hash, result);
+                return result;
             }
         }
         // Try 2: Pinata metadata search (MCP tags uploads with descHash)
         const jwt = process.env.PINATA_JWT;
         if (jwt) {
-            const res = await fetch(
-                `https://api.pinata.cloud/data/pinList?metadata[keyvalues][descHash]={"value":"${hash}","op":"eq"}&status=pinned&pageLimit=1`,
-                { headers: { 'Authorization': `Bearer ${jwt}` }, signal: AbortSignal.timeout(4000) }
-            );
+            const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${jwt}` },
+                signal: AbortSignal.timeout(5000),
+            });
             if (res.ok) {
                 const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
                 if (pins.rows?.length > 0) {
-                    const ipfsRes = await fetch(`https://gateway.pinata.cloud/ipfs/${pins.rows[0].ipfs_pin_hash}`, { signal: AbortSignal.timeout(4000) });
+                    const cid = pins.rows[0].ipfs_pin_hash;
+                    const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
                     if (ipfsRes.ok) {
                         const data = await ipfsRes.json();
                         const content = data.description ?? data.result ?? null;
-                        if (content) return escapeHtml(String(content).slice(0, 200));
+                        if (content) {
+                            const result = escapeHtml(String(content).slice(0, 200));
+                            descCache.set(hash, result);
+                            return result;
+                        }
                     }
                 }
             }
