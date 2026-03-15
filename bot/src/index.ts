@@ -1509,6 +1509,37 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const status = await getJobStatus(client, jobAddr.toString());
         const budgetDisplay = isJetton ? `<b>${fmtUsdt(status.budget)}</b> ${e('💵')}` : ton(fmtTon(status.budget));
 
+        if (isJetton) {
+            // Check if jettonWallet is set — if not, show setWallet deeplink first
+            const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+            const expectedJwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(jobAddr).endCell() }
+            ]);
+            const expectedJw = expectedJwRes.stack.readAddress();
+
+            // Read jettonWallet from contract (field 15 in get_job_data)
+            const fullData = await client.runMethod(jobAddr, 'get_job_data');
+            for (let i = 0; i < 14; i++) fullData.stack.pop(); // skip to field 15
+            let currentJw: string;
+            try { currentJw = fullData.stack.readAddress().toString(); } catch { currentJw = ''; }
+
+            if (currentJw !== expectedJw.toString()) {
+                // jettonWallet not set — show setWallet deeplink
+                const setBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(expectedJw).endCell();
+                const setLink = tonTransferLink(jobAddr.toString(), toNano('0.01'), setBody);
+                const kb = new InlineKeyboard()
+                    .url('👛 Set USDT Wallet', setLink).row()
+                    .text('🔭 Status', `jstatus_${jobId}`)
+                    .text('🏠 Menu', 'menu_main');
+                return ctx.reply(
+                    `${e('⚠️')} <b>USDT wallet not set for Job J#${jobId}</b>\n\n` +
+                    `Set the USDT wallet first, then fund.\n` +
+                    `After approving, run <code>/fund j${jobId}</code> again.`,
+                    { parse_mode: 'HTML', reply_markup: kb }
+                );
+            }
+        }
+
         if (isJetton && mode === 'tonconnect') {
             // USDT fund: jetton transfer deeplink
             const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
