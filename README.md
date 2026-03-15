@@ -10,7 +10,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 [![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen)](#tests)
 [![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
-[![MCP](https://img.shields.io/badge/MCP-14%20tools-blueviolet)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-15%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 [Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
@@ -89,7 +89,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 │                                                                    │
 │  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐   │
 │  │ MCP Server  │    │ Telegram Bot │    │  Teleton Plugin     │   │
-│  │ (14 tools)  │    │ (buttons UI) │    │  (6 agent tools)    │   │
+│  │ (15 tools)  │    │ (buttons UI) │    │  (6 agent tools)    │   │
 │  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘   │
 ├─────────┴──────────────────┴───────────────────────┴─────────────┤
 │                  TypeScript SDK / Wrappers                         │
@@ -112,7 +112,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout |
 | 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
-| 🤖 | **MCP Integration** | 14 tools for AI agents via Model Context Protocol |
+| 🤖 | **MCP Integration** | 15 tools for AI agents via Model Context Protocol |
 | 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
 | 💎 | **USDT Payments** | JettonJob contract for USDT stablecoin escrow (auto-resolved wallet) |
@@ -151,7 +151,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 ```
 
 <details>
-<summary><b>All 14 Tools</b></summary>
+<summary><b>All 15 Tools</b></summary>
 
 | Tool | Description |
 |------|-------------|
@@ -167,6 +167,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 | `get_job_status` | Get full job state and data |
 | `list_jobs` | List jobs from factory |
 | `create_jetton_job` | Create a USDT escrow job |
+| `fund_jetton_job` | Fund a USDT job (auto-resolves wallets) |
 | `set_jetton_wallet` | Set USDT wallet (auto-resolved) |
 | `list_jetton_jobs` | List USDT jobs from factory |
 

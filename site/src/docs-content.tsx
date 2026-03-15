@@ -188,7 +188,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <H2>Key Features</H2>
         <CardGroup cols={2}>
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="14 tools for AI agent integration via Model Context Protocol" />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="15 tools for AI agent integration via Model Context Protocol" />
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="20 commands for human-accessible job management" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
           <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="56 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
@@ -260,7 +260,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <P>ENACT has multiple integration layers. Pick the one that fits how you want to interact with the protocol.</P>
 
         <CardGroup cols={2}>
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="14 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="15 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="6 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
@@ -316,7 +316,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="Human-accessible interface" />
         </CardGroup>
 
-        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 14 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
+        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 15 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
 
         <DocNav prev={{ slug: 'what-is-enact', title: 'What is ENACT' }} next={{ slug: 'smart-contracts', title: 'Smart Contracts' }} />
       </>
@@ -749,7 +749,7 @@ for (const task of tasks) {
         <PageHeader
           label="Integrations"
           title="MCP Server"
-          desc="14 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
+          desc="15 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
         />
 
         <H2>Two Modes</H2>
@@ -768,7 +768,7 @@ npm install && npm run build`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_jetton, description','Deploy USDT job + IPFS'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
