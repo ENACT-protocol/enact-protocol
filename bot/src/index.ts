@@ -1374,9 +1374,7 @@ async function handleStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
-        const uAddr = await getUserAddr(userId);
-        const canSeeResult = uAddr && (s.evaluator === uAddr || s.client === uAddr);
-        const resultText = canSeeResult && (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
@@ -1726,9 +1724,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         const icon = stateIcon[s.stateName] ?? '❓';
 
         const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
-        const jUserAddr = await getUserAddr(userId);
-        const jCanSeeResult = jUserAddr && (s.evaluator === jUserAddr || s.client === jUserAddr);
-        const resultText = jCanSeeResult && (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
+        const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED') ? await decodeDesc(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
