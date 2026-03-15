@@ -1456,7 +1456,7 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         kb.text('✍️ Create Job', 'menu_create')
           .text('🏠 Menu', 'menu_main');
 
-        await respond(ctx, text, { reply_markup: kb });
+        await respond(ctx, text, { reply_markup: kb, link_preview_options: { is_disabled: true } });
     } catch (err: any) {
         await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
@@ -1483,8 +1483,8 @@ async function handleStatus(ctx: any, jobId: number) {
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `\n${e('📄')} ${descCid ? `<a href="${PINATA_GW}/${descCid}"><b>Description:</b></a>` : '<b>Description:</b>'}\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} ${resCid ? `<a href="${PINATA_GW}/${resCid}"><b>Result:</b></a>` : '<b>Result:</b>'}\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
@@ -1532,7 +1532,7 @@ async function handleStatus(ctx: any, jobId: number) {
           .url('🔗 Explorer', explorerLink(jobAddr.toString()))
           .text('🏠 Menu', 'menu_main');
 
-        await respond(ctx, text, { reply_markup: kb });
+        await respond(ctx, text, { reply_markup: kb, link_preview_options: { is_disabled: true } });
     } catch (err: any) {
         await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
@@ -1898,8 +1898,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `\n${e('📄')} ${descCid ? `<a href="${PINATA_GW}/${descCid}"><b>Description:</b></a>` : '<b>Description:</b>'}\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} ${resCid ? `<a href="${PINATA_GW}/${resCid}"><b>Result:</b></a>` : '<b>Result:</b>'}\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
@@ -1944,7 +1944,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
           .url('🔗 Explorer', explorerLink(jobAddr.toString()))
           .text('🏠 Menu', 'menu_main');
 
-        await respond(ctx, text, { reply_markup: kb });
+        await respond(ctx, text, { reply_markup: kb, link_preview_options: { is_disabled: true } });
     } catch (err: any) {
         await respond(ctx, `${e('❌')} Error: ${err.message}`);
     }
