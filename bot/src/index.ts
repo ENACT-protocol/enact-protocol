@@ -742,11 +742,9 @@ bot.command('create', async (ctx) => {
     const args = ctx.message?.text?.split(' ').slice(1) ?? [];
     if (args.length < 2) {
         return ctx.reply(
-            `${e('✍️')} <b>Create a Job</b>\n\n` +
-            `${e('💎')} <b>TON:</b>\n` +
+            `${e('💎')} <b>Create a TON Job</b>\n\n` +
             `<code>/create {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
-            `${e('💵')} <b>USDT:</b>\n` +
-            `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
+            `Example: <code>/create 1 Write a smart contract ai 6h</code>\n\n` +
             `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
             `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
             { parse_mode: 'HTML' }
@@ -893,13 +891,12 @@ bot.command('createjetton', async (ctx) => {
     const args = ctx.message?.text?.split(' ').slice(1) ?? [];
     if (args.length < 2) {
         return ctx.reply(
-            `${e('✍️')} <b>Create a Job</b>\n\n` +
-            `${e('💎')} <b>TON:</b>\n` +
-            `<code>/create {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
-            `${e('💵')} <b>USDT:</b>\n` +
+            `${e('💵')} <b>Create a USDT Job</b>\n\n` +
             `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
+            `Example: <code>/createjetton 5 Audit this code ai 12h</code>\n\n` +
             `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
-            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
+            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).\n` +
+            `${e('🪙')} Requires ~0.15 TON for gas (create + set wallet + fund).`,
             { parse_mode: 'HTML' }
         );
     }
