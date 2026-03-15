@@ -248,6 +248,19 @@ function getUserId(ctx: any): number {
     return ctx.from?.id ?? 0;
 }
 
+/** Get user's wallet address (TonConnect or mnemonic), UQ format */
+async function getUserAddr(userId: number): Promise<string> {
+    const tc = userTcAddresses.get(userId);
+    if (tc) return tc;
+    const mn = userWallets.get(userId);
+    if (mn) {
+        const client = await createClient();
+        const w = await createWalletFromMnemonic(client, mn);
+        return w.wallet.address.toString({ bounceable: false });
+    }
+    return '';
+}
+
 async function requireWallet(ctx: any) {
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
@@ -986,11 +999,7 @@ bot.command('submit', async (ctx) => {
             return ctx.reply(`${e('❌')} No provider assigned to this job yet.`, { parse_mode: 'HTML' });
         }
         // Check wallet matches provider
-        let userAddr = userTcAddresses.get(userId) ?? '';
-        if (!userAddr && userWallets.has(userId)) {
-            const w = await createWalletFromMnemonic(client, userWallets.get(userId)!);
-            userAddr = w.wallet.address.toString({ bounceable: false });
-        }
+        const userAddr = await getUserAddr(userId);
         if (userAddr && status.provider !== userAddr) {
             return ctx.reply(`${e('❌')} You are not the provider of this job.`, { parse_mode: 'HTML' });
         }
@@ -1044,7 +1053,15 @@ bot.command('submit', async (ctx) => {
         try {
             const status = await getJobStatus(client, jobAddr.toString());
             const desc = jobDescriptions.get(jobId) ?? await decodeDesc(status.descHash) ?? '';
-            for (const [uid, addr] of userTcAddresses) {
+            // Check all connected wallets (TonConnect + mnemonic)
+            const allUsers = new Map<number, string>();
+            for (const [uid, addr] of userTcAddresses) allUsers.set(uid, addr);
+            for (const [uid] of userWallets) {
+                if (!allUsers.has(uid)) {
+                    try { allUsers.set(uid, await getUserAddr(uid)); } catch {}
+                }
+            }
+            for (const [uid, addr] of allUsers) {
                 if (addr === status.evaluator) {
                     const evalKb = new InlineKeyboard()
                         .text('✅ Approve', `approve_${jobId}`)
@@ -1365,7 +1382,7 @@ async function handleStatus(ctx: any, jobId: number) {
         const kb = new InlineKeyboard();
 
         // Show buttons based on user role
-        const userAddr = userTcAddresses.get(userId) ?? '';
+        const userAddr = await getUserAddr(userId);
         const isClient = userAddr && s.client === userAddr;
         const isProvider = userAddr && s.provider === userAddr;
         const isEvaluator = userAddr && s.evaluator === userAddr;
@@ -1697,7 +1714,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
 
         const kb = new InlineKeyboard();
-        const userAddr = userTcAddresses.get(userId) ?? '';
+        const userAddr = await getUserAddr(userId);
         const isClient = userAddr && s.client === userAddr;
         const isProvider = userAddr && s.provider === userAddr;
         const isEvaluator = userAddr && s.evaluator === userAddr;
