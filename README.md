@@ -282,6 +282,15 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 | Website | Next.js 16, Tailwind CSS |
 | Hosting | Vercel (site), Render (MCP) |
 
+## Roadmap
+
+- File & image support via IPFS
+- AI Evaluator Agent (autonomous approval)
+- Multi-Jetton payments (any TEP-74 token)
+- Encrypted job data (E2E encryption for sensitive tasks)
+- On-chain reputation system
+- Batch job creation
+
 ## License
 
 MIT
