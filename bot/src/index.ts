@@ -370,7 +370,7 @@ bot.callbackQuery('menu_create', async (ctx) => {
         `${e('💵')} <b>USDT:</b>\n` +
         `<code>/createjetton {amount} {description} {evaluator?}</code>\n\n` +
         `${e('💡')} <b>evaluator?</b> — optional, defaults to you.\n` +
-        `Add a TON address as the last parameter to set a custom evaluator.`,
+        `Use <b>ai</b> for AI auto-evaluation, or a TON address for custom evaluator.`,
         { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
@@ -668,9 +668,9 @@ bot.command('create', async (ctx) => {
         return ctx.reply(
             `${e('✍️')} <b>Create a Job</b>\n\n` +
             `Usage:\n<code>/create {amount} {description}</code>\n` +
+            `<code>/create {amount} {description} ai</code>\n` +
             `<code>/create {amount} {description} {evaluator_address}</code>\n\n` +
-            `Example: <code>/create 5 Write a smart contract</code>\n\n` +
-            `${e('💡')} Evaluator is optional — defaults to you.`,
+            `${e('💡')} Evaluator: defaults to you. Use <b>ai</b> for AI auto-evaluation.`,
             { parse_mode: 'HTML' }
         );
     }
@@ -684,12 +684,16 @@ bot.command('create', async (ctx) => {
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
-    // Check if last arg is an address (evaluator), otherwise use self
+    const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
     const lastArg = args[args.length - 1];
-    const isEvalAddr = lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
+    const isAI = lastArg.toLowerCase() === 'ai' && args.length >= 3;
+    const isEvalAddr = !isAI && lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
     let evaluatorStr = '';
     let descArgs: string[];
-    if (isEvalAddr && args.length >= 3) {
+    if (isAI) {
+        evaluatorStr = AI_EVALUATOR;
+        descArgs = args.slice(1, -1);
+    } else if (isEvalAddr && args.length >= 3) {
         evaluatorStr = lastArg;
         descArgs = args.slice(1, -1);
     } else {
@@ -742,7 +746,8 @@ bot.command('create', async (ctx) => {
                 `Approve <b>both</b> transactions in Tonkeeper:\n` +
                 `1️⃣ Create job (~0.03 ${eid(EID.tonCoin, '💎')} gas)\n` +
                 `2️⃣ Fund with ${ton(budgetTon)}\n\n` +
-                `${e('💡')} Wait ~10s between approvals. Bot will auto-detect confirmations.`,
+                `${e('💡')} Wait ~10s between approvals.` +
+                (evaluatorStr === AI_EVALUATOR ? `\n\n${e('🤖')} AI Evaluator will review this job.` : ''),
                 { parse_mode: 'HTML', reply_markup: kb }
             );
         }
@@ -788,7 +793,8 @@ bot.command('create', async (ctx) => {
             `${e('🪙')} Budget: ${ton(budgetTon)}\n` +
             `${e('📄')} Description: ${description}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
-            `Job is ready — waiting for a provider to take it.`,
+            `Job is ready — waiting for a provider to take it.` +
+            (evaluatorStr === AI_EVALUATOR ? `\n\n${e('🤖')} AI Evaluator will review this job.` : ''),
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
@@ -816,11 +822,16 @@ bot.command('createjetton', async (ctx) => {
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
+    const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
     const lastArg = args[args.length - 1];
-    const isEvalAddr = lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
+    const jIsAI = lastArg.toLowerCase() === 'ai' && args.length >= 3;
+    const isEvalAddr = !jIsAI && lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
     let jEvaluatorStr = '';
     let jDescArgs: string[];
-    if (isEvalAddr && args.length >= 3) {
+    if (jIsAI) {
+        jEvaluatorStr = AI_EVALUATOR;
+        jDescArgs = args.slice(1, -1);
+    } else if (isEvalAddr && args.length >= 3) {
         jEvaluatorStr = lastArg;
         jDescArgs = args.slice(1, -1);
     } else {

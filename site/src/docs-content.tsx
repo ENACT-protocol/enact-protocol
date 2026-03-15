@@ -209,6 +209,8 @@ npm install && npm run build`}</Code>
 
         <H2>AI Evaluator Agent</H2>
         <P>Autonomous agent that monitors submitted jobs, reviews results using Google Gemini, and auto-approves or rejects. Set the agent&apos;s wallet as evaluator when creating a job — it handles the rest.</P>
+        <P>Default AI Evaluator address: <IC>UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu</IC></P>
+        <P>In the Telegram bot, use <IC>ai</IC> as evaluator: <IC>/create 5 Write a smart contract ai</IC></P>
         <Code label="Terminal">{`WALLET_MNEMONIC="evaluator 24 words" \\
 GEMINI_API_KEY="your_key" \\
 npx ts-node scripts/evaluator-agent.ts`}</Code>

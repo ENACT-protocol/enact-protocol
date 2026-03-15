@@ -273,6 +273,10 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 
 Autonomous agent that monitors submitted jobs, reviews results using Google Gemini, and auto-approves or rejects — no human in the loop.
 
+Default AI Evaluator: `UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu`
+
+In the Telegram bot: `/create 5 Write a smart contract ai`
+
 ```bash
 WALLET_MNEMONIC="evaluator 24 words" \
 GEMINI_API_KEY="your_key" \
