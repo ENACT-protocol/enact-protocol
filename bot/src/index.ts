@@ -1442,8 +1442,8 @@ async function handleStatus(ctx: any, jobId: number) {
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `${e('📄')} Description: <i>${desc.slice(0, 200)}</i>\n` : '') +
-            (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
+            (desc ? `${e('📄')} <i>${desc.length > 80 ? desc.slice(0, 80) + '...' : desc}</i>\n` : '') +
+            (resultText ? `${e('📨')} <i>${resultText.length > 80 ? resultText.slice(0, 80) + '...' : resultText}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
@@ -1855,8 +1855,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `${e('📄')} Description: <i>${desc.slice(0, 200)}</i>\n` : '') +
-            (resultText ? `${e('📨')} Result: <i>${resultText.slice(0, 200)}</i>\n` : '') +
+            (desc ? `${e('📄')} <i>${desc.length > 80 ? desc.slice(0, 80) + '...' : desc}</i>\n` : '') +
+            (resultText ? `${e('📨')} <i>${resultText.length > 80 ? resultText.slice(0, 80) + '...' : resultText}</i>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
