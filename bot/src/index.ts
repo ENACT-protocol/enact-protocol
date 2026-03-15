@@ -1487,6 +1487,7 @@ async function handleStatus(ctx: any, jobId: number) {
 }
 
 async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
+    const isJetton = factory === JETTON_FACTORY_ADDRESS;
     const userId = getUserId(ctx);
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
@@ -1495,10 +1496,40 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
-        const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        const amount = status.budget + toNano('0.01');
+        const budgetDisplay = isJetton ? `<b>${fmtUsdt(status.budget)}</b> ${e('💵')}` : ton(fmtTon(status.budget));
 
-        if (mode === 'tonconnect') {
+        if (isJetton && mode === 'tonconnect') {
+            // USDT fund: jetton transfer deeplink
+            const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+            const addr = userTcAddresses.get(userId)!;
+            const cjwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(Address.parse(addr)).endCell() }
+            ]);
+            const clientJw = cjwRes.stack.readAddress();
+            const fundBody = beginCell()
+                .storeUint(0x0f8a7ea5, 32).storeUint(0, 64)
+                .storeCoins(status.budget)
+                .storeAddress(jobAddr).storeAddress(Address.parse(addr))
+                .storeBit(false).storeCoins(toNano('0.05')).storeBit(false)
+                .endCell();
+            const link = tonTransferLink(clientJw.toString(), toNano('0.1'), fundBody);
+            const kb = new InlineKeyboard()
+                .url('👛 Fund USDT in Tonkeeper', link).row()
+                .text('🔭 Status', `jstatus_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            await ctx.reply(
+                `${e('💰')} <b>Fund Jetton Job #${jobId}</b>\n\n` +
+                `${e('💵')} Amount: ${budgetDisplay}\n\n` +
+                `Open Tonkeeper to approve.`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+            watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 1);
+            return;
+        }
+
+        if (!isJetton && mode === 'tonconnect') {
+            const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+            const amount = status.budget + toNano('0.01');
             const link = tonTransferLink(jobAddr.toString(), amount, body);
             const kb = new InlineKeyboard()
                 .url('👛 Approve in Tonkeeper', link).row()
@@ -1506,15 +1537,16 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
                 .text('🏠 Menu', 'menu_main');
             await ctx.reply(
                 `${e('💰')} <b>Fund Job #${jobId}</b>\n\n` +
-                `${e('🪙')} Amount: ${ton(fmtTon(status.budget))}\n\n` +
-                `Open Tonkeeper to approve. Bot will auto-detect confirmation.`,
+                `${e('🪙')} Amount: ${budgetDisplay}\n\n` +
+                `Open Tonkeeper to approve.`,
                 { parse_mode: 'HTML', reply_markup: kb }
             );
-            // Auto-detect fund confirmation
             watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 1);
             return;
         }
 
+        const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+        const amount = status.budget + toNano('0.01');
         const w = await requireWallet(ctx);
         if (!w) return;
 
@@ -1527,7 +1559,7 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
 
         await ctx.reply(
             `${e('💰')} <b>Job #${jobId} Funded!</b>\n\n` +
-            `${e('🪙')} Amount: ${ton(fmtTon(status.budget))}\n` +
+            `${e('🪙')} Amount: ${budgetDisplay}\n` +
             `Funds are in escrow. Waiting for a provider.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
