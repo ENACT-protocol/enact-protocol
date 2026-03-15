@@ -370,7 +370,8 @@ bot.callbackQuery('menu_create', async (ctx) => {
         `${e('💵')} <b>USDT:</b>\n` +
         `<code>/createjetton {amount} {description} {evaluator?}</code>\n\n` +
         `${e('💡')} <b>evaluator?</b> — optional, defaults to you.\n` +
-        `Add a TON address as the last parameter to set a custom evaluator.`
+        `Add a TON address as the last parameter to set a custom evaluator.`,
+        { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
 
@@ -385,7 +386,8 @@ bot.callbackQuery('menu_status', async (ctx) => {
         `${e('🔭')} <b>Check Job Status</b>\n\n` +
         `Send the command:\n` +
         `<code>/status job_id</code>\n\n` +
-        `Example: <code>/status 0</code>`
+        `Example: <code>/status 0</code> (TON) or <code>/status j0</code> (USDT)`,
+        { reply_markup: new InlineKeyboard().text('📋 Browse Jobs', 'menu_jobs').text('🏠 Menu', 'menu_main') }
     );
 });
 
@@ -447,7 +449,8 @@ bot.callbackQuery('menu_connect_mnemonic', async (ctx) => {
         `Send your 24-word mnemonic phrase:\n` +
         `<code>/connect word1 word2 ... word24</code>\n\n` +
         `${e('🔒')} Your mnemonic is stored encrypted on the server.\n` +
-        `${e('⚠️')} Send this in a <b>private chat</b> with the bot for security.`
+        `${e('⚠️')} Send this in a <b>private chat</b> with the bot for security.`,
+        { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
 
@@ -463,7 +466,8 @@ bot.callbackQuery('menu_evaluate', async (ctx) => {
         `Send the command:\n` +
         `<code>/evaluate job_id</code>\n\n` +
         `Example: <code>/evaluate 0</code>\n\n` +
-        `${e('💡')} You must be the evaluator of the job. The bot will show the submitted result and let you approve or reject.`
+        `${e('💡')} You must be the evaluator of the job. The bot will show the submitted result and let you approve or reject.`,
+        { reply_markup: new InlineKeyboard().text('📋 Browse Jobs', 'menu_jobs').text('🏠 Menu', 'menu_main') }
     );
 });
 
