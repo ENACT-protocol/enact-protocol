@@ -43,10 +43,39 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* ── watermark: logo + ENACT ── */}
-      <div className="flex items-center justify-center py-6 sm:py-10 md:py-16 lg:py-20 pointer-events-none select-none">
-        <img src="/enact_logo.png" alt="" style={{ height: '2.5rem', width: 'auto', opacity: 0.14, marginRight: '6px' }} className="sm:!h-[5rem] md:!h-[8rem] lg:!h-[11rem]" draggable={false} />
-        <span className="font-serif italic tracking-tight text-[2.5rem] sm:text-[5rem] md:text-[8rem] lg:text-[11rem] leading-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>ENACT</span>
+      {/* ── watermark: logo + ENACT, centered, gradient fade ── */}
+      <div
+        className="relative hidden sm:flex h-[160px] md:h-[220px] lg:h-[280px] items-end justify-center pointer-events-none select-none"
+        style={{
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 60%, transparent 100%)',
+          maskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 60%, transparent 100%)',
+        }}
+      >
+        <img
+          src="/enact_logo.png"
+          alt=""
+          className="flex-shrink-0"
+          style={{ height: 'clamp(4rem, 14vw, 14rem)', width: 'auto', opacity: 0.14, marginRight: 'clamp(4px, 0.5vw, 10px)' }}
+          draggable={false}
+        />
+        <span
+          className="font-serif italic leading-[0.82] tracking-tight"
+          style={{
+            fontSize: 'clamp(3.5rem, 14vw, 14rem)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            paddingRight: 'clamp(1.5rem, 4vw, 4rem)',
+          }}
+        >
+          ENACT
+        </span>
+      </div>
+      {/* Mobile: simple text, no mask/overflow issues */}
+      <div className="sm:hidden flex items-center justify-center py-8 pointer-events-none select-none gap-2">
+        <img src="/enact_logo.png" alt="" style={{ height: '2rem', width: 'auto', opacity: 0.15 }} draggable={false} />
+        <span className="font-serif italic text-3xl tracking-tight" style={{ color: 'rgba(255,255,255,0.12)' }}>ENACT</span>
       </div>
     </footer>
   );
