@@ -1294,6 +1294,8 @@ bot.callbackQuery(/^jobs_page_(\d+)_?(.*)$/, async (ctx) => {
     await handleJobs(ctx, page, filter);
 });
 
+bot.callbackQuery('noop', async (ctx) => { await ctx.answerCallbackQuery(); });
+
 bot.callbackQuery(/^jobs_filter_(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const filter = ctx.match![1];
@@ -1431,18 +1433,28 @@ async function handleJobs(ctx: any, page: number, filter: string) {
             } catch { return null; }
         }
 
-        // Build ordered index: newest first (TON count-1..0, then Jetton count-1..0)
-        // Interleave: newest from each factory first
+        // Build ordered index: newest first, filtered by type
         const allIds: Array<{factory: string; id: number; type: string}> = [];
-        let ti = count - 1, ji = jettonCount - 1;
-        while (ti >= 0 || ji >= 0) {
-            if (ji >= 0) { allIds.push({ factory: JETTON_FACTORY_ADDRESS, id: ji, type: 'jetton' }); ji--; }
-            if (ti >= 0) { allIds.push({ factory: FACTORY_ADDRESS, id: ti, type: 'ton' }); ti--; }
+        if (!usdtOnly) for (let i = count - 1; i >= 0; i--) allIds.push({ factory: FACTORY_ADDRESS, id: i, type: 'ton' });
+        if (!tonOnly) for (let i = jettonCount - 1; i >= 0; i--) allIds.push({ factory: JETTON_FACTORY_ADDRESS, id: i, type: 'jetton' });
+        // Interleave if showing both
+        if (!tonOnly && !usdtOnly) {
+            const mixed: typeof allIds = [];
+            let ti2 = 0, ji2 = allIds.findIndex(x => x.type === 'jetton');
+            if (ji2 === -1) ji2 = allIds.length;
+            const tons = allIds.slice(0, ji2), jets = allIds.slice(ji2);
+            let a = 0, b = 0;
+            while (a < tons.length || b < jets.length) {
+                if (b < jets.length) mixed.push(jets[b++]);
+                if (a < tons.length) mixed.push(tons[a++]);
+            }
+            allIds.length = 0;
+            allIds.push(...mixed);
         }
 
-        // For active filter we need to scan more, but for 'all' just take the page slice
+        // Active needs full scan, TON/USDT-only use page-only fetch
         let jobs: JobEntry[];
-        if (needsFilter) {
+        if (activeOnly) {
             // Fetch all in parallel batches of 5
             const allJobs: (JobEntry | null)[] = [];
             for (let batch = 0; batch < allIds.length; batch += 5) {
@@ -1482,12 +1494,12 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         }
         kb.row();
 
-        // Filter buttons
+        // Filter buttons — fixed order, current highlighted with ·
         const filters: Array<[string, string]> = [
-            ['📋 All', 'all'], ['🟢 Active', 'active'], ['💎 TON', 'ton'], ['💵 USDT', 'usdt'],
+            ['All', 'all'], ['Active', 'active'], ['TON', 'ton'], ['USDT', 'usdt'],
         ];
         for (const [label, f] of filters) {
-            if (f !== filter) kb.text(label, `jobs_filter_${f}`);
+            kb.text(f === filter ? `• ${label}` : label, f === filter ? 'noop' : `jobs_filter_${f}`);
         }
         kb.row();
 
