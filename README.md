@@ -279,10 +279,12 @@ In the Telegram bot: `/create 5 Write a smart contract ai`
 
 ```bash
 WALLET_MNEMONIC="evaluator 24 words" \
-GEMINI_API_KEY="your_key" \
+GROQ_API_KEY="your_groq_key" \
 TONCENTER_API_KEY="your_key" \
 npx ts-node scripts/evaluator-agent.ts
 ```
+
+Supports Groq (recommended, 14400 req/day free) or Gemini as fallback.
 
 Use `--dry-run` to preview decisions without sending transactions.
 

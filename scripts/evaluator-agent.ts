@@ -18,11 +18,9 @@
 import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Address, beginCell, toNano } from '@ton/core';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
 // ─── Config ───
 const MNEMONIC = process.env.WALLET_MNEMONIC ?? '';
-const GEMINI_KEY = process.env.GEMINI_API_KEY ?? '';
+const LLM_API_KEY = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY ?? '';
 const API_KEY = process.env.TONCENTER_API_KEY ?? '';
 const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const PINATA_JWT = process.env.PINATA_JWT ?? '';
@@ -117,20 +115,38 @@ async function getJobStatus(client: TonClient, jobAddress: string) {
 // ─── Main ───
 async function main() {
     if (!MNEMONIC) { console.error('WALLET_MNEMONIC not set'); process.exit(1); }
-    if (!GEMINI_KEY) { console.error('GEMINI_API_KEY not set'); process.exit(1); }
+    if (!LLM_API_KEY) { console.error('GROQ_API_KEY or GEMINI_API_KEY not set'); process.exit(1); }
 
+    const useGroq = !!process.env.GROQ_API_KEY;
     const client = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC', apiKey: API_KEY });
     const keyPair = await mnemonicToPrivateKey(MNEMONIC.split(' '));
     const wallet = WalletContractV5R1.create({ publicKey: keyPair.publicKey, workchain: 0 });
     const walletContract = client.open(wallet);
     const myAddr = wallet.address.toString({ bounceable: false });
 
-    const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    async function askLLM(prompt: string): Promise<string> {
+        if (useGroq) {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LLM_API_KEY}` },
+                body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
+            });
+            if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
+            const data = await res.json() as any;
+            return data.choices[0].message.content.trim();
+        } else {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(LLM_API_KEY);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const result = await model.generateContent(prompt);
+            return result.response.text().trim();
+        }
+    }
 
-    const evaluated = new Set<string>(); // track evaluated jobs to avoid duplicates
+    const evaluated = new Set<string>();
 
     log(`🤖 ENACT AI Evaluator started${DRY_RUN ? ' (DRY RUN)' : ''}`);
+    log(`🧠 LLM: ${useGroq ? 'Groq (llama-3.3-70b)' : 'Gemini (2.0-flash)'}`);
     log(`👛 Evaluator address: ${myAddr}`);
     log(`🔍 Scanning every ${INTERVAL / 1000}s...`);
 
@@ -185,10 +201,9 @@ Submitted result: ${result}`;
                         let reason = '';
 
                         try {
-                            log(`🧠 Calling Gemini for ${jobKey}...`);
-                            const geminiResult = await model.generateContent(prompt);
-                            const text = geminiResult.response.text().trim();
-                            log(`🧠 Gemini raw: ${text}`);
+                            log(`🧠 Calling ${useGroq ? 'Groq' : 'Gemini'} for ${jobKey}...`);
+                            const text = await askLLM(prompt);
+                            log(`🧠 LLM response: ${text}`);
 
                             // Parse JSON — handle possible markdown wrapping
                             const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
