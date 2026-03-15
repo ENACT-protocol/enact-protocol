@@ -225,6 +225,22 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
     return { hash, hashBig: BigInt('0x' + hash) };
 }
 
+/** Find IPFS CID for a hash via Pinata metadata search */
+async function findCID(hash: string): Promise<string | null> {
+    if (!hash || hash === '0'.repeat(64)) return null;
+    const jwt = process.env.PINATA_JWT;
+    if (!jwt) return null;
+    try {
+        const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${jwt}` }, signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+            const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
+            if (pins.rows?.length > 0) return pins.rows[0].ipfs_pin_hash;
+        }
+    } catch {}
+    return null;
+}
+
 async function decodeDesc(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
     if (descCache.has(hash)) return descCache.get(hash)!;
@@ -1461,13 +1477,14 @@ async function handleStatus(ctx: any, jobId: number) {
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
         const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
-        const ipfsBase = 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
+        const descCid = desc ? await findCID(s.descHash) : null;
+        const resCid = resultText ? await findCID(s.resultHash) : null;
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>${descCid ? ` <a href="${PINATA_GW}/${descCid}">full</a>` : ''}\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>${resCid ? ` <a href="${PINATA_GW}/${resCid}">full</a>` : ''}\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
@@ -1875,12 +1892,14 @@ async function handleJettonStatus(ctx: any, jobId: number) {
 
         const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
         const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
+        const descCid = desc ? await findCID(s.descHash) : null;
+        const resCid = resultText ? await findCID(s.resultHash) : null;
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>${descCid ? ` <a href="${PINATA_GW}/${descCid}">full</a>` : ''}\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>${resCid ? ` <a href="${PINATA_GW}/${resCid}">full</a>` : ''}\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
