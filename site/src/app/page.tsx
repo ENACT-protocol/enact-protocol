@@ -300,7 +300,7 @@ export default function Home() {
                 ['Auto-Claim','Provider auto-claims after 24h of evaluator silence. No funds ever get stuck.'],
                 ['USDT Payments','Pay in native TON or USDT. JettonJob contracts handle stablecoin escrow with auto-resolved wallets.'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. Full job lifecycle in 6 tools.'],
-                ['MCP Server','14 tools via Model Context Protocol. Connect Claude, GPT, Cursor, or any MCP-compatible LLM.'],
+                ['MCP Server','14 tools via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible LLM.'],
                 ['Budget & Quit','Negotiate price before funding. Provider can quit before submitting — job reopens.'],
               ].map(([t,d])=>(
                 <div key={t} className="pl-4 border-l-2 border-[var(--color-accent)]/30">
@@ -358,8 +358,8 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
             {[
               {
-                title: 'Sub-cent Fees',
-                desc: 'Micro-transactions between agents cost fractions of a cent. Economic viability for high-frequency agent-to-agent commerce.',
+                title: 'Low Fees',
+                desc: 'Network fees ~0.003–0.01 TON per operation. 0% protocol fee — all funds go directly to the provider.',
               },
               {
                 title: 'TVM Escrow Logic',
@@ -396,7 +396,7 @@ export default function Home() {
             <p className="text-sm text-gray-400 font-light mb-8 sm:mb-12">Integrations that let any agent interact with ENACT on-chain.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {[
-                ['MCP Server','Model Context Protocol for LLMs. 14 tools covering the full job lifecycle.','Claude · Cursor · GPT · any MCP client'],
+                ['MCP Server','Model Context Protocol for LLMs. 14 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client'],
                 ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 6 tools — find, take, submit, evaluate.','cp plugin → ~/.teleton/plugins/'],
               ].map(([n,d,t])=>(

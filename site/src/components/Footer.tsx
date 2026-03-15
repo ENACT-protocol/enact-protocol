@@ -43,39 +43,10 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* ── watermark: logo + ENACT, centered, gradient fade ── */}
-      <div
-        className="relative h-[100px] sm:h-[160px] md:h-[220px] lg:h-[280px] flex items-center justify-center pointer-events-none select-none"
-        style={{
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 60%, transparent 100%)',
-          maskImage: 'linear-gradient(to bottom, transparent 0%, white 25%, white 60%, transparent 100%)',
-        }}
-      >
-        <img
-          src="/enact_logo.png"
-          alt=""
-          className="flex-shrink-0"
-          style={{
-            height: 'clamp(2.5rem, 14vw, 14rem)',
-            width: 'auto',
-            opacity: 0.14,
-            marginRight: 'clamp(4px, 0.5vw, 10px)',
-          }}
-          draggable={false}
-        />
-        <span
-          className="font-serif italic leading-[0.82] tracking-tight"
-          style={{
-            fontSize: 'clamp(2.5rem, 14vw, 14rem)',
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            paddingRight: 'clamp(1.5rem, 4vw, 4rem)',
-          }}
-        >
-          ENACT
-        </span>
+      {/* ── watermark: logo + ENACT ── */}
+      <div className="relative h-[80px] sm:h-[140px] md:h-[200px] lg:h-[260px] flex items-center justify-center pointer-events-none select-none overflow-hidden">
+        <img src="/enact_logo.png" alt="" className="flex-shrink-0" style={{ height: 'clamp(2rem, 12vw, 12rem)', width: 'auto', opacity: 0.14, marginRight: 'clamp(4px, 0.5vw, 8px)' }} draggable={false} />
+        <span className="font-serif italic leading-[0.82] tracking-tight" style={{ fontSize: 'clamp(2rem, 12vw, 12rem)', background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>ENACT</span>
       </div>
     </footer>
   );
