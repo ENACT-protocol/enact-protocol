@@ -29,6 +29,7 @@ const sidebar = [
   { group: 'Reference', items: [
     { name: 'Environment Variables', slug: 'env-vars' },
     { name: 'Mainnet Deployments', slug: 'mainnet' },
+    { name: 'NPM SDK', slug: 'npm-sdk' },
     { name: 'Tech Stack', slug: 'tech-stack' },
   ]},
 ];

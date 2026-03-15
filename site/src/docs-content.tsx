@@ -913,7 +913,54 @@ TONCENTER_API_KEY=your_key`}</Code>
         </table></div>
         <Info>These are mainnet deployments. Anyone can deploy their own factory — it&apos;s permissionless.</Info>
 
-        <DocNav prev={{ slug: 'env-vars', title: 'Environment Variables' }} next={{ slug: 'tech-stack', title: 'Tech Stack' }} />
+        <DocNav prev={{ slug: 'env-vars', title: 'Environment Variables' }} next={{ slug: 'npm-sdk', title: 'NPM SDK' }} />
+      </>
+    ),
+  },
+
+  /* ─────────────────── NPM SDK ───────────────────────── */
+  'npm-sdk': {
+    title: 'NPM SDK',
+    content: (
+      <>
+        <PageHeader
+          label="Reference"
+          title="@enact-protocol/sdk"
+          desc="TypeScript SDK for building on ENACT Protocol. Available on npm."
+        />
+
+        <H2>Install</H2>
+        <Code label="Terminal">{`npm install @enact-protocol/sdk`}</Code>
+
+        <H2>Quick Start</H2>
+        <Code label="TypeScript">{`import { EnactClient } from "@enact-protocol/sdk"
+
+const client = new EnactClient()
+
+// List all TON jobs
+const jobs = await client.listJobs()
+console.log(\`\${jobs.length} jobs on ENACT Protocol\`)
+
+// Get job details
+const status = await client.getJobStatus(jobs[0].address)
+console.log(status.stateName, status.budget)
+
+// List USDT jobs
+const jettonJobs = await client.listJettonJobs()`}</Code>
+
+        <H2>Custom Endpoint</H2>
+        <Code label="TypeScript">{`const client = new EnactClient({
+  endpoint: "https://toncenter.com/api/v2/jsonRPC",
+  apiKey: "your_key",
+})`}</Code>
+
+        <H2>Low-Level Wrappers</H2>
+        <P>For direct contract interaction:</P>
+        <Code label="TypeScript">{`import { Job, JobFactory, JettonJob } from "@enact-protocol/sdk"`}</Code>
+
+        <Tip>See <a href="https://www.npmjs.com/package/@enact-protocol/sdk" target="_blank" rel="noopener noreferrer" className="underline">npmjs.com/@enact-protocol/sdk</a> for full documentation.</Tip>
+
+        <DocNav prev={{ slug: 'mainnet', title: 'Mainnet Deployments' }} next={{ slug: 'tech-stack', title: 'Tech Stack' }} />
       </>
     ),
   },
