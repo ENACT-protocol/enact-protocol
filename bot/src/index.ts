@@ -1163,7 +1163,7 @@ bot.command('submit', async (ctx) => {
                         .text('🔭 View Job', `status_${jobId}`);
                     await bot.api.sendMessage(uid,
                         `${e('⚖️')} <b>Job #${jobId} — Evaluation Needed</b>\n\n` +
-                        (desc ? `${e('📄')} Description: <i>${desc.slice(0, 150)}</i>\n` : '') +
+                        (desc ? `${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
                         `${e('🪙')} Budget: ${ton(fmtTon(status.budget))}\n` +
                         `${eid(EID.forProviders, '🔧')} Provider: <code>${status.provider}</code>\n\n` +
                         `Please review and approve or reject.`,
@@ -1461,12 +1461,13 @@ async function handleStatus(ctx: any, jobId: number) {
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
         const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
+        const ipfsBase = 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `${e('📄')} <i>${desc.length > 80 ? desc.slice(0, 80) + '...' : desc}</i>\n` : '') +
-            (resultText ? `${e('📨')} <i>${resultText.length > 80 ? resultText.slice(0, 80) + '...' : resultText}</i>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
@@ -1878,8 +1879,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `${e('📄')} <i>${desc.length > 80 ? desc.slice(0, 80) + '...' : desc}</i>\n` : '') +
-            (resultText ? `${e('📨')} <i>${resultText.length > 80 ? resultText.slice(0, 80) + '...' : resultText}</i>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>\n` : '') +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
