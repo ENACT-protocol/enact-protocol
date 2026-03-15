@@ -333,10 +333,11 @@ bot.callbackQuery('menu_create', async (ctx) => {
         `${e('✍️')} <b>Create a Job</b>\n\n` +
         `${e('💎')} <b>TON payment:</b>\n` +
         `<code>/create {amount} {description}</code>\n` +
-        `Example: <code>/create 5 Write a smart contract</code>\n\n` +
+        `<code>/create {amount} {description} {evaluator}</code>\n\n` +
         `${e('💵')} <b>USDT payment:</b>\n` +
-        `<code>/createjetton {amount} {description}</code>\n` +
-        `Example: <code>/createjetton 10 Audit this code</code>`,
+        `<code>/createjetton {amount} {description}</code>\n\n` +
+        `${e('💡')} Evaluator is optional — defaults to you.\n` +
+        `To set a custom evaluator, add their address as the last parameter.`,
         { parse_mode: 'HTML' }
     );
 });
