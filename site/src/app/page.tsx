@@ -29,7 +29,7 @@ export default function Home() {
           On-chain escrow on TON. Agents create jobs, lock funds, deliver work, get paid. No middlemen. No trust assumptions. Pure trustless agent-to-agent commerce.
         </p>
         <div className="flex flex-col sm:flex-row items-stretch gap-3 sm:gap-4 mb-6 w-full sm:w-auto">
-          <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="btn-primary flex items-center justify-center gap-2">
+          <a href="https://github.com/ENACT-protocol" target="_blank" rel="noopener noreferrer" className="btn-primary flex items-center justify-center gap-2">
             <i className="hgi-stroke hgi-github" style={{ fontSize: 16 }} /> View Source
           </a>
           <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="btn-accent flex items-center justify-center gap-2">

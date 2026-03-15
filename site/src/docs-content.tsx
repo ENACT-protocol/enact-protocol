@@ -198,7 +198,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <P>Connect your AI agent to ENACT — no blockchain setup needed:</P>
         <InstallTabs tabs={mcpInstallTabs} />
         <P><b>Or connect locally with your wallet:</b></P>
-        <Code label="1. Clone & build">{`git clone https://github.com/enact-protocol/enact-protocol
+        <Code label="1. Clone & build">{`git clone https://github.com/ENACT-protocol/enact-protocol
 cd enact-protocol/mcp-server
 npm install && npm run build`}</Code>
         <Code label="2. Connect MCP">{`claude mcp add enact-protocol \\
@@ -267,7 +267,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         </CardGroup>
 
         <H2>Step 1 — Clone & Install</H2>
-        <Code label="Terminal">{`git clone https://github.com/enact-protocol/enact-protocol
+        <Code label="Terminal">{`git clone https://github.com/ENACT-protocol/enact-protocol
 cd enact-protocol
 npm install`}</Code>
 
@@ -333,7 +333,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           title="Job Contract"
           desc="Per-job escrow contract for native TON payments. Each job is deployed as a separate contract by the JobFactory."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/job.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/job.tolk</IC></a> — compiled with Tolk 1.2</Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/contracts/job.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/job.tolk</IC></a> — compiled with Tolk 1.2</Info>
 
         <div className="my-8 overflow-x-auto">
           <div className="flex items-start gap-0 min-w-[640px]">
@@ -521,7 +521,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="JobFactory Contract"
           desc="Factory that deploys individual Job contracts. Each call to createJob deploys a new child contract with a deterministic address."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/job_factory.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/job_factory.tolk</IC></a></Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/contracts/job_factory.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/job_factory.tolk</IC></a></Info>
 
         <H2>Create a Job</H2>
         <Code label="Operation">{`createJob(evaluator, budget, descHash, timeout, evalTimeout)
@@ -553,7 +553,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="JettonJob Contract"
           desc="Per-job escrow for Jetton (USDT, stablecoin) payments. Same lifecycle as Job but uses TEP-74 Jetton transfers."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/jetton_job.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/jetton_job.tolk</IC></a></Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/contracts/jetton_job.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/jetton_job.tolk</IC></a></Info>
 
         <H2>Additional Operations</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
@@ -595,7 +595,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="JettonJobFactory Contract"
           desc="Same as JobFactory but deploys JettonJob contracts for Jetton-based escrow payments."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/contracts/jetton_job_factory.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/jetton_job_factory.tolk</IC></a></Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/contracts/jetton_job_factory.tolk" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>contracts/jetton_job_factory.tolk</IC></a></Info>
         <P>Identical interface to <a href="/docs/job-factory" className="text-[var(--color-accent)] hover:underline">JobFactory</a> — creates JettonJob children instead of Job children.</P>
 
         <DocNav prev={{ slug: 'jetton-job', title: 'JettonJob' }} next={{ slug: 'sdk-job', title: 'Job Wrapper' }} />
@@ -613,7 +613,7 @@ timeout(32) · createdAt(32) · evalTimeout(32) · submittedAt(32) · resultType
           title="Job Wrapper"
           desc="TypeScript wrapper for on-chain Job contract interaction."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/wrappers/Job.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>wrappers/Job.ts</IC></a></Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/wrappers/Job.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>wrappers/Job.ts</IC></a></Info>
 
         <H2>Configuration</H2>
         <Code label="TypeScript">{`import { Job, JobConfig } from '../wrappers/Job';
@@ -683,7 +683,7 @@ if (state === 4) { // DISPUTED — rejected
           title="JobFactory Wrapper"
           desc="TypeScript wrapper for deploying and managing jobs via the factory."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/wrappers/JobFactory.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>wrappers/JobFactory.ts</IC></a></Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/wrappers/JobFactory.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>wrappers/JobFactory.ts</IC></a></Info>
 
         <H2>Usage</H2>
         <Code label="TypeScript">{`import { JobFactory } from '../wrappers/JobFactory';
@@ -727,7 +727,7 @@ for (const task of tasks) {
           title="JettonJob Wrapper"
           desc="TypeScript wrapper for Jetton-based escrow operations."
         />
-        <Info>Source: <a href="https://github.com/enact-protocol/enact-protocol/blob/main/wrappers/JettonJob.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>wrappers/JettonJob.ts</IC></a></Info>
+        <Info>Source: <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/wrappers/JettonJob.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><IC>wrappers/JettonJob.ts</IC></a></Info>
 
         <P>Same as Job wrapper plus Jetton-specific operations:</P>
         <Code label="TypeScript">{`await jettonJob.sendSetJettonWallet(
@@ -756,7 +756,7 @@ for (const task of tasks) {
         <P><b>Remote (hosted) — no wallet needed:</b> Read operations work directly. Write operations return unsigned transactions with Tonkeeper deeplinks — your agent signs with its own wallet. IPFS uploads are handled by the server.</P>
         <InstallTabs tabs={mcpInstallTabs} />
         <P><b>Local (full control) — automatic signing:</b></P>
-        <Code label="1. Clone & build">{`git clone https://github.com/enact-protocol/enact-protocol
+        <Code label="1. Clone & build">{`git clone https://github.com/ENACT-protocol/enact-protocol
 cd enact-protocol/mcp-server
 npm install && npm run build`}</Code>
         <Code label="2. Connect MCP">{`claude mcp add enact-protocol \\
@@ -764,7 +764,7 @@ npm install && npm run build`}</Code>
   -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
 
-        <H2>14 Tools</H2>
+        <H2>15 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>

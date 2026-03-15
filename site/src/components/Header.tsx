@@ -40,7 +40,7 @@ export default function Header() {
           <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
             <XIcon /> <span className="ml-2">X</span>
           </a>
-          <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
+          <a href="https://github.com/ENACT-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
             <i className="hgi-stroke hgi-github mr-2" style={{ fontSize: 16 }} /> GitHub
           </a>
         </div>
@@ -71,7 +71,7 @@ export default function Header() {
               <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
                 <XIcon /> <span className="ml-2">X</span>
               </a>
-              <a href="https://github.com/enact-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
+              <a href="https://github.com/ENACT-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-white hover:bg-white/5 transition-all">
                 <i className="hgi-stroke hgi-github mr-2" style={{ fontSize: 16 }} /> GitHub
               </a>
             </div>
