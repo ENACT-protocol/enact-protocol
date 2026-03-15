@@ -1103,17 +1103,20 @@ bot.command('submit', async (ctx) => {
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
-    const jobId = parseInt(args[0]);
+    const parsed = parseJobArg(args[0]);
+    if (!parsed) return ctx.reply(`${e('❌')} Usage: <code>/submit 0 result</code> or <code>/submit j0 result</code>`, { parse_mode: 'HTML' });
+    const jobId = parsed.id;
+    const factory = parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS;
     const resultText = args.slice(1).join(' ');
 
     // Verify job exists, state=FUNDED, and caller is the provider
     try {
         const client = await createClient();
-        const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
+        const count = await getFactoryJobCount(client, factory);
         if (jobId >= count) {
-            return ctx.reply(`${e('❌')} Job #${jobId} does not exist.`, { parse_mode: 'HTML' });
+            return ctx.reply(`${e('❌')} Job ${parsed.jetton ? 'J#' : '#'}${jobId} does not exist.`, { parse_mode: 'HTML' });
         }
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
         if (status.stateName !== 'FUNDED') {
             return ctx.reply(`${e('❌')} Job is in <b>${status.stateName}</b> state, cannot submit.`, { parse_mode: 'HTML' });
@@ -1133,18 +1136,19 @@ bot.command('submit', async (ctx) => {
     try {
         const { hashBig: resultHash } = await uploadToIPFS({ type: 'job_result', result: resultText, submittedAt: new Date().toISOString() });
         const client = await createClient();
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const jobAddr = await getJobAddress(client, factory, jobId);
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
             .storeUint(resultHash, 256)
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
 
+        const statusCb = parsed.jetton ? `jstatus_${jobId}` : `status_${jobId}`;
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
             const kb = new InlineKeyboard()
                 .url('👛 Submit in Tonkeeper', link).row()
-                .text('🔭 Status', `status_${jobId}`)
+                .text('🔭 Status', statusCb)
                 .text('🏠 Menu', 'menu_main');
             await ctx.reply(
                 `${e('📨')} <b>Submit Result for Job #${jobId}</b>\n\n` +
@@ -1161,7 +1165,7 @@ bot.command('submit', async (ctx) => {
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
 
         const kb = new InlineKeyboard()
-            .text('🔭 Status', `status_${jobId}`)
+            .text('🔭 Status', statusCb)
             .text('🏠 Menu', 'menu_main');
 
         await ctx.reply(
@@ -1744,7 +1748,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
                             .text('🔭 Status', `status_${jobId}`)
                             .text('🏠 Menu', 'menu_main');
                         await bot.api.sendMessage(ctx.chat!.id,
-                            `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${jobId} your_result_text</code>`,
+                            `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${factory === JETTON_FACTORY_ADDRESS ? 'j' : ''}${jobId} your_result_text</code>`,
                             { parse_mode: 'HTML', reply_markup: tkb });
                     }
                 } catch {}
@@ -1759,7 +1763,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
 
         const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
-        await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
+        await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${factory === JETTON_FACTORY_ADDRESS ? 'j' : ''}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
