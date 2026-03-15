@@ -634,9 +634,10 @@ bot.command('create', async (ctx) => {
     if (args.length < 2) {
         return ctx.reply(
             `${e('✍️')} <b>Create a Job</b>\n\n` +
-            `Usage:\n<code>/create {amount in TON} {description}</code>\n\n` +
+            `Usage:\n<code>/create {amount} {description}</code>\n` +
+            `<code>/create {amount} {description} {evaluator_address}</code>\n\n` +
             `Example: <code>/create 5 Write a smart contract</code>\n\n` +
-            `${e('🪙')} The amount is the job budget in ${eid(EID.tonCoin, '💎')}.`,
+            `${e('💡')} Evaluator is optional — defaults to you.`,
             { parse_mode: 'HTML' }
         );
     }
@@ -650,7 +651,18 @@ bot.command('create', async (ctx) => {
     const mode = walletMode(userId);
     if (!mode) { await requireWallet(ctx); return; }
 
-    const description = args.slice(1).join(' ');
+    // Check if last arg is an address (evaluator), otherwise use self
+    const lastArg = args[args.length - 1];
+    const isEvalAddr = lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
+    let evaluatorStr = '';
+    let descArgs: string[];
+    if (isEvalAddr && args.length >= 3) {
+        evaluatorStr = lastArg;
+        descArgs = args.slice(1, -1);
+    } else {
+        descArgs = args.slice(1);
+    }
+    const description = descArgs.join(' ');
     const descHash = BigInt('0x' + Buffer.from(description).toString('hex').padEnd(64, '0').slice(0, 64));
 
     try {
@@ -658,9 +670,10 @@ bot.command('create', async (ctx) => {
 
         if (mode === 'tonconnect') {
             const addr = userTcAddresses.get(userId)!;
+            const evaluatorAddr = evaluatorStr ? Address.parse(evaluatorStr) : Address.parse(addr);
             const createBody = beginCell()
                 .storeUint(FactoryOpcodes.createJob, 32)
-                .storeAddress(Address.parse(addr))
+                .storeAddress(evaluatorAddr)
                 .storeCoins(toNano(budgetTon))
                 .storeUint(descHash, 256)
                 .storeUint(86400, 32)
@@ -707,9 +720,10 @@ bot.command('create', async (ctx) => {
         await ctx.reply(`${e('⏳')} Creating and funding job...`, { parse_mode: 'HTML' });
 
         // Step 1: Create job
+        const mnemonicEvaluator = evaluatorStr ? Address.parse(evaluatorStr) : w.wallet.address;
         const createBody = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
-            .storeAddress(w.wallet.address)
+            .storeAddress(mnemonicEvaluator)
             .storeCoins(toNano(budgetTon))
             .storeUint(descHash, 256)
             .storeUint(86400, 32)
@@ -932,16 +946,25 @@ bot.command('submit', async (ctx) => {
     const jobId = parseInt(args[0]);
     const resultText = args.slice(1).join(' ');
 
-    // Verify caller is the provider
+    // Verify job exists and caller is the provider
     try {
         const client = await createClient();
+        const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
+        if (jobId >= count) {
+            return ctx.reply(`${e('❌')} Job #${jobId} does not exist.`, { parse_mode: 'HTML' });
+        }
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
         const status = await getJobStatus(client, jobAddr.toString());
-        const userAddr = mode === 'tonconnect' ? userTcAddresses.get(userId) : null;
-        if (userAddr && status.provider !== userAddr) {
+        const userAddr = userTcAddresses.get(userId) ?? '';
+        if (userAddr && status.provider !== 'none' && status.provider !== userAddr) {
             return ctx.reply(`${e('❌')} You are not the provider of this job.`, { parse_mode: 'HTML' });
         }
-    } catch {}
+        if (status.stateName !== 'FUNDED') {
+            return ctx.reply(`${e('❌')} Job is in ${status.stateName} state, cannot submit.`, { parse_mode: 'HTML' });
+        }
+    } catch (err: any) {
+        return ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+    }
 
     const resultHash = BigInt('0x' + Buffer.from(resultText).toString('hex').padEnd(64, '0').slice(0, 64));
 
@@ -1304,7 +1327,7 @@ async function handleStatus(ctx: any, jobId: number) {
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
-            `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h\n` +
+            `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h${s.createdAt > 0 ? (() => { const left = (s.createdAt + s.timeout) - Math.floor(Date.now()/1000); return left > 0 ? ' | ' + Math.floor(left/3600) + 'h ' + Math.floor((left%3600)/60) + 'm left' : ' | expired'; })() : ''}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
 
         const kb = new InlineKeyboard();
@@ -1466,15 +1489,27 @@ async function handleCancel(ctx: any, jobId: number) {
     try {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const status = await getJobStatus(client, jobAddr.toString());
+        const deadline = status.createdAt + status.timeout;
+        const now = Math.floor(Date.now() / 1000);
+        if (now < deadline) {
+            const left = deadline - now;
+            return ctx.reply(
+                `${e('⚠️')} <b>Cannot cancel yet</b>\n\n` +
+                `Timeout expires in <b>${Math.floor(left/3600)}h ${Math.floor((left%3600)/60)}m</b>.\n` +
+                `Cancel will be available after that.`,
+                { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main') }
+            );
+        }
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
 
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
             const kb = new InlineKeyboard()
-                .url('👛 Approve in Tonkeeper', link).row()
+                .url('👛 Cancel in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('🚫')} <b>Cancel Job #${jobId}</b>\n\n${e('⚠️')} Cancel works only after timeout expires (24h by default).\n\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('🚫')} <b>Cancel Job #${jobId}</b>\n\nTimeout expired. Open Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
             watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 5); // 5=CANCELLED
             return;
         }
@@ -1570,7 +1605,7 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean) {
             .storeUint(0n, 256)
             .endCell();
 
-        const evalGas = toNano('0.06');
+        const evalGas = toNano('0.01');
 
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), evalGas, body);
@@ -1626,7 +1661,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: <code>${s.evaluator}</code>\n` +
-            `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h\n` +
+            `${eid(EID.timeout, '⏰')} Timeout: ${s.timeout / 3600}h${s.createdAt > 0 ? (() => { const left = (s.createdAt + s.timeout) - Math.floor(Date.now()/1000); return left > 0 ? ' | ' + Math.floor(left/3600) + 'h ' + Math.floor((left%3600)/60) + 'm left' : ' | expired'; })() : ''}\n` +
             `${e('📍')} Address: <code>${jobAddr.toString()}</code>`;
 
         const kb = new InlineKeyboard();
