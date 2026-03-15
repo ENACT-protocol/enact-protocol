@@ -739,10 +739,12 @@ bot.command('create', async (ctx) => {
                 .text('🔄 Check Manually', 'check_created').row()
                 .text('🏠 Main Menu', 'menu_main');
 
+            const tonEvalLabel = evaluatorStr === AI_EVALUATOR ? '🤖 AI Evaluator' : evaluatorAddr.toString({ bounceable: false }).slice(0, 12) + '...';
             return ctx.reply(
                 `${e('✍️')} <b>Create & Fund Job</b>\n\n` +
                 `${e('🪙')} Budget: ${ton(budgetTon)}\n` +
-                `${e('📄')} Description: ${description}\n\n` +
+                `${e('📄')} Description: ${description}\n` +
+                `${e('⚖️')} Evaluator: ${tonEvalLabel}\n\n` +
                 `Approve <b>both</b> transactions in Tonkeeper:\n` +
                 `1️⃣ Create job (~0.03 ${eid(EID.tonCoin, '💎')} gas)\n` +
                 `2️⃣ Fund with ${ton(budgetTon)}\n\n` +
@@ -858,20 +860,49 @@ bot.command('createjetton', async (ctx) => {
 
             const createLink = tonTransferLink(JETTON_FACTORY_ADDRESS, toNano('0.03'), createBody);
 
+            // Pre-compute job address for fund deeplink
+            const nextIdRes = await client.runMethod(Address.parse(JETTON_FACTORY_ADDRESS), 'get_next_job_id');
+            const predictedId = nextIdRes.stack.readNumber();
+            await new Promise(r => setTimeout(r, 1500));
+            const predAddrRes = await client.runMethod(Address.parse(JETTON_FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(predictedId) }]);
+            const predictedAddr = predAddrRes.stack.readAddress();
+
+            // USDT fund deeplink: send USDT to job via client's jetton wallet
+            const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+            await new Promise(r => setTimeout(r, 1500));
+            const cjwRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(Address.parse(addr)).endCell() }
+            ]);
+            const clientJw = cjwRes.stack.readAddress();
+            const fundBody = beginCell()
+                .storeUint(0x0f8a7ea5, 32).storeUint(0, 64)
+                .storeCoins(usdtBudget)
+                .storeAddress(predictedAddr).storeAddress(Address.parse(addr))
+                .storeBit(false).storeCoins(toNano('0.05')).storeBit(false)
+                .endCell();
+            const fundLink = tonTransferLink(clientJw.toString(), toNano('0.1'), fundBody);
+
             pendingCreate.set(userId, { budgetTon, description });
             pendingChats.set(userId, ctx.chat!.id);
 
+            const evalLabel = jEvaluatorStr === AI_EVALUATOR ? '🤖 AI Evaluator' : jettonEvaluator.toString({ bounceable: false }).slice(0, 12) + '...';
+
             const kb = new InlineKeyboard()
-                .url('1️⃣ Create Jetton Job', createLink).row()
+                .url('1️⃣ Create Job', createLink).row()
+                .url(`2️⃣ Fund ${budgetTon} USDT`, fundLink).row()
                 .text('🔄 Check Manually', 'check_created_jetton').row()
                 .text('🏠 Main Menu', 'menu_main');
 
             return ctx.reply(
                 `${e('💵')} <b>Create Jetton Job</b>\n\n` +
                 `${e('🪙')} Budget: <b>${budgetTon}</b> USDT\n` +
-                `${e('📄')} Description: ${description}\n\n` +
-                `Approve the transaction in Tonkeeper.\n` +
-                `USDT wallet is set automatically after creation.`,
+                `${e('📄')} Description: ${description}\n` +
+                `${e('⚖️')} Evaluator: ${evalLabel}\n\n` +
+                `Approve <b>both</b> transactions in Tonkeeper:\n` +
+                `1️⃣ Create job (~0.03 TON gas)\n` +
+                `2️⃣ Fund with ${budgetTon} USDT\n\n` +
+                `${e('💡')} Wait ~15s between approvals. USDT wallet is set automatically.` +
+                (jEvaluatorStr === AI_EVALUATOR ? `\n\n${e('🤖')} AI Evaluator will review this job.` : ''),
                 { parse_mode: 'HTML', reply_markup: kb }
             );
         }
