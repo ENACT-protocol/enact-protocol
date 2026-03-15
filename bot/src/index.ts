@@ -1388,14 +1388,15 @@ async function handleFactory(ctx: any) {
 
 async function handleJobs(ctx: any, page: number, filter: string) {
     const PAGE_SIZE = 5;
-    const activeOnly = filter === 'active'; // show only OPEN/FUNDED
+    const activeOnly = filter === 'active';
     try {
         const client = await createClient();
         const count = await getFactoryJobCount(client, FACTORY_ADDRESS);
         let jettonCount = 0;
         try { jettonCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS); } catch {}
 
-        if (count === 0 && jettonCount === 0) {
+        const total = count + jettonCount;
+        if (total === 0) {
             const kb = new InlineKeyboard()
                 .text('✍️ Create First Job', 'menu_create').row()
                 .text('🏠 Main Menu', 'menu_main');
@@ -1407,32 +1408,47 @@ async function handleJobs(ctx: any, page: number, filter: string) {
             COMPLETED: e('✅'), DISPUTED: e('⚠️'), CANCELLED: e('🚫'),
         };
 
-        // Collect all jobs first
-        const jobs: Array<{id: number; type: string; state: string; budget: string; icon: string}> = [];
-        for (let i = 0; i < count; i++) {
-            const addr = await getJobAddress(client, FACTORY_ADDRESS, i);
+        // Build job list: newest first (TON newest, then Jetton newest)
+        // Only fetch the page we need — parallel requests
+        type JobEntry = {id: number; type: string; state: string; budget: string; icon: string};
+
+        async function fetchJob(factory: string, id: number, type: string): Promise<JobEntry | null> {
             try {
+                const addr = await getJobAddress(client, factory, id);
                 const s = await getJobStatus(client, addr.toString());
-                if (!activeOnly || s.stateName === 'OPEN' || s.stateName === 'FUNDED') {
-                    jobs.push({ id: i, type: 'ton', state: s.stateName, budget: ton(fmtTon(s.budget)), icon: stateIcon[s.stateName] ?? '❓' });
-                }
-            } catch {}
-            if (i < count - 1) await new Promise(r => setTimeout(r, 200));
-        }
-        for (let i = 0; i < jettonCount; i++) {
-            const addr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, i);
-            try {
-                const s = await getJobStatus(client, addr.toString());
-                if (!activeOnly || s.stateName === 'OPEN' || s.stateName === 'FUNDED') {
-                    jobs.push({ id: i, type: 'jetton', state: s.stateName, budget: `<b>${fmtUsdt(s.budget)}</b> ${e('💵')}`, icon: stateIcon[s.stateName] ?? '❓' });
-                }
-            } catch {}
-            if (i < jettonCount - 1) await new Promise(r => setTimeout(r, 200));
+                if (activeOnly && s.stateName !== 'OPEN' && s.stateName !== 'FUNDED') return null;
+                const budget = type === 'jetton' ? `<b>${fmtUsdt(s.budget)}</b> ${e('💵')}` : ton(fmtTon(s.budget));
+                return { id, type, state: s.stateName, budget, icon: stateIcon[s.stateName] ?? '❓' };
+            } catch { return null; }
         }
 
-        const totalPages = Math.ceil(jobs.length / PAGE_SIZE) || 1;
+        // Build ordered index: newest first (TON count-1..0, then Jetton count-1..0)
+        const allIds: Array<{factory: string; id: number; type: string}> = [];
+        for (let i = count - 1; i >= 0; i--) allIds.push({ factory: FACTORY_ADDRESS, id: i, type: 'ton' });
+        for (let i = jettonCount - 1; i >= 0; i--) allIds.push({ factory: JETTON_FACTORY_ADDRESS, id: i, type: 'jetton' });
+
+        // For active filter we need to scan more, but for 'all' just take the page slice
+        let jobs: JobEntry[];
+        if (activeOnly) {
+            // Fetch all in parallel batches of 5
+            const allJobs: (JobEntry | null)[] = [];
+            for (let batch = 0; batch < allIds.length; batch += 5) {
+                const chunk = allIds.slice(batch, batch + 5);
+                const results = await Promise.all(chunk.map(j => fetchJob(j.factory, j.id, j.type)));
+                allJobs.push(...results);
+            }
+            jobs = allJobs.filter(Boolean) as JobEntry[];
+        } else {
+            // Only fetch jobs for current page
+            const pageIds = allIds.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+            const results = await Promise.all(pageIds.map(j => fetchJob(j.factory, j.id, j.type)));
+            jobs = results.filter(Boolean) as JobEntry[];
+        }
+
+        const totalForPages = activeOnly ? jobs.length : total;
+        const totalPages = Math.ceil(totalForPages / PAGE_SIZE) || 1;
         const safePage = Math.min(page, totalPages - 1);
-        const pageJobs = jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+        const pageJobs = activeOnly ? jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) : jobs;
 
         let text = `${eid(EID.browseJobs, '📋')} <b>Jobs</b> (${jobs.length}${activeOnly ? ' active' : ' total'})`;
         if (totalPages > 1) text += ` — page ${safePage + 1}/${totalPages}`;
