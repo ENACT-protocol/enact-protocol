@@ -456,8 +456,8 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           <thead><tr><th>Operation</th><th>Gas Attached</th><th>Actual Cost</th><th>Refunded</th></tr></thead>
           <tbody>
             {[
-              ['Create Job','0.03 TON','~0.013 TON','~0.017 TON'],
-              ['Fund Job','budget + 0.01 TON','~0.005 TON','~0.005 TON'],
+              ['Create Job','0.03 TON','~0.021 TON','~0.009 TON'],
+              ['Fund Job','budget + 0.01 TON','~0.004 TON','~0.006 TON'],
               ['Take / Submit / Evaluate','0.01 TON','~0.003 TON','~0.007 TON'],
               ['Cancel / Claim / Quit','0.01 TON','~0.003 TON','~0.007 TON'],
               ['Fund USDT Job','0.065 TON (gas only)','~0.057 TON','~0.008 TON'],
@@ -796,11 +796,23 @@ npm install && npm run build`}</Code>
 
         <Tip>Live on mainnet: <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="underline">@EnactProtocolBot</a> — open in Telegram and try it now.</Tip>
 
-        <H2>13 Commands</H2>
+        <H2>Features</H2>
+        <ul className="list-disc list-inside text-[var(--color-text-muted)] text-sm space-y-1 mb-4">
+          <li>TonConnect wallet + mnemonic support</li>
+          <li>TON and USDT (Jetton) jobs — use <IC>j</IC> prefix for USDT (e.g. <IC>/status j0</IC>)</li>
+          <li>AI Evaluator — add <IC>ai</IC> as evaluator: <IC>/create 5 task ai</IC></li>
+          <li>Descriptions &amp; results stored on IPFS via Pinata</li>
+          <li>Role-based buttons (client/provider/evaluator see different actions)</li>
+          <li>Timeout checks before cancel/claim</li>
+          <li>Evaluator notifications on submit</li>
+          <li>Job browsing with filters (All/Active/TON/USDT)</li>
+        </ul>
+
+        <H2>Commands</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Command</th><th>Role</th><th>Usage</th><th>Description</th></tr></thead>
           <tbody>
-            {[['/start','Any','/start','Welcome & help'],['/wallet','Any','/wallet','Show wallet & balance'],['/create','Client','/create 1.5 Analyze','Create job'],['/budget','Client','/budget 0 2.0','Set budget'],['/fund','Client','/fund 0','Fund job'],['/approve','Evaluator','/approve 0 Good','Approve result'],['/reject','Evaluator','/reject 0 Bad','Reject result'],['/jobs','Provider','/jobs','List available'],['/take','Provider','/take 0','Take job'],['/submit','Provider','/submit 0 result','Submit result'],['/claim','Provider','/claim 0','Auto-claim'],['/quit','Provider','/quit 0','Exit job'],['/status','Any','/status 0','Check state']].map(([cmd,role,usage,desc])=>(
+            {[['/start','Any','/start','Main menu'],['/create','Client','/create 1 desc ai','Create TON job (evaluator optional)'],['/createjetton','Client','/createjetton 5 desc','Create USDT job'],['/fund','Client','/fund 0 or /fund j0','Fund TON or USDT job'],['/take','Provider','/take 0 or /take j0','Take a funded job'],['/submit','Provider','/submit 0 result','Submit result (IPFS)'],['/evaluate','Evaluator','/evaluate 0','Review + approve/reject'],['/approve','Evaluator','/approve 0','Approve result'],['/reject','Evaluator','/reject 0','Reject result'],['/cancel','Client','/cancel 0','Cancel after timeout'],['/claim','Provider','/claim 0','Claim after eval timeout'],['/quit','Provider','/quit 0','Quit before submit'],['/budget','Client','/budget 0 2.0','Set budget'],['/status','Any','/status 0 or /status j0','Job details'],['/jobs','Any','/jobs','Browse with filters'],['/wallet','Any','/wallet','Wallet info'],['/factory','Any','/factory','Factory addresses'],['/help','Any','/help','All commands']].map(([cmd,role,usage,desc])=>(
               <tr key={cmd}><td>{cmd}</td><td>{role}</td><td className="font-mono text-xs text-gray-400">{usage}</td><td>{desc}</td></tr>
             ))}
           </tbody>
