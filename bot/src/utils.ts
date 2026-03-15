@@ -106,6 +106,7 @@ export async function getJobStatus(client: TonClient, jobAddress: string) {
         resultHash: resultHash.toString(16).padStart(64, '0'),
         timeout, createdAt, evalTimeout, submittedAt, resultType,
         reason: reason.toString(),
+        reasonHash: reason.toString(16).padStart(64, '0'),
     };
 }
 

@@ -225,6 +225,18 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
     return { hash, hashBig: BigInt('0x' + hash) };
 }
 
+/** Decode hex-encoded text (sync, no IPFS) */
+function decodeHexOnly(hash: string): string | null {
+    if (!hash || hash === '0'.repeat(64)) return null;
+    try {
+        const clean = hash.replace(/0+$/, '');
+        if (clean.length < 2) return null;
+        const text = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
+        if (/^[\x20-\x7E]+$/.test(text) && text.length > 1) return escapeHtml(text);
+    } catch {}
+    return null;
+}
+
 /** Find IPFS CID for a hash via Pinata metadata search */
 async function findCID(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
@@ -1477,6 +1489,7 @@ async function handleStatus(ctx: any, jobId: number) {
 
         const desc = jobDescriptions.get(jobId) ?? await decodeDesc(s.descHash);
         const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
+        const reasonText = (s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? decodeHexOnly(s.reasonHash) : null;
         const descCid = desc ? await findCID(s.descHash) : null;
         const resCid = resultText ? await findCID(s.resultHash) : null;
         let text =
@@ -1484,7 +1497,9 @@ async function handleStatus(ctx: any, jobId: number) {
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
             (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
+            `\n` +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
@@ -1892,6 +1907,7 @@ async function handleJettonStatus(ctx: any, jobId: number) {
 
         const desc = jobDescriptions.get(jobId + 100000) ?? await decodeDesc(s.descHash);
         const resultText = (s.stateName === 'SUBMITTED' || s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? await decodeDesc(s.resultHash) : null;
+        const reasonText = (s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? decodeHexOnly(s.reasonHash) : null;
         const descCid = desc ? await findCID(s.descHash) : null;
         const resCid = resultText ? await findCID(s.resultHash) : null;
         let text =
@@ -1899,7 +1915,9 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
             (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
+            `\n` +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
             `${eid(EID.forProviders, '🔧')} Provider: <code>${s.provider}</code>\n` +
             `${e('⚖️')} Evaluator: ${s.evaluator === 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu' ? '🤖 AI' : ''} <code>${s.evaluator}</code>\n` +
