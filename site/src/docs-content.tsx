@@ -208,8 +208,8 @@ npm install && npm run build`}</Code>
         <Tip>Want to build from source or run tests? See <a href="/docs/getting-started" className="underline">Getting Started</a> for developer setup.</Tip>
 
         <H2>AI Evaluator Agent</H2>
-        <P>Autonomous agent that monitors submitted jobs, reviews results using LLM (Groq by default), and auto-approves or rejects. Set the agent&apos;s wallet as evaluator when creating a job — it handles the rest. Works with any OpenAI-compatible API.</P>
-        <Code label="Default AI Evaluator address">{`UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu`}</Code>
+        <P><strong>Live on TON Mainnet.</strong> Autonomous agent that monitors submitted jobs, reviews results using LLM (Groq by default), and auto-approves or rejects. Set the agent&apos;s wallet as evaluator when creating a job — it handles the rest. Works with any OpenAI-compatible API.</P>
+        <P>Default AI Evaluator: <a href="https://tonviewer.com/UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] underline"><IC>UQCDP52...mqkQAu</IC></a></P>
         <Code label="Telegram bot example">{`/create 5 Write a smart contract ai`}</Code>
         <Code label="Terminal">{`WALLET_MNEMONIC="evaluator 24 words" \\
 GROQ_API_KEY="your_key" \\
