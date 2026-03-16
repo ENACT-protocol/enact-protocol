@@ -1479,6 +1479,9 @@ async function handleFactory(ctx: any) {
     );
 }
 
+// Cache job addresses — they never change once deployed
+const jobAddrCache = new Map<string, Address>();
+
 async function handleJobs(ctx: any, page: number, filter: string) {
     const PAGE_SIZE = 5;
     const [statusF, typeF] = filter.includes('_') ? filter.split('_') : [filter === 'active' ? 'active' : 'all', filter === 'ton' ? 'ton' : filter === 'usdt' ? 'usdt' : 'all'];
@@ -1511,7 +1514,12 @@ async function handleJobs(ctx: any, page: number, filter: string) {
 
         async function fetchJob(factory: string, id: number, type: string): Promise<JobEntry | null> {
             try {
-                const addr = await getJobAddress(client, factory, id);
+                const cacheKey = `${factory}:${id}`;
+                let addr = jobAddrCache.get(cacheKey);
+                if (!addr) {
+                    addr = await getJobAddress(client, factory, id);
+                    jobAddrCache.set(cacheKey, addr);
+                }
                 const s = await getJobStatus(client, addr.toString());
                 if (activeOnly && s.stateName !== 'OPEN' && s.stateName !== 'FUNDED') return null;
                 if (tonOnly && type !== 'ton') return null;
