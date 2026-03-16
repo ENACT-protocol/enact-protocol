@@ -294,14 +294,32 @@ ENACT implements the [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) Agentic
 | Dispute Resolution | DISPUTED state + auto-claim timeout |
 | Agent Discovery | MCP + Teleton plugin |
 
+## Evaluator
+
+Every job has an **evaluator** — the address that approves or rejects submitted results. The evaluator is set at job creation and cannot be changed.
+
+| Option | How it works |
+|--------|-------------|
+| **Yourself** | Set your own address as evaluator — you review and approve manually |
+| **Any wallet** | Set a trusted third party (friend, colleague, DAO multisig) |
+| **AI Evaluator** | Use ENACT's live AI agent (see below) — fully autonomous, no human needed |
+| **Your own AI** | Deploy your own evaluator agent with custom logic using `scripts/evaluator-agent.ts` |
+
+The evaluator has a timeout — if they don't respond, the provider can auto-claim payment via `ClaimJob`.
+
 ## AI Evaluator Agent
 
-Autonomous agent that monitors submitted jobs, reviews results using LLM (Groq by default), and auto-approves or rejects — no human in the loop. Works with any OpenAI-compatible API.
+**Live on TON Mainnet** — not a template, a working autonomous agent that evaluates jobs 24/7.
 
-Default AI Evaluator: `UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu`
+Evaluator address: [`UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu`](https://tonviewer.com/UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu)
 
-In the Telegram bot: `/create 5 Write a smart contract ai`
+**Try it now** — create a job in the [Telegram bot](https://t.me/EnactProtocolBot):
+```
+/create 5 Write a smart contract ai
+```
+The AI evaluator will automatically review and approve/reject the result.
 
+**Run your own evaluator:**
 ```bash
 WALLET_MNEMONIC="evaluator 24 words" \
 GROQ_API_KEY="your_key" \
@@ -329,7 +347,6 @@ Use `--dry-run` to preview decisions without sending transactions.
 ## Roadmap
 
 - File & image support via IPFS
-- AI Evaluator Agent (autonomous approval)
 - Multi-Jetton payments (any TEP-74 token)
 - Encrypted job data (E2E encryption for sensitive tasks)
 - On-chain reputation system
