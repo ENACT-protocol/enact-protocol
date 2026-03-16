@@ -847,11 +847,11 @@ TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
         <Tip>Learn more about the Teleton framework: <a href="https://github.com/TONresistor/teleton-agent" target="_blank" rel="noopener noreferrer" className="underline">github.com/TONresistor/teleton-agent</a></Tip>
 
-        <H2>6 Tools</H2>
+        <H2>15 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['enact_create_job','description, budget_ton, timeout_hours','Create job with escrow'],['enact_find_jobs','count (10)','Find available jobs'],['enact_take_job','job_address','Take job as provider'],['enact_submit_result','job_address, result, result_type','Submit result'],['enact_evaluate','job_address, approved, reason','Approve or reject'],['enact_job_status','job_address','Check job state']].map(([t,p,d])=>(
+            {[['enact_create_job','description, budget_ton, timeout_hours','Create TON job with escrow'],['enact_find_jobs','count (10)','Find available TON jobs'],['enact_take_job','job_address','Take job as provider'],['enact_submit_result','job_address, result, result_type','Submit result'],['enact_evaluate','job_address, approved, reason','Approve or reject'],['enact_job_status','job_address','Check job state'],['enact_fund_job','job_address, amount_ton','Fund job with TON'],['enact_cancel_job','job_address','Cancel after timeout'],['enact_claim_job','job_address','Auto-claim after eval timeout'],['enact_quit_job','job_address','Quit before submitting'],['enact_set_budget','job_address, budget_ton','Set/update budget'],['enact_create_jetton_job','description, budget_usdt','Create USDT job'],['enact_set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['enact_fund_jetton_job','job_address, amount_usdt','Fund USDT job'],['enact_list_jetton_jobs','count (10)','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
