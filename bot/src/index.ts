@@ -2,7 +2,7 @@ import 'dotenv/config';
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { Address, beginCell, toNano, Cell } from '@ton/core';
 import TonConnect, { IStorage } from '@tonconnect/sdk';
 import {
@@ -718,7 +718,7 @@ bot.command('backup', async (ctx) => {
     const b64 = Buffer.from(JSON.stringify(data)).toString('base64');
     // Send as file to avoid Telegram message length limits
     await ctx.replyWithDocument(
-        { source: Buffer.from(b64), filename: 'wallets_backup.b64' },
+        new InputFile(Buffer.from(b64), 'wallets_backup.b64'),
         { caption: `Wallets backup (${userWallets.size} mnemonic + ${userTcAddresses.size} TonConnect). Paste as WALLETS_BACKUP env var.` }
     );
 });
