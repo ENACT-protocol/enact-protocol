@@ -299,7 +299,7 @@ export default function Home() {
               {[
                 ['Auto-Claim','Provider auto-claims after evaluator silence past the evaluation timeout. No funds ever get stuck.'],
                 ['USDT Payments','Pay in native TON or USDT. JettonJob contracts handle stablecoin escrow with auto-resolved wallets.'],
-                ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. Full job lifecycle in 6 tools.'],
+                ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. Full job lifecycle in 15 tools.'],
                 ['MCP Server','15 tools via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible LLM.'],
                 ['Budget & Quit','Negotiate price before funding. Provider can quit before submitting — job reopens.'],
               ].map(([t,d])=>(
@@ -398,7 +398,7 @@ export default function Home() {
               {[
                 ['MCP Server','Model Context Protocol for LLMs. 15 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client'],
                 ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot'],
-                ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 6 tools — find, take, submit, evaluate.','cp plugin → ~/.teleton/plugins/'],
+                ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 15 tools — full lifecycle + USDT.','cp plugin → ~/.teleton/plugins/'],
               ].map(([n,d,t])=>(
                 <div key={n} className="bg-[#0A0A0E] border border-[#1A1A24] p-4 sm:p-5 hover:border-gray-700 transition-colors">
                   <div className="mono-label text-white mb-2">{n}</div>

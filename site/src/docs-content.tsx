@@ -262,7 +262,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="15 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
-          <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="6 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
+          <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="15 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
         </CardGroup>
 
         <H2>Step 1 — Clone & Install</H2>
@@ -833,7 +833,7 @@ npm install && npm run build`}</Code>
         <PageHeader
           label="Integrations"
           title="Teleton Plugin"
-          desc="Drop-in plugin for the Teleton autonomous agent framework. 6 tools for the full job lifecycle."
+          desc="Drop-in plugin for the Teleton autonomous agent framework. 15 tools for the full job lifecycle."
         />
 
         <H2>Installation</H2>

@@ -29,6 +29,8 @@ const OPCODES = {
 const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 
 const DEFAULT_FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
+const DEFAULT_JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
+const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
 
 async function getClient(context) {
     const endpoint = context.env?.TON_ENDPOINT ?? 'https://toncenter.com/api/v2/jsonRPC';
@@ -211,7 +213,7 @@ export const tools = [
 
     {
         name: 'enact_job_status',
-        description: 'Check the status of a ENACT job.',
+        description: 'Check the status of an ENACT job.',
         parameters: {
             type: 'object',
             properties: {
@@ -251,6 +253,236 @@ export const tools = [
                 submittedAt,
                 resultType: ['hash', 'ton_storage', 'ipfs'][resultType] ?? 'unknown',
             };
+        },
+    },
+
+    {
+        name: 'enact_fund_job',
+        description: 'Fund an ENACT job with TON. Sends the budget amount to lock in escrow.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Job contract address' },
+                amount_ton: { type: 'number', description: 'Amount in TON to fund' },
+            },
+            required: ['job_address', 'amount_ton'],
+        },
+        execute: async (params, context) => {
+            const body = beginCell().storeUint(OPCODES.fund, 32).endCell();
+            return sendTx(context, params.job_address, toNano(params.amount_ton.toString()) + toNano('0.01'), body);
+        },
+    },
+
+    {
+        name: 'enact_cancel_job',
+        description: 'Cancel a funded job after timeout expires. Refunds to client.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Job contract address' },
+            },
+            required: ['job_address'],
+        },
+        execute: async (params, context) => {
+            const body = beginCell().storeUint(OPCODES.cancel, 32).endCell();
+            return sendTx(context, params.job_address, toNano('0.01'), body);
+        },
+    },
+
+    {
+        name: 'enact_claim_job',
+        description: 'Auto-claim payment after evaluation timeout. Provider gets paid.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Job contract address' },
+            },
+            required: ['job_address'],
+        },
+        execute: async (params, context) => {
+            const body = beginCell().storeUint(OPCODES.claim, 32).endCell();
+            return sendTx(context, params.job_address, toNano('0.01'), body);
+        },
+    },
+
+    {
+        name: 'enact_quit_job',
+        description: 'Quit a job before submitting result. Job reopens for other providers.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Job contract address' },
+            },
+            required: ['job_address'],
+        },
+        execute: async (params, context) => {
+            const body = beginCell().storeUint(OPCODES.quit, 32).endCell();
+            return sendTx(context, params.job_address, toNano('0.01'), body);
+        },
+    },
+
+    {
+        name: 'enact_set_budget',
+        description: 'Set or update job budget before funding.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Job contract address' },
+                budget_ton: { type: 'number', description: 'New budget in TON' },
+            },
+            required: ['job_address', 'budget_ton'],
+        },
+        execute: async (params, context) => {
+            const body = beginCell()
+                .storeUint(OPCODES.setBudget, 32)
+                .storeCoins(toNano(params.budget_ton.toString()))
+                .endCell();
+            return sendTx(context, params.job_address, toNano('0.01'), body);
+        },
+    },
+
+    {
+        name: 'enact_create_jetton_job',
+        description: 'Create a USDT escrow job on ENACT.',
+        parameters: {
+            type: 'object',
+            properties: {
+                description: { type: 'string', description: 'What needs to be done' },
+                budget_usdt: { type: 'number', description: 'Budget in USDT' },
+                timeout_hours: { type: 'number', description: 'Hours before auto-cancel', default: 24 },
+                eval_timeout_hours: { type: 'number', description: 'Hours before provider can auto-claim', default: 24 },
+            },
+            required: ['description', 'budget_usdt'],
+        },
+        execute: async (params, context) => {
+            const factoryAddress = context.env?.ENACT_JETTON_FACTORY_ADDRESS || DEFAULT_JETTON_FACTORY;
+            const { wallet } = await getWallet(context);
+            const descHash = BigInt('0x' + Buffer.from(params.description).toString('hex').padEnd(64, '0').slice(0, 64));
+            const timeout = (params.timeout_hours ?? 24) * 3600;
+            const evalTimeout = (params.eval_timeout_hours ?? 24) * 3600;
+            const usdtBudget = BigInt(Math.round(params.budget_usdt * 1e6));
+
+            const body = beginCell()
+                .storeUint(OPCODES.createJob, 32)
+                .storeAddress(wallet.address)
+                .storeCoins(usdtBudget)
+                .storeUint(descHash, 256)
+                .storeUint(timeout, 32)
+                .storeUint(evalTimeout, 32)
+                .endCell();
+
+            const result = await sendTx(context, factoryAddress, toNano('0.03'), body);
+            return { status: 'created', type: 'usdt', ...result };
+        },
+    },
+
+    {
+        name: 'enact_set_jetton_wallet',
+        description: 'Set USDT wallet on a jetton job (auto-resolves wallet address).',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Jetton job contract address' },
+            },
+            required: ['job_address'],
+        },
+        execute: async (params, context) => {
+            const client = await getClient(context);
+            const usdtMaster = Address.parse(USDT_MASTER);
+            const result = await client.runMethod(usdtMaster, 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(Address.parse(params.job_address)).endCell() },
+            ]);
+            const jettonWallet = result.stack.readAddress();
+
+            const body = beginCell()
+                .storeUint(0x0000000a, 32)
+                .storeAddress(jettonWallet)
+                .endCell();
+            return sendTx(context, params.job_address, toNano('0.01'), body);
+        },
+    },
+
+    {
+        name: 'enact_fund_jetton_job',
+        description: 'Fund a USDT job by sending Jetton transfer.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Jetton job contract address' },
+                amount_usdt: { type: 'number', description: 'Amount in USDT' },
+            },
+            required: ['job_address', 'amount_usdt'],
+        },
+        execute: async (params, context) => {
+            const { wallet } = await getWallet(context);
+            const client = await getClient(context);
+            const usdtMaster = Address.parse(USDT_MASTER);
+            const walletResult = await client.runMethod(usdtMaster, 'get_wallet_address', [
+                { type: 'slice', cell: beginCell().storeAddress(wallet.address).endCell() },
+            ]);
+            const senderJettonWallet = walletResult.stack.readAddress();
+
+            const forwardPayload = beginCell().storeUint(0, 32).endCell();
+            const body = beginCell()
+                .storeUint(0xf8a7ea5, 32)
+                .storeUint(0, 64)
+                .storeCoins(BigInt(Math.round(params.amount_usdt * 1e6)))
+                .storeAddress(Address.parse(params.job_address))
+                .storeAddress(wallet.address)
+                .storeBit(false)
+                .storeCoins(toNano('0.05'))
+                .storeBit(true)
+                .storeRef(forwardPayload)
+                .endCell();
+
+            return sendTx(context, senderJettonWallet.toString(), toNano('0.1'), body);
+        },
+    },
+
+    {
+        name: 'enact_list_jetton_jobs',
+        description: 'List USDT jobs from the JettonJobFactory.',
+        parameters: {
+            type: 'object',
+            properties: {
+                count: { type: 'number', description: 'How many recent jobs to check', default: 10 },
+            },
+        },
+        execute: async (params, context) => {
+            const factoryAddress = context.env?.ENACT_JETTON_FACTORY_ADDRESS || DEFAULT_JETTON_FACTORY;
+            const client = await getClient(context);
+            const factoryAddr = Address.parse(factoryAddress);
+
+            const nextIdResult = await client.runMethod(factoryAddr, 'get_next_job_id');
+            const nextId = nextIdResult.stack.readNumber();
+            const count = Math.min(params.count ?? 10, nextId);
+            const jobs = [];
+
+            for (let i = nextId - count; i < nextId; i++) {
+                const addrResult = await client.runMethod(factoryAddr, 'get_job_address', [
+                    { type: 'int', value: BigInt(i) },
+                ]);
+                const jobAddr = addrResult.stack.readAddress();
+                try {
+                    const dataResult = await client.runMethod(jobAddr, 'get_job_data');
+                    const jobId = dataResult.stack.readNumber();
+                    dataResult.stack.readAddress(); // client
+                    const providerAddr = dataResult.stack.readAddressOpt();
+                    dataResult.stack.readAddress(); // evaluator
+                    const budget = dataResult.stack.readBigNumber();
+                    for (let j = 0; j < 9; j++) dataResult.stack.pop();
+                    const state = dataResult.stack.readNumber();
+                    jobs.push({
+                        jobId: i, address: jobAddr.toString(),
+                        state: STATE_NAMES[state] ?? 'UNKNOWN',
+                        budget: `${Number(budget) / 1e6} USDT`,
+                        hasProvider: providerAddr !== null,
+                    });
+                } catch {
+                    jobs.push({ jobId: i, address: jobAddr.toString(), state: 'NOT_INITIALIZED' });
+                }
+            }
+            return { totalJobs: nextId, jobs };
         },
     },
 ];
