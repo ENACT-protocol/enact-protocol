@@ -21,7 +21,7 @@ const bot = new Bot(BOT_TOKEN);
 bot.catch((err) => console.error('Bot error:', err.message ?? err));
 
 // ─── Persistent storage ───
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const WALLETS_FILE = path.join(DATA_DIR, 'wallets.json');
 const DESCRIPTIONS_FILE = path.join(DATA_DIR, 'descriptions.json');
 
