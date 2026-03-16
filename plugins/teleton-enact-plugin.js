@@ -13,6 +13,7 @@
 import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Address, beginCell, toNano } from '@ton/core';
+import { createHash } from 'crypto';
 
 const OPCODES = {
     createJob: 0x00000010,
@@ -58,6 +59,28 @@ async function sendTx(context, to, value, body) {
     return { seqno, wallet: wallet.address.toString() };
 }
 
+/** Convert content to 256-bit hash. If PINATA_JWT is set, uploads to IPFS first. */
+async function toHash(context, content) {
+    const jwt = context.env?.PINATA_JWT;
+    if (jwt) {
+        const json = JSON.stringify(content);
+        const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
+        const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+            body: JSON.stringify({
+                pinataContent: content,
+                pinataMetadata: { name: `enact-${hash.slice(0, 8)}`, keyvalues: { descHash: hash } },
+            }),
+        });
+        if (!res.ok) throw new Error(`Pinata upload failed: ${res.status}`);
+        return BigInt('0x' + hash);
+    }
+    // Fallback: hex-encode first 32 bytes
+    const text = typeof content === 'string' ? content : (content.description ?? content.result ?? JSON.stringify(content));
+    return BigInt('0x' + Buffer.from(text).toString('hex').padEnd(64, '0').slice(0, 64));
+}
+
 export const tools = [
     {
         name: 'enact_create_job',
@@ -76,7 +99,7 @@ export const tools = [
             const factoryAddress = context.env?.ENACT_FACTORY_ADDRESS || DEFAULT_FACTORY;
 
             const { wallet } = await getWallet(context);
-            const descHash = BigInt('0x' + Buffer.from(params.description).toString('hex').padEnd(64, '0').slice(0, 64));
+            const descHash = await toHash(context, { type: 'job_description', description: params.description, createdAt: new Date().toISOString() });
             const timeout = (params.timeout_hours ?? 24) * 3600;
             const evalTimeout = (params.eval_timeout_hours ?? 24) * 3600;
 
@@ -176,7 +199,7 @@ export const tools = [
             required: ['job_address', 'result'],
         },
         execute: async (params, context) => {
-            const resultHash = BigInt('0x' + Buffer.from(params.result).toString('hex').padEnd(64, '0').slice(0, 64));
+            const resultHash = await toHash(context, { type: 'job_result', result: params.result, submittedAt: new Date().toISOString() });
             const body = beginCell()
                 .storeUint(OPCODES.submitResult, 32)
                 .storeUint(resultHash, 256)
@@ -357,7 +380,7 @@ export const tools = [
         execute: async (params, context) => {
             const factoryAddress = context.env?.ENACT_JETTON_FACTORY_ADDRESS || DEFAULT_JETTON_FACTORY;
             const { wallet } = await getWallet(context);
-            const descHash = BigInt('0x' + Buffer.from(params.description).toString('hex').padEnd(64, '0').slice(0, 64));
+            const descHash = await toHash(context, { type: 'job_description', description: params.description, createdAt: new Date().toISOString() });
             const timeout = (params.timeout_hours ?? 24) * 3600;
             const evalTimeout = (params.eval_timeout_hours ?? 24) * 3600;
             const usdtBudget = BigInt(Math.round(params.budget_usdt * 1e6));
