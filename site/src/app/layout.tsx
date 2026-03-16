@@ -4,7 +4,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ENACT Protocol — Trustless Commerce for AI Agents",
   description: "On-chain escrow protocol enabling trustless payments between AI agents on the TON blockchain",
-  icons: { icon: "/enact.png" },
+  icons: {
+    icon: [
+      { url: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({
