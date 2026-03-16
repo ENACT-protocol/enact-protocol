@@ -1500,13 +1500,8 @@ async function handleJobs(ctx: any, page: number, filter: string) {
         // Active needs full scan, TON/USDT-only use page-only fetch
         let jobs: JobEntry[];
         if (activeOnly) {
-            // Fetch all in parallel batches of 5
-            const allJobs: (JobEntry | null)[] = [];
-            for (let batch = 0; batch < allIds.length; batch += 5) {
-                const chunk = allIds.slice(batch, batch + 5);
-                const results = await Promise.all(chunk.map(j => fetchJob(j.factory, j.id, j.type)));
-                allJobs.push(...results);
-            }
+            // Fetch all in parallel — single Promise.all for max speed
+            const allJobs = await Promise.all(allIds.map(j => fetchJob(j.factory, j.id, j.type)));
             jobs = allJobs.filter(Boolean) as JobEntry[];
         } else {
             // Only fetch jobs for current page
