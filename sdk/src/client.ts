@@ -1,6 +1,6 @@
 import { TonClient, WalletContractV5R1 } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
-import { Address, beginCell, toNano, SendMode, internal } from '@ton/core';
+import { Address, beginCell, Cell, toNano, SendMode, internal } from '@ton/core';
 import { createHash } from 'crypto';
 
 const FACTORY_ADDRESS = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
@@ -24,6 +24,7 @@ export interface JobData {
     provider: string | null;
     evaluator: string;
     budget: bigint;
+    budgetTon: string;
     descHash: string;
     resultHash: string;
     timeout: number;
@@ -54,7 +55,7 @@ interface WalletState {
 
 export class EnactClient {
     private client: TonClient;
-    private wallet: WalletState | null = null;
+    private walletPromise: Promise<WalletState> | null = null;
     private pinataJwt: string | null = null;
     readonly factoryAddress: string;
     readonly jettonFactoryAddress: string;
@@ -76,28 +77,24 @@ export class EnactClient {
         this.pinataJwt = options?.pinataJwt ?? null;
 
         if (options?.mnemonic) {
-            this._initWallet(options.mnemonic);
+            this.walletPromise = this._initWallet(options.mnemonic);
         }
     }
 
-    private async _initWallet(mnemonic: string) {
+    private async _initWallet(mnemonic: string): Promise<WalletState> {
         const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
-        this.wallet = {
+        return {
             contract: WalletContractV5R1.create({ publicKey: keyPair.publicKey, workchain: 0 }),
             secretKey: keyPair.secretKey,
         };
     }
 
     private async _ensureWallet(): Promise<WalletState> {
-        // Wait for async init to complete
-        for (let i = 0; i < 20 && !this.wallet; i++) {
-            await new Promise(r => setTimeout(r, 100));
-        }
-        if (!this.wallet) throw new Error('Wallet not initialized. Pass mnemonic to constructor.');
-        return this.wallet;
+        if (!this.walletPromise) throw new Error('Wallet not initialized. Pass mnemonic to constructor.');
+        return this.walletPromise;
     }
 
-    private async _send(to: Address, value: bigint, body: ReturnType<typeof beginCell>['endCell'] extends () => infer R ? R : never) {
+    private async _send(to: Address, value: bigint, body: Cell) {
         const w = await this._ensureWallet();
         const opened = this.client.open(w.contract);
         const seqno = await opened.getSeqno();
@@ -107,12 +104,12 @@ export class EnactClient {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             messages: [internal({ to, value, body, bounce: true })],
         });
-        // Wait for confirmation
         for (let i = 0; i < 30; i++) {
             await new Promise(r => setTimeout(r, 2000));
             const newSeqno = await opened.getSeqno();
             if (newSeqno > seqno) return;
         }
+        throw new Error('Transaction not confirmed after 60s');
     }
 
     private async _uploadToIPFS(content: object): Promise<bigint> {
@@ -174,7 +171,9 @@ export class EnactClient {
             client: clientAddr.toString({ bounceable: false }),
             provider: providerAddr?.toString({ bounceable: false }) ?? null,
             evaluator: evaluatorAddr.toString({ bounceable: false }),
-            budget, descHash: descHash.toString(16).padStart(64, '0'),
+            budget,
+            budgetTon: (Number(budget) / 1e9).toFixed(4),
+            descHash: descHash.toString(16).padStart(64, '0'),
             resultHash: resultHash.toString(16).padStart(64, '0'),
             timeout, createdAt, evalTimeout, submittedAt, address: jobAddress,
         };
@@ -202,6 +201,8 @@ export class EnactClient {
 
     /** Create a TON job. Returns the job contract address. */
     async createJob(params: CreateJobParams): Promise<string> {
+        const countBefore = await this.getJobCount();
+
         const descHash = await this._uploadToIPFS({
             type: 'job_description', description: params.description, createdAt: new Date().toISOString(),
         });
@@ -217,9 +218,10 @@ export class EnactClient {
 
         await this._send(Address.parse(this.factoryAddress), toNano('0.03'), body);
 
-        // Resolve new job address
-        const count = await this.getJobCount();
-        return this.getJobAddress(count - 1);
+        // Verify job was created
+        const countAfter = await this.getJobCount();
+        if (countAfter <= countBefore) throw new Error('Job creation not confirmed on-chain');
+        return this.getJobAddress(countAfter - 1);
     }
 
     /** Fund a TON job (sends budget amount). */
@@ -250,9 +252,16 @@ export class EnactClient {
 
     /** Evaluate a job (approve or reject). */
     async evaluateJob(jobAddress: string, approved: boolean, reason?: string): Promise<void> {
-        const reasonHash = reason
-            ? BigInt('0x' + Buffer.from(reason).toString('hex').padEnd(64, '0').slice(0, 64))
-            : 0n;
+        let reasonHash: bigint;
+        if (reason && this.pinataJwt) {
+            reasonHash = await this._uploadToIPFS({
+                type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString(),
+            });
+        } else if (reason) {
+            reasonHash = BigInt('0x' + Buffer.from(reason).toString('hex').padEnd(64, '0').slice(0, 64));
+        } else {
+            reasonHash = 0n;
+        }
         const body = beginCell()
             .storeUint(JobOp.evaluate, 32)
             .storeUint(approved ? 1 : 0, 8)
@@ -283,6 +292,8 @@ export class EnactClient {
 
     /** Create a USDT job. Returns the job contract address. */
     async createJettonJob(params: CreateJobParams): Promise<string> {
+        const countBefore = await this.getJettonJobCount();
+
         const descHash = await this._uploadToIPFS({
             type: 'job_description', description: params.description, createdAt: new Date().toISOString(),
         });
@@ -299,13 +310,13 @@ export class EnactClient {
 
         await this._send(Address.parse(this.jettonFactoryAddress), toNano('0.03'), body);
 
-        const count = await this.getJettonJobCount();
-        return this.getJobAddress(count - 1, this.jettonFactoryAddress);
+        const countAfter = await this.getJettonJobCount();
+        if (countAfter <= countBefore) throw new Error('Jetton job creation not confirmed on-chain');
+        return this.getJobAddress(countAfter - 1, this.jettonFactoryAddress);
     }
 
     /** Set USDT wallet on a jetton job (auto-resolves wallet address). */
     async setJettonWallet(jobAddress: string): Promise<void> {
-        // Resolve USDT wallet for the job contract
         const usdtMaster = Address.parse(USDT_MASTER);
         const result = await this.client.runMethod(usdtMaster, 'get_wallet_address', [
             { type: 'slice', cell: beginCell().storeAddress(Address.parse(jobAddress)).endCell() },
@@ -324,24 +335,22 @@ export class EnactClient {
         const w = await this._ensureWallet();
         const status = await this.getJobStatus(jobAddress);
 
-        // Resolve sender's USDT wallet
         const usdtMaster = Address.parse(USDT_MASTER);
         const walletResult = await this.client.runMethod(usdtMaster, 'get_wallet_address', [
             { type: 'slice', cell: beginCell().storeAddress(w.contract.address).endCell() },
         ]);
         const senderJettonWallet = walletResult.stack.readAddress();
 
-        // Build Jetton transfer
         const forwardPayload = beginCell().storeUint(0, 32).endCell();
         const body = beginCell()
-            .storeUint(0xf8a7ea5, 32) // transfer opcode
-            .storeUint(0, 64) // query_id
-            .storeCoins(status.budget) // amount
-            .storeAddress(Address.parse(jobAddress)) // destination
-            .storeAddress(w.contract.address) // response_destination
-            .storeBit(false) // no custom_payload
-            .storeCoins(toNano('0.05')) // forward_ton_amount
-            .storeBit(true) // forward_payload as ref
+            .storeUint(0xf8a7ea5, 32)
+            .storeUint(0, 64)
+            .storeCoins(status.budget)
+            .storeAddress(Address.parse(jobAddress))
+            .storeAddress(w.contract.address)
+            .storeBit(false)
+            .storeCoins(toNano('0.05'))
+            .storeBit(true)
             .storeRef(forwardPayload)
             .endCell();
 
