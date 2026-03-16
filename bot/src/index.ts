@@ -432,7 +432,7 @@ bot.callbackQuery('menu_create', async (ctx) => {
         `${e('💵')} <b>USDT:</b>\n` +
         `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
         `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
-        `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
+        `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> or <b>7d</b> (default 24h, min 1h, max 30d).`,
         { reply_markup: new InlineKeyboard().text('🏠 Menu', 'menu_main') }
     );
 });
@@ -746,7 +746,7 @@ bot.command('create', async (ctx) => {
             `<code>/create {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
             `Example: <code>/create 1 Write a smart contract ai 6h</code>\n\n` +
             `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
-            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).`,
+            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> or <b>7d</b> (default 24h, min 1h, max 30d).`,
             { parse_mode: 'HTML' }
         );
     }
@@ -771,8 +771,11 @@ bot.command('create', async (ctx) => {
         if (last.toLowerCase() === 'ai' && !evaluatorStr) {
             evaluatorStr = AI_EVALUATOR;
             descArgs = descArgs.slice(0, -1);
-        } else if (/^\d+h$/i.test(last)) {
-            timeoutSec = Math.max(3600, Math.min(parseInt(last) * 3600, 2592000)); // 1h-30d
+        } else if (/^\d+[hd]$/i.test(last)) {
+            const num = parseInt(last);
+            const unit = last.slice(-1).toLowerCase();
+            const secs = unit === 'd' ? num * 86400 : num * 3600;
+            timeoutSec = Math.max(3600, Math.min(secs, 2592000)); // 1h-30d
             descArgs = descArgs.slice(0, -1);
         } else if (last.length > 40 && (last.startsWith('EQ') || last.startsWith('UQ') || last.startsWith('0:')) && !evaluatorStr) {
             evaluatorStr = last;
@@ -896,7 +899,7 @@ bot.command('createjetton', async (ctx) => {
             `<code>/createjetton {amount} {description} {evaluator?} {timeout?}</code>\n\n` +
             `Example: <code>/createjetton 5 Audit this code ai 12h</code>\n\n` +
             `${e('💡')} <b>evaluator?</b> — optional, defaults to you. Use <b>ai</b> for AI.\n` +
-            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> (default 24h, min 1h, max 30d).\n` +
+            `${e('⏰')} <b>timeout?</b> — optional, e.g. <b>6h</b> or <b>7d</b> (default 24h, min 1h, max 30d).\n` +
             `${e('🪙')} Gas: ~0.14 TON total (create 0.03 + set wallet 0.01 + fund 0.1). Most is refunded.`,
             { parse_mode: 'HTML' }
         );
@@ -920,8 +923,11 @@ bot.command('createjetton', async (ctx) => {
         if (last.toLowerCase() === 'ai' && !jEvaluatorStr) {
             jEvaluatorStr = AI_EVALUATOR;
             jDescArgs = jDescArgs.slice(0, -1);
-        } else if (/^\d+h$/i.test(last)) {
-            timeoutSec = Math.max(3600, Math.min(parseInt(last) * 3600, 2592000));
+        } else if (/^\d+[hd]$/i.test(last)) {
+            const num = parseInt(last);
+            const unit = last.slice(-1).toLowerCase();
+            const secs = unit === 'd' ? num * 86400 : num * 3600;
+            timeoutSec = Math.max(3600, Math.min(secs, 2592000));
             jDescArgs = jDescArgs.slice(0, -1);
         } else if (last.length > 40 && (last.startsWith('EQ') || last.startsWith('UQ') || last.startsWith('0:')) && !jEvaluatorStr) {
             jEvaluatorStr = last;
