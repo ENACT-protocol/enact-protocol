@@ -38,6 +38,8 @@ interface WalletData {
 }
 
 function loadWallets() {
+    let loaded = false;
+    // 1. Try local file first
     try {
         if (fs.existsSync(WALLETS_FILE)) {
             const data: WalletData = JSON.parse(fs.readFileSync(WALLETS_FILE, 'utf-8'));
@@ -47,9 +49,33 @@ function loadWallets() {
             for (const [id, addr] of Object.entries(data.tcAddresses ?? {})) {
                 userTcAddresses.set(Number(id), addr);
             }
-            console.log(`Restored ${userWallets.size} mnemonic + ${userTcAddresses.size} TonConnect wallets`);
+            loaded = true;
         }
-    } catch {
+    } catch {}
+
+    // 2. Fallback: restore from WALLETS_BACKUP env var (survives Render redeploys)
+    if (!loaded && process.env.WALLETS_BACKUP) {
+        try {
+            const json = Buffer.from(process.env.WALLETS_BACKUP, 'base64').toString('utf-8');
+            const data: WalletData = JSON.parse(json);
+            for (const [id, words] of Object.entries(data.mnemonics ?? {})) {
+                userWallets.set(Number(id), words);
+            }
+            for (const [id, addr] of Object.entries(data.tcAddresses ?? {})) {
+                userTcAddresses.set(Number(id), addr);
+            }
+            loaded = true;
+            // Persist to file so subsequent restarts use file
+            saveWallets();
+            console.log('Restored wallets from WALLETS_BACKUP env var');
+        } catch {
+            console.log('Failed to parse WALLETS_BACKUP env var');
+        }
+    }
+
+    if (loaded) {
+        console.log(`Loaded ${userWallets.size} mnemonic + ${userTcAddresses.size} TonConnect wallets`);
+    } else {
         console.log('No saved wallets found');
     }
 }
@@ -61,6 +87,7 @@ function saveWallets() {
     };
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(WALLETS_FILE, JSON.stringify(data, null, 2));
+
 }
 
 // ─── Job descriptions storage (on-chain only has hash) ───
@@ -679,6 +706,22 @@ bot.callbackQuery(/^jsubmit_prompt_(\d+)$/, async (ctx) => {
 bot.command('help', async (ctx) => showHelp(ctx));
 bot.command('wallet', async (ctx) => handleWallet(ctx));
 bot.command('factory', async (ctx) => handleFactory(ctx));
+
+bot.command('backup', async (ctx) => {
+    const ADMIN_ID = Number(process.env.ADMIN_ID || '0');
+    const userId = getUserId(ctx);
+    if (!ADMIN_ID || userId !== ADMIN_ID) return;
+    const data: WalletData = {
+        mnemonics: Object.fromEntries([...userWallets.entries()].map(([k, v]) => [String(k), v])),
+        tcAddresses: Object.fromEntries([...userTcAddresses.entries()].map(([k, v]) => [String(k), v])),
+    };
+    const b64 = Buffer.from(JSON.stringify(data)).toString('base64');
+    // Send as file to avoid Telegram message length limits
+    await ctx.replyWithDocument(
+        { source: Buffer.from(b64), filename: 'wallets_backup.b64' },
+        { caption: `Wallets backup (${userWallets.size} mnemonic + ${userTcAddresses.size} TonConnect). Paste as WALLETS_BACKUP env var.` }
+    );
+});
 
 bot.command('connect', async (ctx) => {
     const words = ctx.message?.text?.split(' ').slice(1) ?? [];
