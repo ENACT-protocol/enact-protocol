@@ -105,6 +105,32 @@ async function fetchFromIPFS(cid: string): Promise<any> {
 // Local CID mapping (hash → CID) for reverse lookup
 const cidMap = new Map<string, string>();
 
+/** Resolve IPFS CID from hash: check local cache, then Pinata metadata search */
+async function resolveCID(hash: string): Promise<string | null> {
+    if (!hash || hash === '0'.repeat(64)) return null;
+    // 1. Local cache
+    const cached = cidMap.get(hash);
+    if (cached) return cached;
+    // 2. Pinata metadata search
+    if (!config.pinataJwt) return null;
+    try {
+        const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${config.pinataJwt}` },
+            signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+            const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
+            if (pins.rows?.length > 0) {
+                const cid = pins.rows[0].ipfs_pin_hash;
+                cidMap.set(hash, cid); // cache for next time
+                return cid;
+            }
+        }
+    } catch {}
+    return null;
+}
+
 function createServer() {
     return new McpServer({
         name: 'enact-protocol',
@@ -305,9 +331,9 @@ server.tool(
             const descHashHex = descHash.toString(16).padStart(64, '0');
             const resultHashHex = resultHash.toString(16).padStart(64, '0');
 
-            // Try to fetch description from IPFS
+            // Try to fetch description from IPFS (local cache → Pinata search)
             let description: string | null = null;
-            const descCid = cidMap.get(descHashHex);
+            const descCid = await resolveCID(descHashHex);
             if (descCid) {
                 try {
                     const content = await fetchFromIPFS(descCid);
@@ -315,10 +341,10 @@ server.tool(
                 } catch { /* IPFS fetch failed */ }
             }
 
-            // Try to fetch result from IPFS (if result_type = 2)
+            // Try to fetch result from IPFS
             let resultContent: string | null = null;
-            if (resultType === 2 && resultHash > 0n) {
-                const resCid = cidMap.get(resultHashHex);
+            if (resultHash > 0n) {
+                const resCid = await resolveCID(resultHashHex);
                 if (resCid) {
                     try {
                         const content = await fetchFromIPFS(resCid);
