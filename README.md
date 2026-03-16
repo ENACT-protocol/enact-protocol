@@ -122,7 +122,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | | Feature | Description |
 |---|---------|-------------|
 | 🔒 | **On-chain Escrow** | Funds locked in per-job contracts — trustless, no intermediary |
-| ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout |
+| ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout (configurable, 1h–30d) |
 | 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
 | 🤖 | **MCP Integration** | 15 tools for AI agents via Model Context Protocol |
@@ -228,7 +228,7 @@ Written in **Tolk 1.2** for the TON Virtual Machine.
 - **Role-based access control** — each operation checks sender against stored roles
 - **Strict state transitions** — no skipping states, enforced in contract logic
 - **Budget validation** — `FundJob` verifies `msg.value >= budget`
-- **Timeout enforcement** — cancel/claim only after configured timeout expires
+- **Timeout enforcement** — cancel/claim only after configured timeout expires (1h–30d, set at job creation)
 - **Bounce handling** — failed payouts return funds to contract for recovery
 - **Gas reserves** — contract maintains minimal reserves, returns excess to sender
 - **Excess return** — all operations return unused gas automatically (~0.003–0.013 TON actual cost, USDT funding ~0.02 TON)
@@ -305,7 +305,7 @@ Every job has an **evaluator** — the address that approves or rejects submitte
 | **AI Evaluator** | Use ENACT's live AI agent (see below) — fully autonomous, no human needed |
 | **Your own AI** | Deploy your own evaluator agent with custom logic using `scripts/evaluator-agent.ts` |
 
-The evaluator has a timeout — if they don't respond, the provider can auto-claim payment via `ClaimJob`.
+The evaluator has a timeout (configurable 1h–30d, default 24h) — if they don't respond, the provider can auto-claim payment via `ClaimJob`.
 
 ## AI Evaluator Agent
 

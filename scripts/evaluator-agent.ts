@@ -55,30 +55,66 @@ function decodeHex(hash: string): string | null {
     return null;
 }
 
-async function fetchFromPinata(hash: string): Promise<string | null> {
-    // Try hex decode first
+async function fetchFromPinata(hash: string, label: string = 'content'): Promise<string | null> {
+    // Try hex decode first (legacy: short text stored directly as hex)
     const hex = decodeHex(hash);
-    if (hex) return hex;
+    if (hex) {
+        log(`  📦 ${label}: decoded from hex`);
+        return hex;
+    }
 
     // Try Pinata metadata search
-    if (!PINATA_JWT) return null;
+    if (!PINATA_JWT) {
+        log(`  ⚠️ ${label}: PINATA_JWT not set, cannot search IPFS`);
+        return null;
+    }
     try {
+        // Bot stores all uploads with keyvalues: { descHash: sha256 }
         const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+        log(`  🔍 ${label}: searching Pinata for hash ${hash.slice(0, 16)}...`);
         const res = await fetch(url, {
             headers: { 'Authorization': `Bearer ${PINATA_JWT}` },
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
             const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
             if (pins.rows?.length > 0) {
-                const ipfsRes = await fetch(`${PINATA_GW}/${pins.rows[0].ipfs_pin_hash}`, { signal: AbortSignal.timeout(5000) });
+                const cid = pins.rows[0].ipfs_pin_hash;
+                log(`  📌 ${label}: found CID ${cid}`);
+                const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
                 if (ipfsRes.ok) {
                     const data = await ipfsRes.json();
                     return data.description ?? data.result ?? JSON.stringify(data);
                 }
+            } else {
+                log(`  ⚠️ ${label}: no pin found by keyvalues, trying name search...`);
+                // Fallback: search by name prefix (enact-{hash8})
+                const nameUrl = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[name]=enact-${hash.slice(0, 8)}`;
+                const nameRes = await fetch(nameUrl, {
+                    headers: { 'Authorization': `Bearer ${PINATA_JWT}` },
+                    signal: AbortSignal.timeout(8000),
+                });
+                if (nameRes.ok) {
+                    const namePins = await nameRes.json() as { rows: Array<{ ipfs_pin_hash: string }> };
+                    if (namePins.rows?.length > 0) {
+                        const cid = namePins.rows[0].ipfs_pin_hash;
+                        log(`  📌 ${label}: found by name, CID ${cid}`);
+                        const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
+                        if (ipfsRes.ok) {
+                            const data = await ipfsRes.json();
+                            return data.description ?? data.result ?? JSON.stringify(data);
+                        }
+                    } else {
+                        log(`  ❌ ${label}: no pin found at all`);
+                    }
+                }
             }
+        } else {
+            log(`  ❌ ${label}: Pinata API error ${res.status}`);
         }
-    } catch {}
+    } catch (err: any) {
+        log(`  ❌ ${label}: fetch error: ${err.message}`);
+    }
     return null;
 }
 
@@ -177,9 +213,9 @@ async function main() {
 
                         log(`\n📋 ${jobKey} (${jobAddrStr.slice(0, 12)}...): SUBMITTED — evaluating...`);
 
-                        // Load description and result
-                        const description = await fetchFromPinata(status.descHash) ?? '(no description)';
-                        const result = await fetchFromPinata(status.resultHash) ?? '(no result)';
+                        // Load description and result from IPFS
+                        const description = await fetchFromPinata(status.descHash, 'description') ?? '(no description)';
+                        const result = await fetchFromPinata(status.resultHash, 'result') ?? '(no result)';
 
                         log(`📄 Description: "${description.slice(0, 80)}"`);
                         log(`📝 Result: "${result.slice(0, 80)}"`);

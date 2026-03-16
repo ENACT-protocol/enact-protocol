@@ -761,28 +761,29 @@ bot.command('create', async (ctx) => {
     if (!mode) { await requireWallet(ctx); return; }
 
     const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
-    const lastArg = args[args.length - 1];
-    const isAI = lastArg.toLowerCase() === 'ai' && args.length >= 3;
-    const isEvalAddr = !isAI && lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
+    // Parse trailing flags (ai, timeout, evaluator address) in any order
     let evaluatorStr = '';
-    let descArgs: string[];
-    if (isAI) {
-        evaluatorStr = AI_EVALUATOR;
-        descArgs = args.slice(1, -1);
-    } else if (isEvalAddr && args.length >= 3) {
-        evaluatorStr = lastArg;
-        descArgs = args.slice(1, -1);
-    } else {
-        descArgs = args.slice(1);
-    }
-    // Parse optional timeout: look for {N}h pattern in descArgs
     let timeoutSec = 86400; // default 24h
-    const timeoutMatch = descArgs[descArgs.length - 1]?.match(/^(\d+)h$/i);
-    if (timeoutMatch && descArgs.length > 1) {
-        timeoutSec = Math.max(3600, Math.min(parseInt(timeoutMatch[1]) * 3600, 2592000)); // 1h-30d
-        descArgs = descArgs.slice(0, -1);
+    let descArgs = args.slice(1);
+    // Scan from the end: strip ai, {N}h, or TON address
+    for (let pass = 0; pass < 3 && descArgs.length > 1; pass++) {
+        const last = descArgs[descArgs.length - 1];
+        if (last.toLowerCase() === 'ai' && !evaluatorStr) {
+            evaluatorStr = AI_EVALUATOR;
+            descArgs = descArgs.slice(0, -1);
+        } else if (/^\d+h$/i.test(last)) {
+            timeoutSec = Math.max(3600, Math.min(parseInt(last) * 3600, 2592000)); // 1h-30d
+            descArgs = descArgs.slice(0, -1);
+        } else if (last.length > 40 && (last.startsWith('EQ') || last.startsWith('UQ') || last.startsWith('0:')) && !evaluatorStr) {
+            evaluatorStr = last;
+            descArgs = descArgs.slice(0, -1);
+        } else {
+            break;
+        }
     }
     const description = descArgs.join(' ');
+
+    console.log('[CREATE DEBUG]', JSON.stringify({ args, evaluatorStr: evaluatorStr || '(self)', timeoutSec, description, descArgs }));
 
     try {
         const { hashBig: descHash } = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
@@ -911,25 +912,23 @@ bot.command('createjetton', async (ctx) => {
     if (!mode) { await requireWallet(ctx); return; }
 
     const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
-    const lastArg = args[args.length - 1];
-    const jIsAI = lastArg.toLowerCase() === 'ai' && args.length >= 3;
-    const isEvalAddr = !jIsAI && lastArg.length > 40 && (lastArg.startsWith('EQ') || lastArg.startsWith('UQ') || lastArg.startsWith('0:'));
     let jEvaluatorStr = '';
-    let jDescArgs: string[];
-    if (jIsAI) {
-        jEvaluatorStr = AI_EVALUATOR;
-        jDescArgs = args.slice(1, -1);
-    } else if (isEvalAddr && args.length >= 3) {
-        jEvaluatorStr = lastArg;
-        jDescArgs = args.slice(1, -1);
-    } else {
-        jDescArgs = args.slice(1);
-    }
     let timeoutSec = 86400;
-    const jTimeoutMatch = jDescArgs[jDescArgs.length - 1]?.match(/^(\d+)h$/i);
-    if (jTimeoutMatch && jDescArgs.length > 1) {
-        timeoutSec = Math.max(3600, Math.min(parseInt(jTimeoutMatch[1]) * 3600, 2592000));
-        jDescArgs = jDescArgs.slice(0, -1);
+    let jDescArgs = args.slice(1);
+    for (let pass = 0; pass < 3 && jDescArgs.length > 1; pass++) {
+        const last = jDescArgs[jDescArgs.length - 1];
+        if (last.toLowerCase() === 'ai' && !jEvaluatorStr) {
+            jEvaluatorStr = AI_EVALUATOR;
+            jDescArgs = jDescArgs.slice(0, -1);
+        } else if (/^\d+h$/i.test(last)) {
+            timeoutSec = Math.max(3600, Math.min(parseInt(last) * 3600, 2592000));
+            jDescArgs = jDescArgs.slice(0, -1);
+        } else if (last.length > 40 && (last.startsWith('EQ') || last.startsWith('UQ') || last.startsWith('0:')) && !jEvaluatorStr) {
+            jEvaluatorStr = last;
+            jDescArgs = jDescArgs.slice(0, -1);
+        } else {
+            break;
+        }
     }
     const description = jDescArgs.join(' ');
 
@@ -1862,7 +1861,7 @@ async function handleCancel(ctx: any, jobId: number, factory = FACTORY_ADDRESS) 
 
         const w = await requireWallet(ctx);
         if (!w) return;
-        await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...\n${e('⚠️')} Only works after timeout (24h).`, { parse_mode: 'HTML' });
+        await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...\n${e('⚠️')} Only works after the job's timeout has passed.`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
 
         const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
@@ -2094,7 +2093,7 @@ async function showHelp(ctx: any) {
         `  /createjetton — Create a USDT job (evaluator optional)\n` +
         `  /fund — Fund a job with ${eid(EID.tonCoin, '💎')}\n` +
         `  /budget — Change job budget\n` +
-        `  /cancel — Cancel after timeout (24h)\n\n` +
+        `  /cancel — Cancel after timeout\n\n` +
         `<b>${e('⚖️')} For Evaluators:</b>\n` +
         `  /evaluate — Review job + approve or reject\n` +
         `  /approve — Approve submitted result\n` +

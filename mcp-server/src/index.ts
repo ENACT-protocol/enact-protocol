@@ -123,7 +123,7 @@ server.tool(
         evaluator_address: z.string().describe('TON address of the evaluator'),
         budget_ton: z.string().describe('Budget in TON (e.g. "5"), or "0" for setBudget later'),
         description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
-        timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h)'),
+        timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h, range 1h–30d)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout for auto-claim (default 24h)'),
     },
     async ({ evaluator_address, budget_ton, description, timeout_seconds, evaluation_timeout_seconds }) => {
@@ -400,7 +400,7 @@ server.tool(
         evaluator_address: z.string().describe('TON address of the evaluator'),
         budget_usdt: z.string().describe('Budget in USDT (e.g. "5" for 5 USDT)'),
         description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
-        timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h)'),
+        timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h, range 1h–30d)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout (default 24h)'),
     },
     async ({ evaluator_address, budget_usdt, description, timeout_seconds, evaluation_timeout_seconds }) => {

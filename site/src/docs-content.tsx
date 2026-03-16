@@ -165,7 +165,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
             ['3', 'Provider', 'takes the job and begins work'],
             ['4', 'Provider', 'submits the result (hash, TON Storage, or IPFS)'],
             ['5', 'Evaluator', 'reviews and approves (pay) or rejects (refund)'],
-            ['6', 'Auto-claim', 'if evaluator is silent for 24h, provider claims funds'],
+            ['6', 'Auto-claim', 'if evaluator is silent past the evaluation timeout (configurable 1h–30d), provider claims funds'],
           ].map(([n, role, desc]) => (
             <div key={n} className="step-row">
               <div className="step-num">{n}</div>
@@ -426,7 +426,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
 
           <div className="flex items-center gap-2 mt-5 text-xs text-gray-500 font-mono">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
-            24h evaluator silence → auto-claim by provider · quit → job reopens
+            evaluator silence past timeout → auto-claim by provider · quit → job reopens
           </div>
         </div>
 
@@ -444,7 +444,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Opcode</th><th>Operation</th><th>Sender</th><th>State</th><th>Effect</th></tr></thead>
           <tbody>
-            {[['0x01','Fund','Client','OPEN','Lock TON → FUNDED'],['0x02','TakeJob','Anyone','FUNDED','Claim as provider'],['0x03','SubmitResult','Provider','FUNDED','Push hash → SUBMITTED'],['0x04','Evaluate','Evaluator','SUBMITTED','Approve/Reject'],['0x05','Cancel','Client','FUNDED','Refund after timeout'],['0x06','InitJob','Factory','Internal','Initialize data'],['0x07','Claim','Provider','SUBMITTED','Auto-claim 24h'],['0x08','Quit','Provider','FUNDED','Exit, job reopens'],['0x09','SetBudget','Client','OPEN','Set/update price']].map(([op,name,sender,state,effect])=>(
+            {[['0x01','Fund','Client','OPEN','Lock TON → FUNDED'],['0x02','TakeJob','Anyone','FUNDED','Claim as provider'],['0x03','SubmitResult','Provider','FUNDED','Push hash → SUBMITTED'],['0x04','Evaluate','Evaluator','SUBMITTED','Approve/Reject'],['0x05','Cancel','Client','FUNDED','Refund after timeout'],['0x06','InitJob','Factory','Internal','Initialize data'],['0x07','Claim','Provider','SUBMITTED','Auto-claim after eval timeout'],['0x08','Quit','Provider','FUNDED','Exit, job reopens'],['0x09','SetBudget','Client','OPEN','Set/update price']].map(([op,name,sender,state,effect])=>(
               <tr key={op}><td>{op}</td><td className="text-white">{name}</td><td>{sender}</td><td>{state}</td><td>{effect}</td></tr>
             ))}
           </tbody>
@@ -488,7 +488,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
             <div className="card-icon"><i className="hgi-stroke hgi-shield-01" /></div>
             <div className="card-body">
               <div className="card-title">Evaluator</div>
-              <div className="card-desc">Verifies deliverables, approves or rejects. Silent 24h = auto-claim.</div>
+              <div className="card-desc">Verifies deliverables, approves or rejects. Silence past timeout (1h–30d) = auto-claim.</div>
             </div>
           </div>
         </CardGroup>
@@ -655,7 +655,7 @@ const job = provider.open(Job.createFromAddress(await factory.getJobAddress(0)))
 await job.sendFund(client.getSender(), toNano('2.01'));`}</Code>
 
         <H3>Provider Claims After Timeout</H3>
-        <Code label="TypeScript">{`// If evaluator is silent for 24h after submission:
+        <Code label="TypeScript">{`// If evaluator is silent past the evaluation timeout:
 await job.sendClaim(provider.getSender(), toNano('0.01'));
 // Funds automatically transfer to provider`}</Code>
 
@@ -768,7 +768,7 @@ npm install && npm run build`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim 24h'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
