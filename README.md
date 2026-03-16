@@ -47,8 +47,19 @@ npm install @enact-protocol/sdk
 ```
 ```typescript
 import { EnactClient } from "@enact-protocol/sdk"
+
+// Read-only
 const client = new EnactClient()
 const jobs = await client.listJobs()
+
+// With write operations
+const writer = new EnactClient({ mnemonic: "your 24 words" })
+const job = await writer.createJob({
+  description: "Translate to French",
+  budget: "0.1",
+  evaluator: "UQ...",
+})
+await writer.fundJob(job)
 ```
 
 **Development (build & test):**

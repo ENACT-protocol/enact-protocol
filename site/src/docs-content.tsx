@@ -948,6 +948,40 @@ console.log(status.stateName, status.budget)
 // List USDT jobs
 const jettonJobs = await client.listJettonJobs()`}</Code>
 
+        <H2>Write Operations</H2>
+        <P>Pass a mnemonic to enable write operations. Optionally pass <IC>pinataJwt</IC> for IPFS uploads.</P>
+        <Code label="TypeScript">{`import { EnactClient } from "@enact-protocol/sdk"
+
+const client = new EnactClient({
+  mnemonic: "your 24 words here",
+  pinataJwt: "optional_for_ipfs",
+})
+
+// Create and fund a TON job
+const jobAddress = await client.createJob({
+  description: "Translate this text to French",
+  budget: "0.1",
+  evaluator: "UQ...",
+  timeout: 86400,
+})
+await client.fundJob(jobAddress)
+
+// Provider flow
+await client.takeJob(jobAddress)
+await client.submitResult(jobAddress, "Voici la traduction...")
+
+// Evaluator flow
+await client.evaluateJob(jobAddress, true, "Good translation")`}</Code>
+
+        <H2>USDT Jobs</H2>
+        <Code label="TypeScript">{`const job = await client.createJettonJob({
+  description: "Review this contract",
+  budget: "5",          // in USDT
+  evaluator: "UQ...",
+})
+await client.setJettonWallet(job)
+await client.fundJettonJob(job)`}</Code>
+
         <H2>Custom Endpoint</H2>
         <Code label="TypeScript">{`const client = new EnactClient({
   endpoint: "https://toncenter.com/api/v2/jsonRPC",

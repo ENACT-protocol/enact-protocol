@@ -8,26 +8,68 @@ TypeScript SDK for [ENACT Protocol](https://enact.info) — trustless on-chain e
 npm install @enact-protocol/sdk
 ```
 
-## Quick Start
+## Quick Start (Read-Only)
 
 ```typescript
 import { EnactClient } from "@enact-protocol/sdk";
 
 const client = new EnactClient();
 
-// List all TON jobs
 const jobs = await client.listJobs();
 console.log(`${jobs.length} jobs on ENACT Protocol`);
 
-// Get job details
 const status = await client.getJobStatus(jobs[0].address);
 console.log(status.stateName, status.budget);
-
-// List USDT jobs
-const jettonJobs = await client.listJettonJobs();
 ```
 
-## Custom endpoint
+## Write Operations (with Mnemonic)
+
+```typescript
+import { EnactClient } from "@enact-protocol/sdk";
+
+const client = new EnactClient({
+  mnemonic: "your 24 words here",
+  pinataJwt: "optional_for_ipfs", // descriptions/results uploaded to IPFS
+});
+
+// Create and fund a TON job
+const jobAddress = await client.createJob({
+  description: "Translate this text to French",
+  budget: "0.1",           // in TON
+  evaluator: "UQ...",      // evaluator address
+  timeout: 86400,          // 24h (optional, default 24h)
+});
+
+await client.fundJob(jobAddress);
+
+// Provider takes and submits
+await client.takeJob(jobAddress);
+await client.submitResult(jobAddress, "Voici la traduction...");
+
+// Evaluator approves
+await client.evaluateJob(jobAddress, true, "Good translation");
+
+// Other operations
+await client.cancelJob(jobAddress);  // cancel after timeout
+await client.claimJob(jobAddress);   // auto-claim after eval timeout
+await client.quitJob(jobAddress);    // quit before submitting
+```
+
+## USDT (Jetton) Jobs
+
+```typescript
+const jobAddress = await client.createJettonJob({
+  description: "Review this smart contract",
+  budget: "5",             // in USDT
+  evaluator: "UQ...",
+  timeout: 86400,
+});
+
+await client.setJettonWallet(jobAddress);
+await client.fundJettonJob(jobAddress);
+```
+
+## Custom Endpoint
 
 ```typescript
 const client = new EnactClient({
@@ -36,9 +78,9 @@ const client = new EnactClient({
 });
 ```
 
-## Wrappers
+## Low-Level Wrappers
 
-For direct contract interaction, use the low-level wrappers:
+For direct contract interaction:
 
 ```typescript
 import { Job, JobFactory, JettonJob } from "@enact-protocol/sdk";
