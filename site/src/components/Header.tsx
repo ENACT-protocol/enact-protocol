@@ -32,6 +32,7 @@ export default function Header() {
           <a href="/#architecture" className="mono-label text-gray-400 hover:text-white transition-colors">Architecture</a>
           <a href="/#ecosystem" className="mono-label text-gray-400 hover:text-white transition-colors">Ecosystem</a>
           <Link href="/docs/getting-started" className="mono-label text-gray-400 hover:text-white transition-colors">Docs</Link>
+          <Link href="/explorer" className="mono-label text-gray-400 hover:text-white transition-colors">Explorer</Link>
         </div>
         <div className="hidden md:flex items-center gap-3">
           <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all">
@@ -64,6 +65,7 @@ export default function Header() {
             <a href="/#architecture" onClick={() => setMobileOpen(false)} className="mono-label text-gray-400 hover:text-white transition-colors py-1">Architecture</a>
             <a href="/#ecosystem" onClick={() => setMobileOpen(false)} className="mono-label text-gray-400 hover:text-white transition-colors py-1">Ecosystem</a>
             <Link href="/docs/getting-started" onClick={() => setMobileOpen(false)} className="mono-label text-gray-400 hover:text-white transition-colors py-1">Docs</Link>
+            <Link href="/explorer" onClick={() => setMobileOpen(false)} className="mono-label text-gray-400 hover:text-white transition-colors py-1">Explorer</Link>
             <div className="border-t border-[var(--color-border)] pt-4 flex items-center gap-3">
               <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center mono-label px-4 py-2 border-subtle text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all">
                 <TelegramIcon /> <span className="ml-2">Bot</span>
