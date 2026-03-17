@@ -63,11 +63,18 @@ async function fetchJobTransactions(jobAddress: string): Promise<TxInfo[]> {
     if (!res.ok) return [];
     const data = await res.json();
     if (!data.ok || !data.result) return [];
-    return data.result.map((tx: any) => ({
-      hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
-      fee: (Number(tx.fee || 0) / 1e9).toFixed(3),
-      utime: tx.utime || 0,
-    }));
+    return data.result.map((tx: any) => {
+      const hash = tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '';
+      // Real gas = in_msg.value - sum(out_msgs.value that go back as excess)
+      const inValue = Number(tx.in_msg?.value || 0);
+      const outValue = (tx.out_msgs || []).reduce((s: number, m: any) => s + Number(m.value || 0), 0);
+      const realGas = Math.max(0, inValue - outValue);
+      return {
+        hash,
+        fee: (realGas / 1e9).toFixed(3),
+        utime: tx.utime || 0,
+      };
+    });
   } catch { return []; }
 }
 
