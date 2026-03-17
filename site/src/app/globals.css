@@ -430,6 +430,13 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 }
 .doc-nav .nav-title { font-size: 0.875rem; color: white; font-weight: 500; }
 
+/* Explorer mobile styles */
+@media (max-width: 640px) {
+  .explorer-row td { padding-top: 6px; padding-bottom: 6px; font-size: 13px; }
+  .explorer-row td:first-child { padding-left: 12px; }
+  .explorer-row td:last-child { padding-right: 12px; }
+}
+
 /* Explorer row fade-in animation */
 @keyframes explorer-fade-in {
   from { opacity: 0; transform: translateY(-4px); }
