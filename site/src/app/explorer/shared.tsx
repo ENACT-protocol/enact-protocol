@@ -89,28 +89,29 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
   for (const j of jobs) {
     const bf = j.budgetFormatted;
-    // Txs from API are newest-first, reverse to oldest-first
+    // Txs from API: newest-first → reverse to oldest-first (chronological)
+    // TON order:  [0]=initJob [1]=fund [2]=take+submit [3]=evaluate
+    // USDT order: [0]=initJob [1]=setJettonWallet [2]=fund [3]=take+submit [4]=evaluate
     const txs = [...(j.transactions ?? [])].reverse();
-    // Map by utime: find closest tx for each event time
-    const findTx = (time: number) => {
-      if (!txs.length) return null;
-      let best = txs[0];
-      for (const t of txs) {
-        if (Math.abs(t.utime - time) < Math.abs(best.utime - time)) best = t;
-      }
-      return Math.abs(best.utime - time) < 120 ? best : null; // within 2 min
+    const isUsdt = j.type === 'usdt';
+    const txIdx = {
+      created: 0,
+      setWallet: isUsdt ? 1 : -1,
+      funded: isUsdt ? 2 : 1,
+      submitted: isUsdt ? 3 : 2,
+      terminal: isUsdt ? 4 : 3,
     };
-    const mk = (event: string, status: string, time: number, amount: string, from: string): ActivityEvent => {
-      const tx = findTx(time);
-      return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, txHash: tx?.hash };
+    const txAt = (idx: number) => idx >= 0 && idx < txs.length ? txs[idx] : null;
+    const mk = (event: string, status: string, time: number, amount: string, from: string, idx: number): ActivityEvent => {
+      return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, txHash: txAt(idx)?.hash };
     };
 
-    if (j.createdAt) events.push(mk('Created', 'OPEN', j.createdAt, bf, j.client));
-    if (j.state >= 1 && j.createdAt) events.push(mk('Funded', 'FUNDED', j.createdAt + 1, bf, j.client));
-    if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? ''));
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator));
-    if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client));
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push(mk('Disputed', 'DISPUTED', j.submittedAt + 1, bf, j.evaluator));
+    if (j.createdAt) events.push(mk('Created', 'OPEN', j.createdAt, bf, j.client, txIdx.created));
+    if (j.state >= 1 && j.createdAt) events.push(mk('Funded', 'FUNDED', j.createdAt + 1, bf, j.client, txIdx.funded));
+    if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? '', txIdx.submitted));
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator, txIdx.terminal));
+    if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client, txIdx.terminal));
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push(mk('Disputed', 'DISPUTED', j.submittedAt + 1, bf, j.evaluator, txIdx.terminal));
   }
   return events.sort((a, b) => b.time - a.time);
 }

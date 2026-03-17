@@ -28,18 +28,19 @@ export default function JobPage() {
     : TL_STATES.indexOf(job.stateName)) : -1;
   const isFinal = job ? ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(job.stateName) : false;
 
-  // Txs from API: newest-first. Reverse to oldest-first, match by time
+  // Txs: newest-first from API → reverse to chronological
+  // TON:  [0]=initJob [1]=fund [2]=take+submit [3]=evaluate
+  // USDT: [0]=initJob [1]=setJettonWallet [2]=fund [3]=take+submit [4]=evaluate
   const txsRev = useMemo(() => [...(job?.transactions ?? [])].reverse(), [job]);
-  const findTx = (time: number) => {
-    if (!txsRev.length) return null;
-    let best = txsRev[0];
-    for (const t of txsRev) { if (Math.abs(t.utime - time) < Math.abs(best.utime - time)) best = t; }
-    return Math.abs(best.utime - time) < 120 ? best : null;
+  const isUsdt = job?.type === 'usdt';
+  const txIdx = {
+    created: 0,
+    setWallet: isUsdt ? 1 : -1,
+    funded: isUsdt ? 2 : 1,
+    submitted: isUsdt ? 3 : 2,
+    terminal: isUsdt ? 4 : 3,
   };
-  const txFor = (time: number) => {
-    const t = findTx(time);
-    return { hash: t?.hash ?? '' };
-  };
+  const txAt = (idx: number) => idx >= 0 && idx < txsRev.length ? txsRev[idx] : null;
 
   return (
     <>
@@ -110,35 +111,27 @@ export default function JobPage() {
                 <Section title="Transactions">
                   <div className="space-y-3">
                     {(() => {
-                      const created = txFor(job.createdAt);
-                      const funded = txFor(job.createdAt + 1);
-                      const submitted = job.submittedAt ? txFor(job.submittedAt) : null;
-                      const terminal = job.submittedAt ? txFor(job.submittedAt + 1) : null;
                       const isAI = job.evaluator === AI_EVALUATOR;
                       return <>
-                        <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={created.hash}>
+                        <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={txAt(txIdx.created)?.hash ?? ''}>
                           <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
                           <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
                         </TxCard>
 
-                        {job.type === 'usdt' && job.state >= 1 && (() => {
-                          // setJettonWallet tx is between created and funded
-                          const sjw = txsRev.length >= 2 ? txsRev[1] : null;
-                          return (
-                            <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(job.createdAt)} txHash={sjw?.hash ?? ''}>
-                              <TxRow label="Action">USDT wallet configured</TxRow>
-                            </TxCard>
-                          );
-                        })()}
+                        {job.type === 'usdt' && job.state >= 1 && (
+                          <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(job.createdAt)} txHash={txAt(txIdx.setWallet)?.hash ?? ''}>
+                            <TxRow label="Action">USDT wallet configured</TxRow>
+                          </TxCard>
+                        )}
 
                         {job.state >= 1 && (
-                          <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={funded.hash}>
+                          <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={txAt(txIdx.funded)?.hash ?? ''}>
                             <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
                           </TxCard>
                         )}
 
-                        {submitted && (
-                          <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} txHash={submitted.hash}>
+                        {job.submittedAt > 0 && (
+                          <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} txHash={txAt(txIdx.submitted)?.hash ?? ''}>
                             {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
                             <TxRow label="Result">
                               <span className="inline-flex items-center gap-1.5">
@@ -150,8 +143,8 @@ export default function JobPage() {
                           </TxCard>
                         )}
 
-                        {job.stateName === 'COMPLETED' && terminal && (
-                          <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={terminal.hash}>
+                        {job.stateName === 'COMPLETED' && (
+                          <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txAt(txIdx.terminal)?.hash ?? ''}>
                             <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
                             <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                             {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
@@ -159,13 +152,13 @@ export default function JobPage() {
                         )}
 
                         {job.stateName === 'CANCELLED' && (
-                          <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" txHash={funded.hash}>
+                          <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" txHash={txAt(txIdx.terminal)?.hash ?? ''}>
                             <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
                           </TxCard>
                         )}
 
-                        {job.stateName === 'DISPUTED' && terminal && (
-                          <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={terminal.hash}>
+                        {job.stateName === 'DISPUTED' && (
+                          <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txAt(txIdx.terminal)?.hash ?? ''}>
                             <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
                             <TxRow label="Action">Result rejected, funds refunded</TxRow>
                           </TxCard>
