@@ -77,11 +77,16 @@ export function timeAgo(ts: number) {
 }
 
 export function txCount(j: Job): number {
-  let n = 1;
-  if (j.state >= 1) n++;
-  if (j.submittedAt) n++;
-  if (['COMPLETED', 'DISPUTED'].includes(j.stateName)) n++;
-  if (j.stateName === 'CANCELLED') n++;
+  // Use real tx count if available
+  if (j.transactions && j.transactions.length > 0) return j.transactions.length;
+  // Fallback estimate
+  let n = 1; // initJob
+  if (j.type === 'usdt' && j.state >= 1) n++; // setJettonWallet
+  if (j.state >= 1) n++; // fund
+  if (j.provider && j.provider !== 'none') n++; // take
+  if (j.submittedAt) n++; // submit
+  if (['COMPLETED', 'DISPUTED'].includes(j.stateName)) n++; // evaluate
+  if (j.stateName === 'CANCELLED') n++; // cancel
   return n;
 }
 
