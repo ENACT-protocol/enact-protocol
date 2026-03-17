@@ -63,15 +63,28 @@ async function fetchJobTransactions(jobAddress: string): Promise<TxInfo[]> {
     if (!res.ok) return [];
     const data = await res.json();
     if (!data.ok || !data.result) return [];
-    return data.result.map((tx: any) => {
+    return data.result.map((tx: any, idx: number, arr: any[]) => {
       const hash = tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '';
-      // Real gas = in_msg.value - sum(out_msgs.value that go back as excess)
-      const inValue = Number(tx.in_msg?.value || 0);
-      const outValue = (tx.out_msgs || []).reduce((s: number, m: any) => s + Number(m.value || 0), 0);
-      const realGas = Math.max(0, inValue - outValue);
+      const totalFee = Number(tx.fee || 0);
+      // For the first tx (initJob from factory), the fee is just the job contract's fee.
+      // The user actually paid ~0.021 (0.03 sent to factory minus excess).
+      // We estimate this: in_msg.value is what factory forwarded to job, the rest was excess to user.
+      // For all other txs, fee is accurate since user sends directly to job contract.
+      const isInitJob = idx === arr.length - 1; // oldest tx = initJob
+      let gasNano: number;
+      if (isInitJob) {
+        // User sent 0.03 to factory. Factory forwarded in_msg.value to job. Excess = 0.03 - in_msg.value - factory_fee
+        // Approximate: in_msg.value ≈ what user paid minus excess (factory keeps ~0.003 fee)
+        const inVal = Number(tx.in_msg?.value || 0);
+        gasNano = inVal > 0 ? inVal : totalFee;
+      } else {
+        // For fund: user sends budget+gas, job stores budget, excess returned
+        // fee = actual gas consumed
+        gasNano = totalFee;
+      }
       return {
         hash,
-        fee: (realGas / 1e9).toFixed(3),
+        fee: (gasNano / 1e9).toFixed(3),
         utime: tx.utime || 0,
       };
     });
