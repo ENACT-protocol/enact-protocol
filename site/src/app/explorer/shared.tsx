@@ -115,13 +115,24 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       const fundTxTime = txAt(txIdx.funded)?.utime || j.createdAt || createTime + 1;
       events.push(mk('Funded', 'FUNDED', fundTxTime, bf, j.client, txIdx.funded));
     }
+    // Take: provider is set when job is taken (before submit). Use submit tx - 1 or a separate tx.
+    // In TON contract, take+submit can be separate txs or combined. If provider exists and job was submitted,
+    // take happened. The take tx is the one right before submit in the tx list.
+    if (j.provider && j.provider !== 'none' && (j.submittedAt || txAt(txIdx.submitted))) {
+      // Take tx index: for TON it's the submit tx (take+submit often same tx),
+      // but if there's an extra tx it would shift. Use submit index as approximation.
+      const takeTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
+      if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime - 1, '—', j.provider, txIdx.submitted));
+    }
     if (j.submittedAt || txAt(txIdx.submitted)) {
       const submitTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
       if (submitTime) events.push(mk('Submitted', 'SUBMITTED', submitTime, bf, j.provider ?? '', txIdx.submitted));
     }
     if (j.stateName === 'COMPLETED') {
       const evalTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);
-      if (evalTime) events.push(mk('Completed', 'COMPLETED', evalTime, `${bf} → Provider`, j.evaluator, txIdx.terminal));
+      if (evalTime) {
+        events.push(mk('Approved', 'COMPLETED', evalTime, `${bf} → Provider`, j.evaluator, txIdx.terminal));
+      }
     }
     if (j.stateName === 'CANCELLED') {
       const cancelTime = txAt(txIdx.terminal)?.utime || j.createdAt + j.timeout;
@@ -129,7 +140,9 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
     }
     if (j.stateName === 'DISPUTED') {
       const disputeTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);
-      if (disputeTime) events.push(mk('Disputed', 'DISPUTED', disputeTime, bf, j.evaluator, txIdx.terminal));
+      if (disputeTime) {
+        events.push(mk('Rejected', 'DISPUTED', disputeTime, bf, j.evaluator, txIdx.terminal));
+      }
     }
   }
   return events.sort((a, b) => b.time - a.time);
