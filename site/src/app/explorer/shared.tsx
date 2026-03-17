@@ -120,8 +120,8 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       const fundTxTime = txAt(txIdx.funded)?.utime || j.createdAt || createTime + 1;
       events.push(mk('Funded', 'FUNDED', fundTxTime, bf, j.client, txIdx.funded));
     }
-    // Take + Submit only if job actually reached SUBMITTED state (state >= 2)
-    if (j.state >= 2) {
+    // Take + Submit only if job was actually submitted (has submittedAt timestamp)
+    if (j.submittedAt) {
       if (j.provider && j.provider !== 'none') {
         const takeTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
         if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime - 1, '—', j.provider, txIdx.submitted));
