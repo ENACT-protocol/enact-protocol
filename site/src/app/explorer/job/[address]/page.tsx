@@ -95,7 +95,7 @@ export default function JobPage() {
                 <Section title="Transactions">
                   <div className="space-y-3">
                     <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} jobAddr={job.address}>
-                      <TxRow label="Client"><ClickAddr addr={job.client} truncate long /></TxRow>
+                      <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
                       <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
                       <TxGas />
                     </TxCard>
@@ -109,7 +109,7 @@ export default function JobPage() {
 
                     {job.submittedAt > 0 && (
                       <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} jobAddr={job.address}>
-                        {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate long /></TxRow>}
+                        {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
                         {job.resultContent?.text && <TxRow label="Result"><span className="text-[#ccc] text-xs">{job.resultContent.text.slice(0, 80)}{job.resultContent.text.length > 80 ? '...' : ''}</span></TxRow>}
                         <TxGas />
                       </TxCard>
@@ -117,7 +117,7 @@ export default function JobPage() {
 
                     {job.stateName === 'COMPLETED' && (
                       <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
-                        <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</span></TxRow>
+                        <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</span></TxRow>
                         <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                         {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
                         <TxGas amount="0.01" />
@@ -133,7 +133,7 @@ export default function JobPage() {
 
                     {job.stateName === 'DISPUTED' && (
                       <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
-                        <TxRow label="Evaluator"><ClickAddr addr={job.evaluator} truncate long /></TxRow>
+                        <TxRow label="Evaluator"><ClickAddr addr={job.evaluator} truncate /></TxRow>
                         <TxRow label="Action">Result rejected, funds refunded</TxRow>
                         <TxGas />
                       </TxCard>
@@ -145,12 +145,12 @@ export default function JobPage() {
               <div className="lg:col-span-2 space-y-4">
                 <Section title="Participants">
                   <div className="space-y-4">
-                    <div><div className="text-[#555] text-xs mb-1">Client</div><ClickAddr addr={job.client} truncate long /></div>
+                    <div><div className="text-[#555] text-xs mb-1">Client</div><ClickAddr addr={job.client} truncate /></div>
                     <div><div className="text-[#555] text-xs mb-1">Provider</div>
-                      {job.provider && job.provider !== 'none' ? <ClickAddr addr={job.provider} truncate long /> : <span className="text-[#555] text-sm">Not assigned</span>}
+                      {job.provider && job.provider !== 'none' ? <ClickAddr addr={job.provider} truncate /> : <span className="text-[#555] text-sm">Not assigned</span>}
                     </div>
                     <div><div className="text-[#555] text-xs mb-1">Evaluator</div>
-                      <div className="flex items-center gap-2"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</div>
+                      <div className="flex items-center gap-2"><ClickAddr addr={job.evaluator} truncate />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</div>
                     </div>
                   </div>
                 </Section>

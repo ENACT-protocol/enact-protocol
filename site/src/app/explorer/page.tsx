@@ -13,6 +13,7 @@ import {
 
 type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed' | 'transactions';
 const PAGE_SIZE = 20;
+const ACTIVITY_PAGE = 15;
 
 export default function ExplorerPage() {
   const { data, loading, error } = useExplorerData();
@@ -24,7 +25,7 @@ export default function ExplorerPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [jobPage, setJobPage] = useState(0);
   const [txPage, setTxPage] = useState(0);
-  const [activityLimit, setActivityLimit] = useState(15);
+  const [actPage, setActPage] = useState(0);
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
   const allActivity = useMemo(() => buildActivity(allJobs), [allJobs]);
@@ -146,7 +147,7 @@ export default function ExplorerPage() {
                     <th className="text-left px-3 py-2">Time</th>
                   </tr></thead>
                   <tbody>
-                    {allActivity.slice(0, activityLimit).map((ev, i) => (
+                    {allActivity.slice(actPage * ACTIVITY_PAGE, (actPage + 1) * ACTIVITY_PAGE).map((ev, i) => (
                       <tr key={`act-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                         className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
                         <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
@@ -162,11 +163,7 @@ export default function ExplorerPage() {
                   </tbody>
                 </table>
               </div>
-              {activityLimit < allActivity.length && (
-                <button onClick={() => setActivityLimit(l => l + 15)} className="mt-2 text-xs text-[#555] hover:text-white transition-colors cursor-pointer">
-                  Show more ({allActivity.length - activityLimit} remaining)
-                </button>
-              )}
+              <Pagination page={actPage} total={Math.ceil(allActivity.length / ACTIVITY_PAGE) || 1} onChange={setActPage} />
             </div>
 
             <div className="border-t border-[#222] my-6" />

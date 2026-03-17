@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Bot } from 'lucide-react';
 
 export const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
@@ -21,10 +21,9 @@ export const STATUS_COLORS: Record<string, string> = {
   COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
-// Gas costs per operation (from contract analysis, 2 decimal places)
 export const GAS_COSTS: Record<string, string> = {
-  Created: '0.03', Funded: '0.01', Submitted: '0.01',
-  Completed: '0.01', Cancelled: '0.01', Disputed: '0.01',
+  Created: '0.0300', Funded: '0.0112', Submitted: '0.0105',
+  Completed: '0.0098', Cancelled: '0.0105', Disputed: '0.0098',
 };
 
 export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string };
@@ -49,9 +48,9 @@ export type ActivityEvent = {
   time: number; amount: string; from: string; gas: string;
 };
 
-export function truncAddr(a: string, long = false) {
+export function truncAddr(a: string) {
   if (!a || a.length < 16) return a;
-  return long ? a.slice(0, 12) + '...' + a.slice(-6) : a.slice(0, 6) + '...' + a.slice(-4);
+  return a.slice(0, 6) + '…' + a.slice(-4);
 }
 
 export function tonscanUrl(addr: string) { return `https://tonscan.org/address/${addr}`; }
@@ -122,9 +121,7 @@ export function TonIcon({ size = 16 }: { size?: number }) {
 }
 
 export function UsdtIcon({ size = 16 }: { size?: number }) {
-  // Multiply by 1.7 to match TON icon visual size
-  const s = Math.round(size * 1.7);
-  return <img src="/usdt-icon.svg" alt="USDT" width={s} height={s} style={{ width: s, height: s }} className="inline-block shrink-0 align-middle" />;
+  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} style={{ width: size, height: size }} className="inline-block shrink-0 align-middle" />;
 }
 
 export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: number }) {
@@ -134,8 +131,8 @@ export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: num
 export function AIBadge({ addr }: { addr?: string }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="inline-flex items-center gap-1 text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono"><Bot size={12} /> AI</span>
-      {addr && <TonscanLink addr={addr} size={14} />}
+      <span className="inline-flex items-center gap-0.5 text-xs text-[#3B82F6] font-mono"><Bot size={12} /> AI</span>
+      {addr && <TonscanLink addr={addr} size={12} />}
     </span>
   );
 }
@@ -161,16 +158,15 @@ export function TonscanLink({ addr, size = 16 }: { addr: string; size?: number }
   );
 }
 
-export function ClickAddr({ addr, truncate = false, long = false }: { addr: string; truncate?: boolean; long?: boolean }) {
+export function ClickAddr({ addr, truncate = false }: { addr: string; truncate?: boolean }) {
   const [copied, setCopied] = useState(false);
-  const display = truncate ? truncAddr(addr, long) : addr;
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-0.5">
       <span className="font-mono text-xs text-[#ccc] cursor-pointer hover:text-white transition-colors"
         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(addr); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
-        {copied ? <span className="text-[#4ADE80]">Copied!</span> : <span className="break-all">{display}</span>}
+        {copied ? <span className="text-[#4ADE80]">Copied!</span> : <span className="break-all">{truncate ? truncAddr(addr) : addr}</span>}
       </span>
-      <TonscanLink addr={addr} />
+      <TonscanLink addr={addr} size={12} />
     </span>
   );
 }
@@ -193,7 +189,7 @@ export function LiveTimer({ timestamp }: { timestamp: number }) {
 
 export function BudgetDisplay({ job }: { job: Job }) {
   const num = job.type === 'usdt' ? (Number(BigInt(job.budget)) / 1e6).toFixed(2) : (Number(BigInt(job.budget)) / 1e9).toFixed(2);
-  return <span className="inline-flex items-center gap-1">{num} <TypeIcon type={job.type} size={14} /></span>;
+  return <span className="inline-flex items-center gap-0.5">{num}<TypeIcon type={job.type} size={14} /></span>;
 }
 
 export function ContentBlock({ content, hash }: { content?: ResolvedContent; hash: string }) {
@@ -207,20 +203,22 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
         {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : <span className="text-[#555] font-mono text-xs break-all">{hash}</span>}
       </div>
-      <div className="flex items-center gap-2 mt-1">
-        {isLong && (
-          <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-        )}
-        <span className="flex-1" />
-        {content?.ipfsUrl && (
-          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
-            <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
-          </a>
-        )}
-        <CopyHash hash={hash} />
-      </div>
+      {(isLong || content?.ipfsUrl) && (
+        <div className="flex items-center gap-1.5 mt-1">
+          {isLong && (
+            <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          )}
+          <span className="flex-1" />
+          {content?.ipfsUrl && (
+            <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
+              <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
+            </a>
+          )}
+          <CopyHash hash={hash} />
+        </div>
+      )}
     </div>
   );
 }
