@@ -94,19 +94,28 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
   for (const j of jobs) {
     const bf = j.budgetFormatted;
-    // Map transactions by time (reversed = oldest first in contract)
-    const txs = j.transactions ?? [];
-    const txByIdx = (idx: number) => txs.length > idx ? txs[txs.length - 1 - idx] : null;
-    const gasOf = (idx: number, fallback: string) => txByIdx(idx)?.fee ?? fallback;
-    const hashOf = (idx: number) => txByIdx(idx)?.hash ?? '';
+    // Txs from API are newest-first, reverse to oldest-first
+    const txs = [...(j.transactions ?? [])].reverse();
+    // Map by utime: find closest tx for each event time
+    const findTx = (time: number) => {
+      if (!txs.length) return null;
+      let best = txs[0];
+      for (const t of txs) {
+        if (Math.abs(t.utime - time) < Math.abs(best.utime - time)) best = t;
+      }
+      return Math.abs(best.utime - time) < 120 ? best : null; // within 2 min
+    };
+    const mk = (event: string, status: string, time: number, amount: string, from: string, fallbackGas: string): ActivityEvent => {
+      const tx = findTx(time);
+      return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, gas: tx?.fee ?? fallbackGas, txHash: tx?.hash } as any;
+    };
 
-    let txIdx = 0;
-    if (j.createdAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client, gas: gasOf(txIdx, GAS_FALLBACK.Created), txHash: hashOf(txIdx) } as any); txIdx++; }
-    if (j.state >= 1 && j.createdAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client, gas: gasOf(txIdx, GAS_FALLBACK.Funded), txHash: hashOf(txIdx) } as any); txIdx++; }
-    if (j.submittedAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '', gas: gasOf(txIdx, GAS_FALLBACK.Submitted), txHash: hashOf(txIdx) } as any); txIdx++; }
-    if (j.stateName === 'COMPLETED' && j.submittedAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator, gas: gasOf(txIdx, GAS_FALLBACK.Completed), txHash: hashOf(txIdx) } as any); }
-    if (j.stateName === 'CANCELLED') { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, gas: gasOf(txIdx, GAS_FALLBACK.Cancelled), txHash: hashOf(txIdx) } as any); }
-    if (j.stateName === 'DISPUTED' && j.submittedAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator, gas: gasOf(txIdx, GAS_FALLBACK.Disputed), txHash: hashOf(txIdx) } as any); }
+    if (j.createdAt) events.push(mk('Created', 'OPEN', j.createdAt, bf, j.client, GAS_FALLBACK.Created));
+    if (j.state >= 1 && j.createdAt) events.push(mk('Funded', 'FUNDED', j.createdAt + 1, bf, j.client, GAS_FALLBACK.Funded));
+    if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? '', GAS_FALLBACK.Submitted));
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator, GAS_FALLBACK.Completed));
+    if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client, GAS_FALLBACK.Cancelled));
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push(mk('Disputed', 'DISPUTED', j.submittedAt + 1, bf, j.evaluator, GAS_FALLBACK.Disputed));
   }
   return events.sort((a, b) => b.time - a.time);
 }

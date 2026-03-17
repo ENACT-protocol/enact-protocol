@@ -28,11 +28,18 @@ export default function JobPage() {
     : TL_STATES.indexOf(job.stateName)) : -1;
   const isFinal = job ? ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(job.stateName) : false;
 
-  // Get tx info by index (reversed: oldest first)
-  const txs = job?.transactions ?? [];
-  const tx = (idx: number) => txs.length > idx ? txs[txs.length - 1 - idx] : null;
-  const txGas = (idx: number, fb: string) => tx(idx)?.fee ?? fb;
-  const txHash = (idx: number) => tx(idx)?.hash ?? '';
+  // Txs from API: newest-first. Reverse to oldest-first, match by time
+  const txsRev = useMemo(() => [...(job?.transactions ?? [])].reverse(), [job]);
+  const findTx = (time: number) => {
+    if (!txsRev.length) return null;
+    let best = txsRev[0];
+    for (const t of txsRev) { if (Math.abs(t.utime - time) < Math.abs(best.utime - time)) best = t; }
+    return Math.abs(best.utime - time) < 120 ? best : null;
+  };
+  const txFor = (time: number, fb: string) => {
+    const t = findTx(time);
+    return { gas: t?.fee ?? fb, hash: t?.hash ?? '' };
+  };
 
   return (
     <>
@@ -102,56 +109,70 @@ export default function JobPage() {
                 {/* Transaction Cards */}
                 <Section title="Transactions">
                   <div className="space-y-3">
-                    <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={txHash(0)}>
-                      <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
-                      <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
-                      <TxGas amount={txGas(0, GAS_FALLBACK.Created)} />
-                    </TxCard>
+                    {(() => {
+                      const created = txFor(job.createdAt, GAS_FALLBACK.Created);
+                      const funded = txFor(job.createdAt + 1, GAS_FALLBACK.Funded);
+                      const submitted = job.submittedAt ? txFor(job.submittedAt, GAS_FALLBACK.Submitted) : null;
+                      const terminal = job.submittedAt ? txFor(job.submittedAt + 1, GAS_FALLBACK.Completed) : null;
+                      const isAI = job.evaluator === AI_EVALUATOR;
+                      return <>
+                        <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={created.hash}>
+                          <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
+                          <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
+                          <TxGas amount={created.gas} />
+                        </TxCard>
 
-                    {job.state >= 1 && (
-                      <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={txHash(1)}>
-                        <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                        <TxGas amount={txGas(1, GAS_FALLBACK.Funded)} />
-                      </TxCard>
-                    )}
+                        {job.type === 'usdt' && job.state >= 1 && (
+                          <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(job.createdAt)} txHash="">
+                            <TxRow label="Action">USDT wallet configured</TxRow>
+                          </TxCard>
+                        )}
 
-                    {job.submittedAt > 0 && (
-                      <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} txHash={txHash(2)}>
-                        {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
-                        <TxRow label="Result">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="text-[#ccc] text-xs">{job.resultContent?.text ? (job.resultContent.text.slice(0, 80) + (job.resultContent.text.length > 80 ? '...' : '')) : '—'}</span>
-                            {job.resultContent?.ipfsUrl && <a href={job.resultContent.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS"><img src="/logos/pinata.jpeg" alt="IPFS" width={12} height={12} className="rounded-sm" /></a>}
-                            <CopyHash hash={job.resultHash} />
-                          </span>
-                        </TxRow>
-                        <TxGas amount={txGas(2, GAS_FALLBACK.Submitted)} />
-                      </TxCard>
-                    )}
+                        {job.state >= 1 && (
+                          <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={funded.hash}>
+                            <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
+                            <TxGas amount={funded.gas} />
+                          </TxCard>
+                        )}
 
-                    {job.stateName === 'COMPLETED' && (
-                      <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txHash(3)}>
-                        <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</span></TxRow>
-                        <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
-                        {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                        <TxGas amount={txGas(3, GAS_FALLBACK.Completed)} />
-                      </TxCard>
-                    )}
+                        {submitted && (
+                          <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} txHash={submitted.hash}>
+                            {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
+                            <TxRow label="Result">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="text-[#ccc] text-xs">{job.resultContent?.text ? (job.resultContent.text.slice(0, 80) + (job.resultContent.text.length > 80 ? '...' : '')) : '—'}</span>
+                                {job.resultContent?.ipfsUrl && <a href={job.resultContent.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS"><img src="/logos/pinata.jpeg" alt="IPFS" width={12} height={12} className="rounded-sm" /></a>}
+                                <CopyHash hash={job.resultHash} />
+                              </span>
+                            </TxRow>
+                            <TxGas amount={submitted.gas} />
+                          </TxCard>
+                        )}
 
-                    {job.stateName === 'CANCELLED' && (
-                      <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" txHash={txHash(2)}>
-                        <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
-                        <TxGas amount={txGas(2, GAS_FALLBACK.Cancelled)} />
-                      </TxCard>
-                    )}
+                        {job.stateName === 'COMPLETED' && terminal && (
+                          <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={terminal.hash}>
+                            <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
+                            <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
+                            {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
+                            <TxGas amount={terminal.gas} />
+                          </TxCard>
+                        )}
 
-                    {job.stateName === 'DISPUTED' && (
-                      <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txHash(3)}>
-                        <TxRow label="Evaluator"><ClickAddr addr={job.evaluator} truncate /></TxRow>
-                        <TxRow label="Action">Result rejected, funds refunded</TxRow>
-                        <TxGas amount={txGas(3, GAS_FALLBACK.Disputed)} />
-                      </TxCard>
-                    )}
+                        {job.stateName === 'CANCELLED' && (
+                          <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" txHash={funded.hash}>
+                            <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
+                          </TxCard>
+                        )}
+
+                        {job.stateName === 'DISPUTED' && terminal && (
+                          <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={terminal.hash}>
+                            <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
+                            <TxRow label="Action">Result rejected, funds refunded</TxRow>
+                            <TxGas amount={terminal.gas} />
+                          </TxCard>
+                        )}
+                      </>;
+                    })()}
                   </div>
                 </Section>
               </div>
@@ -164,7 +185,9 @@ export default function JobPage() {
                       {job.provider && job.provider !== 'none' ? <ClickAddr addr={job.provider} truncate /> : <span className="text-[#555] text-sm">Not assigned</span>}
                     </div>
                     <div><div className="text-[#555] text-xs mb-1">Evaluator</div>
-                      <div className="flex items-center gap-2"><ClickAddr addr={job.evaluator} truncate />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</div>
+                      {job.evaluator === AI_EVALUATOR
+                        ? <AIBadge addr={AI_EVALUATOR} />
+                        : <ClickAddr addr={job.evaluator} truncate />}
                     </div>
                   </div>
                 </Section>

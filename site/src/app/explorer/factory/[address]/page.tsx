@@ -106,7 +106,7 @@ export default function FactoryPage() {
                           className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
-                          <td className="px-3 py-2 hidden xl:table-cell"><ClickAddr addr={ev.address} truncate /></td>
+                          <td className="px-3 py-2 hidden xl:table-cell">{(ev as any).txHash ? <a href={`https://tonscan.org/tx/${(ev as any).txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#888] hover:text-white cursor-pointer">{truncAddr((ev as any).txHash)}</a> : <ClickAddr addr={ev.address} truncate />}</td>
                           <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                           <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
