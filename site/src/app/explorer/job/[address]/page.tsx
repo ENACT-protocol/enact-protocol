@@ -157,11 +157,13 @@ export default function JobPage() {
                           </TxCard>
                         )}
 
-                        {job.stateName === 'CANCELLED' && (
-                          <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" time={fmtDate(terminalTx?.utime || 0)} txHash={terminalTx?.hash ?? ''}>
+                        {job.stateName === 'CANCELLED' && (() => {
+                          // Cancel is always the last tx
+                          const cancelTx = txsRev.length > 0 ? txsRev[txsRev.length - 1] : null;
+                          return <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" time={fmtDate(cancelTx?.utime || 0)} txHash={cancelTx?.hash ?? ''}>
                             <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
-                          </TxCard>
-                        )}
+                          </TxCard>;
+                        })()}
 
                         {job.stateName === 'DISPUTED' && (
                           <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={fmtDate(terminalTx?.utime || job.submittedAt)} txHash={terminalTx?.hash ?? ''}>

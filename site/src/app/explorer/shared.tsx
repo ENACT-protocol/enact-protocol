@@ -8,16 +8,16 @@ export const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 export const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 
 export const STATUS_STYLES: Record<string, string> = {
-  OPEN: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
-  FUNDED: 'border-[#F59E0B] text-[#F59E0B] bg-[#F59E0B20]',
-  SUBMITTED: 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F620]',
+  OPEN: 'border-[#FACC15] text-[#FACC15] bg-[#FACC1520]',
+  FUNDED: 'border-[#60A5FA] text-[#60A5FA] bg-[#60A5FA20]',
+  SUBMITTED: 'border-[#A78BFA] text-[#A78BFA] bg-[#A78BFA20]',
   COMPLETED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
   CANCELLED: 'border-[#6B7280] text-[#6B7280] bg-[#6B728020]',
   DISPUTED: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  OPEN: '#4ADE80', FUNDED: '#F59E0B', SUBMITTED: '#3B82F6',
+  OPEN: '#FACC15', FUNDED: '#60A5FA', SUBMITTED: '#A78BFA',
   COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
@@ -140,8 +140,11 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       }
     }
     if (j.stateName === 'CANCELLED') {
-      const cancelTime = txAt(txIdx.terminal)?.utime || j.createdAt + j.timeout;
-      events.push(mk('Cancelled', 'CANCELLED', cancelTime, `${bf} → Client`, j.client, txIdx.terminal));
+      // Cancel tx is the last tx in the list. Find it by looking at the actual last tx.
+      const lastTxIdx = txs.length - 1;
+      const cancelTx = lastTxIdx >= 0 ? txs[lastTxIdx] : null;
+      const cancelTime = cancelTx?.utime || j.createdAt + j.timeout;
+      events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: cancelTime, amount: `${bf} → Client`, from: j.client, txHash: cancelTx?.hash });
     }
     if (j.stateName === 'DISPUTED') {
       const disputeTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);

@@ -74,9 +74,9 @@ export default function FactoryPage() {
             {/* Stats — all states */}
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
               <SC label="Total" value={info.jobCount} />
-              <SC label="Open" value={stats.open} color="#4ADE80" />
-              <SC label="Funded" value={stats.funded} color="#F59E0B" />
-              <SC label="Submitted" value={stats.submitted} color="#3B82F6" />
+              <SC label="Open" value={stats.open} color="#FACC15" />
+              <SC label="Funded" value={stats.funded} color="#60A5FA" />
+              <SC label="Submitted" value={stats.submitted} color="#A78BFA" />
               <SC label="Completed" value={stats.completed} color="#4ADE80" />
               <SC label="Disputed" value={stats.disputed} color="#EF4444" />
               <SC label="Cancelled" value={stats.cancelled} color="#6B7280" />
