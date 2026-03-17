@@ -79,12 +79,14 @@ export default function JobPage() {
                     </div>
                     {isFinal && (job.reasonContent?.text || job.stateName !== 'CANCELLED') && (
                       <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
-                        <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm">
-                          <span className={job.stateName === 'COMPLETED' ? 'text-[#4ADE80]' : job.stateName === 'DISPUTED' ? 'text-[#EF4444]' : 'text-[#6B7280]'}>
-                            {job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}
+                        <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm inline-flex items-center gap-2">
+                          <span>
+                            <span className={job.stateName === 'COMPLETED' ? 'text-[#4ADE80]' : job.stateName === 'DISPUTED' ? 'text-[#EF4444]' : 'text-[#6B7280]'}>
+                              {job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}
+                            </span>
+                            {job.reasonContent?.text && <span className="text-[#ccc]"> — {job.reasonContent.text}</span>}
                           </span>
-                          {job.reasonContent?.text && <span className="text-[#ccc]"> — {job.reasonContent.text}</span>}
-                          <span className="ml-2 inline-flex items-center"><CopyHash hash={job.descHash} /></span>
+                          <CopyHash hash={job.descHash} />
                         </div>
                       </div>
                     )}
@@ -97,21 +99,27 @@ export default function JobPage() {
                     <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} jobAddr={job.address}>
                       <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
                       <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
-                      <TxGas />
+                      <TxGas amount={GAS_COSTS.Created} />
                     </TxCard>
 
                     {job.state >= 1 && (
                       <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
                         <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                        <TxGas amount="0.01" />
+                        <TxGas amount={GAS_COSTS.Funded} />
                       </TxCard>
                     )}
 
                     {job.submittedAt > 0 && (
                       <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} jobAddr={job.address}>
                         {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
-                        {job.resultContent?.text && <TxRow label="Result"><span className="text-[#ccc] text-xs">{job.resultContent.text.slice(0, 80)}{job.resultContent.text.length > 80 ? '...' : ''}</span></TxRow>}
-                        <TxGas />
+                        <TxRow label="Result">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-[#ccc] text-xs">{job.resultContent?.text ? (job.resultContent.text.slice(0, 80) + (job.resultContent.text.length > 80 ? '...' : '')) : '—'}</span>
+                            {job.resultContent?.ipfsUrl && <a href={job.resultContent.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS"><img src="/logos/pinata.jpeg" alt="IPFS" width={12} height={12} className="rounded-sm" /></a>}
+                            <CopyHash hash={job.resultHash} />
+                          </span>
+                        </TxRow>
+                        <TxGas amount={GAS_COSTS.Submitted} />
                       </TxCard>
                     )}
 
@@ -120,14 +128,14 @@ export default function JobPage() {
                         <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</span></TxRow>
                         <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                         {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                        <TxGas amount="0.01" />
+                        <TxGas amount={GAS_COSTS.Completed} />
                       </TxCard>
                     )}
 
                     {job.stateName === 'CANCELLED' && (
                       <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" jobAddr={job.address}>
                         <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
-                        <TxGas />
+                        <TxGas amount={GAS_COSTS.Cancelled} />
                       </TxCard>
                     )}
 
@@ -135,7 +143,7 @@ export default function JobPage() {
                       <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
                         <TxRow label="Evaluator"><ClickAddr addr={job.evaluator} truncate /></TxRow>
                         <TxRow label="Action">Result rejected, funds refunded</TxRow>
-                        <TxGas />
+                        <TxGas amount={GAS_COSTS.Disputed} />
                       </TxCard>
                     )}
                   </div>

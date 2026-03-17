@@ -22,8 +22,8 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 
 export const GAS_COSTS: Record<string, string> = {
-  Created: '0.0300', Funded: '0.0112', Submitted: '0.0105',
-  Completed: '0.0098', Cancelled: '0.0105', Disputed: '0.0098',
+  Created: '0.013', Funded: '0.011', Submitted: '0.010',
+  Completed: '0.009', Cancelled: '0.010', Disputed: '0.009',
 };
 
 export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string };
@@ -161,12 +161,12 @@ export function TonscanLink({ addr, size = 16 }: { addr: string; size?: number }
 export function ClickAddr({ addr, truncate = false }: { addr: string; truncate?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
-    <span className="inline-flex items-center gap-0.5">
+    <span className="inline-flex items-center gap-1.5">
       <span className="font-mono text-xs text-[#ccc] cursor-pointer hover:text-white transition-colors"
         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(addr); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
         {copied ? <span className="text-[#4ADE80]">Copied!</span> : <span className="break-all">{truncate ? truncAddr(addr) : addr}</span>}
       </span>
-      <TonscanLink addr={addr} size={12} />
+      <TonscanLink addr={addr} />
     </span>
   );
 }
@@ -176,13 +176,15 @@ export function Row({ label, children }: { label: string; children: React.ReactN
 }
 
 export function LiveTimer({ timestamp }: { timestamp: number }) {
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const i = setInterval(() => setTick(t => t + 1), 1000);
+    setNow(Date.now());
+    const i = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(i);
-  }, []);
-  const diff = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-  const ago = diff < 60 ? `${diff}s ago` : `${Math.floor(diff / 60)}m ${diff % 60}s ago`;
+  }, [timestamp]);
+  const diffMs = Math.max(0, now - timestamp);
+  const diffS = Math.floor(diffMs / 1000);
+  const ago = diffS < 60 ? `${diffS}s ago` : `${Math.floor(diffS / 60)}m ${diffS % 60}s ago`;
   const date = new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return <span>{date} ({ago})</span>;
 }
