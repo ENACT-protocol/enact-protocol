@@ -45,14 +45,13 @@ export default function ExplorerPage() {
   }, [allJobs, tab, sortBy, sortDir]);
 
   const stats = useMemo(() => {
-    if (!data) return { total: 0, ton: 0, usdt: 0, tonOk: 0, tonFail: 0, usdtOk: 0, usdtFail: 0, txTotal: 0 };
-    const tonOk = data.tonJobs.filter(j => j.stateName === 'COMPLETED').length;
-    const tonFail = data.tonJobs.filter(j => j.stateName === 'DISPUTED').length;
-    const usdtOk = data.jettonJobs.filter(j => j.stateName === 'COMPLETED').length;
-    const usdtFail = data.jettonJobs.filter(j => j.stateName === 'DISPUTED').length;
+    if (!data) return { total: 0, ton: 0, usdt: 0, tonDone: 0, usdtDone: 0, txTotal: 0 };
+    const isDone = (j: Job) => ['COMPLETED', 'DISPUTED', 'CANCELLED'].includes(j.stateName);
+    const tonDone = data.tonJobs.filter(isDone).length;
+    const usdtDone = data.jettonJobs.filter(isDone).length;
     let txTotal = 0;
     for (const j of allJobs) txTotal += txCount(j);
-    return { total: allJobs.length, ton: data.tonJobs.length, usdt: data.jettonJobs.length, tonOk, tonFail, usdtOk, usdtFail, txTotal };
+    return { total: allJobs.length, ton: data.tonJobs.length, usdt: data.jettonJobs.length, tonDone, usdtDone, txTotal };
   }, [data, allJobs]);
 
   const handleSearch = () => {
@@ -82,13 +81,6 @@ export default function ExplorerPage() {
   const txOnPage = allActivity.slice(txPage * PAGE_SIZE, (txPage + 1) * PAGE_SIZE);
   const totalTxPages = Math.ceil(allActivity.length / PAGE_SIZE) || 1;
 
-  const statSub = (ok: number, fail: number) => {
-    const parts = [];
-    if (ok) parts.push(`${ok} ✓`);
-    if (fail) parts.push(`${fail} ✗`);
-    return parts.length ? `(${parts.join(' / ')})` : '';
-  };
-
   return (
     <>
       <Header />
@@ -109,10 +101,7 @@ export default function ExplorerPage() {
         </div>
 
         {loading ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[1,2,3,4].map(i => <Shimmer key={i} className="h-20 rounded-xl" />)}</div>
-            <Shimmer className="h-48 rounded-xl" />
-          </div>
+          <div className="space-y-4"><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[1,2,3,4].map(i => <Shimmer key={i} className="h-20 rounded-xl" />)}</div><Shimmer className="h-48 rounded-xl" /></div>
         ) : error ? (
           <div className="text-red-400 bg-[#111] border border-[#222] rounded-xl p-6 text-center">Failed to load: {error}</div>
         ) : data && (
@@ -120,8 +109,8 @@ export default function ExplorerPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
               <StatCard label="Transactions" value={stats.txTotal} />
-              <StatCard label="TON Jobs" value={stats.ton} sub={statSub(stats.tonOk, stats.tonFail)} icon={<TonIcon size={18} />} />
-              <StatCard label="USDT Jobs" value={stats.usdt} sub={statSub(stats.usdtOk, stats.usdtFail)} icon={<UsdtIcon size={18} />} />
+              <StatCard label="TON Jobs" value={stats.ton} sub={stats.tonDone ? `${stats.tonDone} done` : undefined} icon={<TonIcon size={18} />} />
+              <StatCard label="USDT Jobs" value={stats.usdt} sub={stats.usdtDone ? `${stats.usdtDone} done` : undefined} icon={<UsdtIcon size={18} />} />
               <StatCard label="Total Jobs" value={stats.total} />
             </div>
             <div className="text-[#444] text-xs font-mono mb-6">Last updated: <LiveTimer timestamp={data.lastUpdated} /> · Auto-refreshes every 30s</div>
@@ -135,7 +124,7 @@ export default function ExplorerPage() {
                     <span className="flex items-center gap-2 text-white font-medium"><TypeIcon type={f.type} size={20} /> {f.label}</span>
                     <span className="text-[#888] text-sm">{f.count} jobs</span>
                   </div>
-                  <div className="flex items-center gap-1.5"><span className="font-mono text-xs text-[#555] truncate">{f.addr}</span><TonscanLink addr={f.addr} /></div>
+                  <div className="flex items-center gap-1.5"><ClickAddr addr={f.addr} truncate /></div>
                 </Link>
               ))}
             </div>
@@ -146,12 +135,14 @@ export default function ExplorerPage() {
               <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Latest Activity</div>
               <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px]">
+                  <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                     <th className="text-left px-3 py-2">Event</th>
                     <th className="text-left px-3 py-2">Job</th>
-                    <th className="text-left px-3 py-2 hidden lg:table-cell">Address</th>
+                    <th className="text-left px-3 py-2 hidden xl:table-cell">Tx Address</th>
+                    <th className="text-left px-3 py-2 hidden lg:table-cell">Status</th>
                     <th className="text-left px-3 py-2 hidden md:table-cell">From</th>
                     <th className="text-left px-3 py-2 hidden sm:table-cell">Amount</th>
+                    <th className="text-left px-3 py-2 hidden lg:table-cell">Gas</th>
                     <th className="text-left px-3 py-2">Time</th>
                   </tr></thead>
                   <tbody>
@@ -160,9 +151,11 @@ export default function ExplorerPage() {
                         className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
                         <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
                         <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
-                        <td className="px-3 py-2 hidden lg:table-cell"><ClickAddr addr={ev.address} truncate /></td>
+                        <td className="px-3 py-2 hidden xl:table-cell"><ClickAddr addr={ev.address} truncate /></td>
+                        <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
-                        <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell">{ev.amount}</td>
+                        <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
+                        <td className="px-3 py-2 text-[#555] text-xs hidden lg:table-cell whitespace-nowrap">{ev.gas} <TonIcon size={12} /></td>
                         <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                       </tr>
                     ))}
@@ -170,10 +163,9 @@ export default function ExplorerPage() {
                 </table>
               </div>
               {activityLimit < allActivity.length && (
-                <button onClick={() => setActivityLimit(allActivity.length)} className="mt-2 text-xs text-[#555] hover:text-white transition-colors cursor-pointer">Show all ({allActivity.length} events)</button>
-              )}
-              {activityLimit > 15 && allActivity.length > 15 && (
-                <button onClick={() => setActivityLimit(15)} className="mt-2 text-xs text-[#555] hover:text-white transition-colors cursor-pointer ml-3">Collapse</button>
+                <button onClick={() => setActivityLimit(l => l + 15)} className="mt-2 text-xs text-[#555] hover:text-white transition-colors cursor-pointer">
+                  Show more ({allActivity.length - activityLimit} remaining)
+                </button>
               )}
             </div>
 
@@ -193,10 +185,11 @@ export default function ExplorerPage() {
               <>
                 <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px]">
+                    <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                       <th className="text-left px-3 py-2.5">Event</th><th className="text-left px-3 py-2.5">Job</th>
                       <th className="text-left px-3 py-2.5 hidden md:table-cell">From</th>
                       <th className="text-left px-3 py-2.5 hidden sm:table-cell">Amount</th>
+                      <th className="text-left px-3 py-2.5 hidden lg:table-cell">Gas</th>
                       <th className="text-left px-3 py-2.5">Time</th>
                     </tr></thead>
                     <tbody>
@@ -206,7 +199,8 @@ export default function ExplorerPage() {
                           <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
-                          <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell">{ev.amount}</td>
+                          <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
+                          <td className="px-3 py-2 text-[#555] text-xs hidden lg:table-cell whitespace-nowrap">{ev.gas} <TonIcon size={12} /></td>
                           <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                         </tr>
                       ))}
@@ -219,7 +213,7 @@ export default function ExplorerPage() {
               <>
                 <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px]">
+                    <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                       <th className="text-left px-3 py-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('id')}># {sortBy === 'id' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="text-left px-3 py-2.5 hidden sm:table-cell">Address</th>
                       <th className="text-left px-3 py-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'desc' ? '↓' : '↑')}</th>
@@ -235,7 +229,7 @@ export default function ExplorerPage() {
                         <tr key={`${job.type}-${job.jobId}`} onClick={() => router.push(`/explorer/job/${job.address}`)}
                           className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#151515] transition-colors">
                           <td className="px-3 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} /></span></td>
-                          <td className="px-3 py-2.5 font-mono text-xs text-[#888] hidden sm:table-cell">{truncAddr(job.address)}</td>
+                          <td className="px-3 py-2.5 hidden sm:table-cell"><span className="inline-flex items-center gap-1.5"><span className="font-mono text-xs text-[#888]">{truncAddr(job.address)}</span><TonscanLink addr={job.address} size={12} /></span></td>
                           <td className="px-3 py-2.5"><Badge status={job.stateName} /></td>
                           <td className="px-3 py-2.5 text-[#ccc]"><BudgetDisplay job={job} /></td>
                           <td className="px-3 py-2.5 hidden md:table-cell"><ClickAddr addr={job.client} truncate /></td>
@@ -264,7 +258,7 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string | 
       <div className="flex items-center gap-2">{icon}<span className="text-[#555] text-xs font-mono uppercase">{label}</span></div>
       <div className="flex items-baseline gap-2 mt-1">
         <span className="text-white text-2xl font-semibold">{value}</span>
-        {sub && <span className="text-[#555] text-xs">{sub}</span>}
+        {sub && <span className="text-[#555] text-xs">({sub})</span>}
       </div>
     </div>
   );

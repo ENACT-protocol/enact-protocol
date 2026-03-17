@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bot } from 'lucide-react';
 
 export const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
@@ -40,7 +40,7 @@ export type ExplorerData = {
 
 export type ActivityEvent = {
   jobId: number; type: 'ton' | 'usdt'; address: string; event: string; status: string;
-  time: number; amount: string; from: string;
+  time: number; amount: string; from: string; gas: string;
 };
 
 export function truncAddr(a: string, long = false) {
@@ -86,14 +86,15 @@ export function txCount(j: Job): number {
 
 export function buildActivity(jobs: Job[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
+  const gas = '~0.01';
   for (const j of jobs) {
     const bf = j.budgetFormatted;
-    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client });
-    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client });
-    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: '—', from: j.provider ?? '' });
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator });
-    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client });
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: '—', from: j.evaluator });
+    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client, gas });
+    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client, gas });
+    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '', gas });
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator, gas: '~0.003' });
+    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, gas });
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator, gas: '~0.003' });
   }
   return events.sort((a, b) => b.time - a.time);
 }
@@ -110,14 +111,14 @@ export function Badge({ status }: { status: string }) {
 
 export function TonIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="16 18 24 24" fill="none" className="inline-block shrink-0" style={{ verticalAlign: 'middle' }}>
+    <svg width={size} height={size} viewBox="16 18 24 24" fill="none" className="inline-block shrink-0 align-middle">
       <path fillRule="evenodd" clipRule="evenodd" d="M20.199 18.4844H35.9034C36.459 18.4844 37.0142 18.566 37.5944 18.8365C38.2899 19.1606 38.6587 19.6717 38.9171 20.0496C38.9372 20.079 38.956 20.1093 38.9734 20.1403C39.2772 20.6811 39.4338 21.265 39.4338 21.8931C39.4338 22.4899 39.2918 23.1401 38.9734 23.7068L29.0424 40.7665C28.8236 41.1423 28.4209 41.3729 27.986 41.3714C27.5511 41.3698 27.15 41.1364 26.9339 40.759L17.1943 23.7518C16.963 23.3707 16.6183 22.8027 16.558 22.0696C16.5026 21.3956 16.6541 20.7202 16.9928 20.1346C17.3315 19.5489 17.8414 19.0807 18.4547 18.7941C19.1123 18.4868 19.7787 18.4844 20.199 18.4844ZM26.7729 20.9192H20.199C19.7671 20.9192 19.6013 20.9458 19.4854 21C19.3251 21.0748 19.1905 21.1978 19.1005 21.3535C19.0105 21.5092 18.9698 21.6896 18.9846 21.8701C18.9931 21.9737 19.0353 22.0921 19.2842 22.5026L26.7729 35.5785V20.9192ZM29.2077 20.9192V35.643L36.8542 22.5079C36.9405 22.3511 36.999 22.1245 36.999 21.8931C36.999 21.7054 36.9601 21.5424 36.8731 21.3743C36.7818 21.2431 36.7262 21.1736 36.6797 21.126C36.6398 21.0853 36.6091 21.0635 36.5657 21.0433C36.3849 20.959 36.1999 20.9192 35.9034 20.9192H29.2077Z" fill="#0098EA"/>
     </svg>
   );
 }
 
 export function UsdtIcon({ size = 16 }: { size?: number }) {
-  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} className="inline-block shrink-0" style={{ verticalAlign: 'middle' }} />;
+  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} style={{ width: size, height: size, minWidth: size, minHeight: size }} className="inline-block shrink-0 align-middle" />;
 }
 
 export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: number }) {
@@ -126,6 +127,18 @@ export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: num
 
 export function AIBadge() {
   return <span className="inline-flex items-center gap-1 text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono"><Bot size={12} /> AI</span>;
+}
+
+export function CopyHash({ hash }: { hash: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button onClick={e => { e.stopPropagation(); e.preventDefault(); navigator.clipboard.writeText(hash); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+      className="text-[#555] hover:text-white transition-colors shrink-0 cursor-pointer inline-flex items-center" title="Copy hash">
+      {copied
+        ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>}
+    </button>
+  );
 }
 
 export function TonscanLink({ addr, size = 16, hash }: { addr: string; size?: number; hash?: boolean }) {
@@ -138,13 +151,13 @@ export function TonscanLink({ addr, size = 16, hash }: { addr: string; size?: nu
   );
 }
 
-/** Clickable address that copies on click + tonscan link */
+/** Clickable address: click copies, tonscan icon separate */
 export function ClickAddr({ addr, truncate = false, long = false }: { addr: string; truncate?: boolean; long?: boolean }) {
   const [copied, setCopied] = useState(false);
   const display = truncate ? truncAddr(addr, long) : addr;
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="font-mono text-xs text-[#ccc] cursor-pointer hover:text-white transition-colors relative"
+      <span className="font-mono text-xs text-[#ccc] cursor-pointer hover:text-white transition-colors"
         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(addr); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
         {copied ? <span className="text-[#4ADE80]">Copied!</span> : <span className="break-all">{display}</span>}
       </span>
@@ -193,21 +206,20 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
         {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : <span className="text-[#555] font-mono text-xs break-all">{hash}</span>}
       </div>
-      {(isLong || content?.ipfsUrl) && (
-        <div className="flex items-center gap-2 mt-1">
-          {isLong && (
-            <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-          )}
-          <span className="flex-1" />
-          {content?.ipfsUrl && (
-            <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer" title="View on IPFS">
-              <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm inline-block" style={{ verticalAlign: 'middle' }} />
-            </a>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-2 mt-1">
+        {isLong && (
+          <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        )}
+        <span className="flex-1" />
+        {content?.ipfsUrl && (
+          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
+            <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
+          </a>
+        )}
+        <CopyHash hash={hash} />
+      </div>
     </div>
   );
 }
@@ -216,19 +228,23 @@ export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchRef = useRef<() => Promise<void>>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/explorer');
+      if (!res.ok) throw new Error('Failed to fetch');
+      setData(await res.json());
+      setError(null);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+
+  fetchRef.current = fetchData;
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/explorer');
-        if (!res.ok) throw new Error('Failed to fetch');
-        setData(await res.json());
-        setError(null);
-      } catch (e: any) { setError(e.message); }
-      finally { setLoading(false); }
-    };
-    fetchData();
-    const i = setInterval(fetchData, 30_000);
+    fetchRef.current?.();
+    const i = setInterval(() => fetchRef.current?.(), 30_000);
     return () => clearInterval(i);
   }, []);
 

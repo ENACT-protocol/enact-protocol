@@ -7,7 +7,7 @@ import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS,
-  Badge, Shimmer, TypeIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge,
+  Badge, Shimmer, TypeIcon, TonIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge,
   BudgetDisplay, fmtDate, fmtTimeout, tonscanTxUrl,
 } from '../../shared';
 
@@ -77,13 +77,17 @@ export default function JobPage() {
                     <div><div className="text-[#555] text-xs mb-1">Result</div>
                       <div className="bg-[#0a0a0a] rounded-lg p-3"><ContentBlock content={job.resultContent} hash={job.resultHash} /></div>
                     </div>
-                    {isFinal && (
+                    {isFinal && (job.reasonContent?.text || job.stateName !== 'CANCELLED') && (
                       <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm">
-                          <span className={job.stateName === 'COMPLETED' ? 'text-[#4ADE80]' : 'text-[#EF4444]'}>
+                          <span className={job.stateName === 'COMPLETED' ? 'text-[#4ADE80]' : job.stateName === 'DISPUTED' ? 'text-[#EF4444]' : 'text-[#6B7280]'}>
                             {job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}
                           </span>
-                          {job.reasonContent?.text && <span className="text-[#ccc]"> — {job.reasonContent.text}</span>}
+                          {job.reasonContent?.text ? (
+                            <span className="text-[#ccc]"> — {job.reasonContent.text}</span>
+                          ) : job.reasonContent?.source === 'hash' && job.reasonContent.text === null && job.descHash !== '0'.repeat(64) ? (
+                            <span className="text-[#555] text-xs font-mono ml-2">(hash: {job.descHash.slice(0, 12)}...)</span>
+                          ) : null}
                         </div>
                       </div>
                     )}
@@ -102,7 +106,7 @@ export default function JobPage() {
                     {job.state >= 1 && (
                       <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
                         <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                        <TxGas text="~0.01 TON (excess returned)" />
+                        <TxGas amount="~0.01" />
                       </TxCard>
                     )}
 
@@ -119,7 +123,7 @@ export default function JobPage() {
                         <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge />}</span></TxRow>
                         <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                         {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                        <TxGas text="~0.003 TON" />
+                        <TxGas amount="~0.003" />
                       </TxCard>
                     )}
 
@@ -255,6 +259,6 @@ function TxRow({ label, children }: { label: string; children: React.ReactNode }
   return <div className="flex gap-2 text-sm"><span className="text-[#555] w-20 shrink-0">{label}</span><span className="text-[#ccc] min-w-0">{children}</span></div>;
 }
 
-function TxGas({ text = '~0.01 TON' }: { text?: string }) {
-  return <div className="text-[13px] text-[#444] mt-1">Est. gas: {text}</div>;
+function TxGas({ amount = '~0.01' }: { amount?: string }) {
+  return <TxRow label="Gas"><span className="inline-flex items-center gap-1">{amount} <TonIcon size={14} /></span></TxRow>;
 }
