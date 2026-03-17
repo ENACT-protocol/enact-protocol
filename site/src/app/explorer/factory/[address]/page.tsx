@@ -72,7 +72,7 @@ export default function FactoryPage() {
             </div>
 
             {/* Stats — all states */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6 explorer-stats">
               <SC label="Total" value={info.jobCount} />
               <SC label="Open" value={stats.open} color="#FACC15" />
               <SC label="Funded" value={stats.funded} color="#60A5FA" />
@@ -88,7 +88,7 @@ export default function FactoryPage() {
               <div className="mb-6">
                 <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Latest Activity</div>
                 <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm explorer-table">
                     <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                       <th className="text-left px-3 py-2">Job</th>
                       <th className="text-left px-3 py-2">Event</th>
@@ -121,7 +121,7 @@ export default function FactoryPage() {
             {/* Jobs Table — same as main explorer */}
             <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Jobs ({info.jobs.length})</div>
             <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm explorer-table">
                 <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                   <th className="text-left px-3 py-2.5">#</th>
                   <th className="text-left px-3 py-2.5 hidden sm:table-cell">Address</th>

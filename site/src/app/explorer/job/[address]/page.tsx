@@ -133,7 +133,7 @@ export default function JobPage() {
                     {job.stateName === 'COMPLETED' && (
                       <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm inline-flex items-center gap-2">
-                          <span className="text-[#4ADE80]">✓ Approved</span>
+                          <span className="text-[#4ADE80] inline-flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg> Approved</span>
                           {job.reasonContent?.text && <span className="text-[#ccc]">— {job.reasonContent.text}</span>}
                         </div>
                       </div>
@@ -141,7 +141,7 @@ export default function JobPage() {
                     {job.stateName === 'DISPUTED' && (
                       <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm inline-flex items-center gap-2">
-                          <span className="text-[#EF4444]">✗ Rejected</span>
+                          <span className="text-[#EF4444] inline-flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg> Rejected</span>
                           {job.reasonContent?.text && <span className="text-[#ccc]">— {job.reasonContent.text}</span>}
                         </div>
                       </div>
@@ -149,7 +149,7 @@ export default function JobPage() {
                     {job.stateName === 'CANCELLED' && (
                       <div><div className="text-[#555] text-xs mb-1">Status</div>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm">
-                          <span className="text-[#6B7280]">⛔ Cancelled — funds refunded to client</span>
+                          <span className="text-[#6B7280] inline-flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg> Cancelled — funds refunded to client</span>
                         </div>
                       </div>
                     )}
@@ -302,12 +302,12 @@ export default function JobPage() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="bg-[#111] border border-[#222] rounded-xl p-5"><div className="text-[#555] text-xs font-mono mb-4 uppercase tracking-wider">{title}</div>{children}</div>;
+  return <div className="bg-[#111] border border-[#222] rounded-xl p-5 explorer-section"><div className="text-[#555] text-xs font-mono mb-4 uppercase tracking-wider">{title}</div>{children}</div>;
 }
 
 function TxCard({ color, label, time, txHash, children }: { color: string; label: string; time?: string; txHash?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg p-4 bg-[#0a0a0a]" style={{ borderLeft: `3px solid ${color}` }}>
+    <div className="rounded-lg p-4 bg-[#0a0a0a] explorer-tx" style={{ borderLeft: `3px solid ${color}` }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span style={{ color }} className="text-lg leading-none">●</span>

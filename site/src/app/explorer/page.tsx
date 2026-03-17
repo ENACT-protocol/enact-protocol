@@ -86,11 +86,11 @@ export default function ExplorerPage() {
     <>
       <Header />
       <main className="min-h-screen pt-20 pb-24 px-4 sm:px-6 max-w-[1200px] mx-auto">
-        <h1 className="font-serif text-3xl sm:text-4xl text-white mb-2">Explorer</h1>
+        <h1 className="font-serif text-3xl sm:text-4xl text-white mb-2 explorer-title">Explorer</h1>
         <p className="text-[#888] text-sm mb-8">Browse ENACT Protocol jobs and factories on TON Mainnet</p>
 
         {/* Search */}
-        <div className="mb-8">
+        <div className="mb-8 explorer-search">
           <div className="flex gap-2">
             <input type="text" value={search} onChange={e => { setSearch(e.target.value); setSearchMsg(null); }}
               onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Search by job or factory address..."
@@ -109,7 +109,7 @@ export default function ExplorerPage() {
         ) : data && (
           <>
             {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2 explorer-stats">
               <StatCard label="Transactions" value={stats.txTotal} />
               <StatCard label="TON Jobs" value={stats.ton} sub={stats.tonDone ? `${stats.tonDone} done` : undefined} icon={<TonIcon size={18} />} />
               <StatCard label="USDT Jobs" value={stats.usdt} sub={stats.usdtDone ? `${stats.usdtDone} done` : undefined} icon={<UsdtIcon size={18} />} />
@@ -120,7 +120,7 @@ export default function ExplorerPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {[{ label: 'JobFactory', type: 'ton' as const, addr: data.factories.ton.address, count: data.factories.ton.jobCount },
                 { label: 'JettonJobFactory', type: 'usdt' as const, addr: data.factories.jetton.address, count: data.factories.jetton.jobCount }].map(f => (
-                <Link key={f.label} href={`/explorer/factory/${f.addr}`} className="bg-[#111] border border-[#222] rounded-xl p-4 hover:border-[#333] transition-colors block cursor-pointer">
+                <Link key={f.label} href={`/explorer/factory/${f.addr}`} className="bg-[#111] border border-[#222] rounded-xl p-4 hover:border-[#333] transition-colors block cursor-pointer explorer-factory">
                   <div className="flex items-center justify-between mb-2">
                     <span className="flex items-center gap-2 text-white font-medium"><TypeIcon type={f.type} size={20} /> {f.label}</span>
                     <span className="text-[#888] text-sm">{f.count} jobs</span>
@@ -135,7 +135,7 @@ export default function ExplorerPage() {
             <div className="mb-6">
               <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Latest Activity</div>
               <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm explorer-table">
                   <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                     <th className="text-left px-3 py-2">Job</th>
                     <th className="text-left px-3 py-2">Event</th>
@@ -179,7 +179,7 @@ export default function ExplorerPage() {
             {tab === 'transactions' ? (
               <>
                 <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm explorer-table">
                     <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                       <th className="text-left px-3 py-2.5">Event</th><th className="text-left px-3 py-2.5">Job</th>
                       <th className="text-left px-3 py-2.5 hidden md:table-cell">From</th>
@@ -205,7 +205,7 @@ export default function ExplorerPage() {
             ) : (
               <>
                 <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm explorer-table">
                     <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
                       <th className="text-left px-3 py-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('id')}># {sortBy === 'id' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="text-left px-3 py-2.5 hidden sm:table-cell">Address</th>

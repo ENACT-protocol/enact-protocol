@@ -159,7 +159,7 @@ export function Shimmer({ className }: { className?: string }) {
 }
 
 export function Badge({ status }: { status: string }) {
-  return <span className={`text-xs px-2 py-0.5 rounded border font-mono ${STATUS_STYLES[status] ?? 'border-[#555] text-[#888]'}`}>{status}</span>;
+  return <span className={`text-xs px-2 py-0.5 rounded border font-mono explorer-badge ${STATUS_STYLES[status] ?? 'border-[#555] text-[#888]'}`}>{status}</span>;
 }
 
 export function TonIcon({ size = 16 }: { size?: number }) {
