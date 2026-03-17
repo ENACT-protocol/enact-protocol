@@ -8,7 +8,7 @@ import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, useExplorerData, buildActivity, txCount,
   Badge, Shimmer, TypeIcon, AddrWithActions, Row, TonscanLink, CopyButton,
-  LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_DOTS,
+  LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_COLORS,
 } from '../../shared';
 
 export default function FactoryPage() {
@@ -95,7 +95,7 @@ export default function FactoryPage() {
                     <tbody>
                       {activity.map((ev, i) => (
                         <tr key={i} onClick={() => router.push(`/explorer/job/${ev.address}`)} className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
-                          <td className="px-4 py-2.5"><span className={`${STATUS_DOTS[ev.status]} mr-1.5`}>●</span>{ev.event}</td>
+                          <td className="px-4 py-2.5"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
                           <td className="px-4 py-2.5 text-white">#{ev.jobId}</td>
                           <td className="px-4 py-2.5 hidden sm:table-cell font-mono text-xs text-[#888]">{truncAddr(ev.from)}</td>
                           <td className="px-4 py-2.5 text-[#555] text-xs">{timeAgo(ev.time)}</td>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Bot } from 'lucide-react';
 
 export const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
 export const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
@@ -15,9 +16,9 @@ export const STATUS_STYLES: Record<string, string> = {
   DISPUTED: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
 };
 
-export const STATUS_DOTS: Record<string, string> = {
-  OPEN: 'text-[#4ADE80]', FUNDED: 'text-[#F59E0B]', SUBMITTED: 'text-[#3B82F6]',
-  COMPLETED: 'text-[#4ADE80]', CANCELLED: 'text-[#6B7280]', DISPUTED: 'text-[#EF4444]',
+export const STATUS_COLORS: Record<string, string> = {
+  OPEN: '#4ADE80', FUNDED: '#F59E0B', SUBMITTED: '#3B82F6',
+  COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
 export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string };
@@ -39,12 +40,12 @@ export type ExplorerData = {
 
 export type ActivityEvent = {
   jobId: number; type: 'ton' | 'usdt'; address: string; event: string; status: string;
-  time: number; budget?: string; from: string;
+  time: number; amount: string; from: string;
 };
 
 export function truncAddr(a: string, long = false) {
   if (!a || a.length < 16) return a;
-  return long ? a.slice(0, 12) + '...' + a.slice(-6) : a.slice(0, 8) + '...' + a.slice(-4);
+  return long ? a.slice(0, 12) + '...' + a.slice(-6) : a.slice(0, 6) + '...' + a.slice(-4);
 }
 
 export function tonscanUrl(addr: string) { return `https://tonscan.org/address/${addr}`; }
@@ -73,23 +74,24 @@ export function timeAgo(ts: number) {
 }
 
 export function txCount(j: Job): number {
-  let n = 1; // created
-  if (j.state >= 1) n++; // funded
-  if (j.submittedAt) n++; // submitted (includes take)
-  if (['COMPLETED', 'DISPUTED'].includes(j.stateName)) n++; // evaluate
-  if (j.stateName === 'CANCELLED') n++; // cancel
+  let n = 1;
+  if (j.state >= 1) n++;
+  if (j.submittedAt) n++;
+  if (['COMPLETED', 'DISPUTED'].includes(j.stateName)) n++;
+  if (j.stateName === 'CANCELLED') n++;
   return n;
 }
 
 export function buildActivity(jobs: Job[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
   for (const j of jobs) {
-    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, budget: j.budgetFormatted, from: j.client });
-    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, budget: j.budgetFormatted, from: j.client });
-    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, from: j.provider ?? '' });
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, budget: j.budgetFormatted, from: j.evaluator });
-    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, from: j.client });
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, from: j.evaluator });
+    const bf = j.budgetFormatted;
+    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client });
+    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client });
+    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: '—', from: j.provider ?? '' });
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator });
+    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client });
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: '—', from: j.evaluator });
   }
   return events.sort((a, b) => b.time - a.time);
 }
@@ -113,11 +115,15 @@ export function TonIcon({ size = 16 }: { size?: number }) {
 }
 
 export function UsdtIcon({ size = 16 }: { size?: number }) {
-  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} className="inline-block rounded-full shrink-0" />;
+  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} className="inline-block shrink-0" />;
 }
 
 export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: number }) {
   return type === 'ton' ? <TonIcon size={size} /> : <UsdtIcon size={size} />;
+}
+
+export function AIBadge() {
+  return <span className="inline-flex items-center gap-1 text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono"><Bot size={12} /> AI</span>;
 }
 
 export function CopyButton({ text }: { text: string }) {
@@ -144,7 +150,7 @@ export function TonscanLink({ addr, size = 16 }: { addr: string; size?: number }
 export function AddrWithActions({ addr, truncate = false, long = false }: { addr: string; truncate?: boolean; long?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="font-mono text-xs text-[#ccc]">{truncate ? truncAddr(addr, long) : addr}</span>
+      <span className="font-mono text-xs text-[#ccc]">{truncate ? truncAddr(addr, long) : <span className="break-all">{addr}</span>}</span>
       <TonscanLink addr={addr} />
       <CopyButton text={addr} />
     </span>
@@ -184,15 +190,15 @@ export function ContentBlock({ content, hash, label }: { content?: ResolvedConte
   if (!hash || hash === zeroHash) return <span className="text-[#555]">—</span>;
 
   const text = content?.text;
-  const hasText = !!text;
+  const isLong = !!text && text.length > 150;
 
   return (
     <div>
-      <div className={`${!expanded && hasText ? 'max-h-[80px] overflow-hidden' : ''}`}>
+      <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
         {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : <span className="text-[#555] font-mono text-xs break-all">{hash}</span>}
       </div>
-      <div className="flex items-center gap-2 mt-1.5">
-        {hasText && (
+      <div className="flex items-center gap-2 mt-1">
+        {isLong && (
           <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors" title={expanded ? 'Collapse' : 'Expand'}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
           </button>

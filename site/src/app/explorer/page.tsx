@@ -7,8 +7,8 @@ import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
-  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, CopyButton,
-  AddrWithActions, LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_DOTS,
+  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, CopyButton, AIBadge,
+  AddrWithActions, LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_COLORS,
 } from './shared';
 
 type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed' | 'transactions';
@@ -137,21 +137,21 @@ export default function ExplorerPage() {
               <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-xs font-mono uppercase">
-                    <th className="text-left px-4 py-2.5">Event</th>
-                    <th className="text-left px-4 py-2.5">Job</th>
-                    <th className="text-left px-4 py-2.5 hidden sm:table-cell">From</th>
-                    <th className="text-left px-4 py-2.5">Amount</th>
-                    <th className="text-left px-4 py-2.5">Time</th>
+                    <th className="text-left px-3 py-2">Event</th>
+                    <th className="text-left px-3 py-2">Job</th>
+                    <th className="text-left px-3 py-2 hidden md:table-cell">From</th>
+                    <th className="text-left px-3 py-2 hidden sm:table-cell">Amount</th>
+                    <th className="text-left px-3 py-2">Time</th>
                   </tr></thead>
                   <tbody>
                     {allActivity.slice(0, 15).map((ev, i) => (
                       <tr key={`${ev.address}-${ev.event}-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                         className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
-                        <td className="px-4 py-2.5 whitespace-nowrap"><span className={`${STATUS_DOTS[ev.status]} mr-1.5`}>●</span>{ev.event}</td>
-                        <td className="px-4 py-2.5 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
-                        <td className="px-4 py-2.5 hidden sm:table-cell">{ev.from ? <span className="inline-flex items-center gap-1 font-mono text-xs text-[#888]">{truncAddr(ev.from)} <TonscanLink addr={ev.from} size={12} /></span> : '—'}</td>
-                        <td className="px-4 py-2.5 text-[#ccc]">{ev.budget ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
+                        <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <span className="inline-flex items-center gap-1 font-mono text-xs text-[#888]">{truncAddr(ev.from)} <TonscanLink addr={ev.from} size={12} /></span> : '—'}</td>
+                        <td className="px-3 py-2 text-[#ccc] text-sm hidden sm:table-cell">{ev.amount}</td>
+                        <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -187,10 +187,10 @@ export default function ExplorerPage() {
                       {txOnPage.map((ev, i) => (
                         <tr key={`tx-${txPage}-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                           className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
-                          <td className="px-4 py-2.5 whitespace-nowrap"><span className={`${STATUS_DOTS[ev.status]} mr-1.5`}>●</span>{ev.event}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-4 py-2.5 hidden sm:table-cell">{ev.from ? <span className="inline-flex items-center gap-1 font-mono text-xs text-[#888]">{truncAddr(ev.from)} <TonscanLink addr={ev.from} size={12} /></span> : '—'}</td>
-                          <td className="px-4 py-2.5 text-[#ccc]">{ev.budget ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-[#ccc]">{ev.amount}</td>
                           <td className="px-4 py-2.5 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                         </tr>
                       ))}
@@ -224,7 +224,7 @@ export default function ExplorerPage() {
                           <td className="px-4 py-3"><Badge status={job.stateName} /></td>
                           <td className="px-4 py-3 text-[#ccc]"><BudgetDisplay job={job} /></td>
                           <td className="px-4 py-3 hidden md:table-cell"><span className="font-mono text-xs text-[#888]">{truncAddr(job.client)}</span></td>
-                          <td className="px-4 py-3 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <span className="text-xs text-[#3B82F6]">🤖 AI</span> : <span className="font-mono text-xs text-[#888]">{truncAddr(job.evaluator)}</span>}</td>
+                          <td className="px-4 py-3 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <AIBadge /> : <span className="font-mono text-xs text-[#888]">{truncAddr(job.evaluator)}</span>}</td>
                           <td className="px-4 py-3 hidden md:table-cell text-[#555] text-xs">{txCount(job)}</td>
                           <td className="px-4 py-3 text-[#555] text-xs hidden md:table-cell whitespace-nowrap">{fmtDateShort(job.createdAt)}</td>
                         </tr>

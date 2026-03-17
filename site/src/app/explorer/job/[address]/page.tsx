@@ -6,9 +6,9 @@ import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
-  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData,
-  Badge, Shimmer, TypeIcon, AddrWithActions, Row, ContentBlock, TonscanLink,
-  BudgetDisplay, fmtDate, fmtTimeout, truncAddr, tonscanUrl, CopyButton,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS,
+  Badge, Shimmer, TypeIcon, AddrWithActions, Row, ContentBlock, TonscanLink, AIBadge,
+  BudgetDisplay, fmtDate, fmtTimeout, tonscanUrl,
 } from '../../shared';
 
 const TIMELINE_STATES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED'];
@@ -54,8 +54,8 @@ export default function JobPage() {
               <TypeIcon type={job.type} size={20} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              <div className="lg:col-span-3 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+              <div className="lg:col-span-3 space-y-4">
                 <Section title="Overview">
                   <div className="space-y-3">
                     <Row label="Address"><AddrWithActions addr={job.address} /></Row>
@@ -91,30 +91,30 @@ export default function JobPage() {
                 {/* Transaction Cards */}
                 <Section title="Transactions">
                   <div className="space-y-3">
-                    <TxCard color="#4ADE80" label="Created" time={fmtDate(job.createdAt)} jobAddr={job.address}>
+                    <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} jobAddr={job.address}>
                       <TxRow label="Client"><AddrWithActions addr={job.client} truncate long /></TxRow>
                       <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
                     </TxCard>
 
                     {job.state >= 1 && (
-                      <TxCard color="#F59E0B" label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
-                        <TxRow label="Amount"><BudgetDisplay job={job} /></TxRow>
+                      <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
+                        <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
                       </TxCard>
                     )}
 
                     {job.submittedAt > 0 && (
-                      <TxCard color="#3B82F6" label="Submitted" time={fmtDate(job.submittedAt)} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} jobAddr={job.address}>
                         {job.provider && job.provider !== 'none' && <TxRow label="Provider"><AddrWithActions addr={job.provider} truncate long /></TxRow>}
                         {job.resultContent?.text && <TxRow label="Result"><span className="text-[#ccc] text-xs">{job.resultContent.text.slice(0, 80)}{job.resultContent.text.length > 80 ? '...' : ''}</span></TxRow>}
                       </TxCard>
                     )}
 
                     {job.stateName === 'COMPLETED' && (
-                      <TxCard color="#4ADE80" label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
                         <TxRow label="Evaluator">
                           <span className="inline-flex items-center gap-1.5">
                             <AddrWithActions addr={job.evaluator} truncate long />
-                            {job.evaluator === AI_EVALUATOR && <span className="text-xs text-[#3B82F6]">🤖</span>}
+                            {job.evaluator === AI_EVALUATOR && <AIBadge />}
                           </span>
                         </TxRow>
                         <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
@@ -122,9 +122,14 @@ export default function JobPage() {
                       </TxCard>
                     )}
 
-                    {job.stateName === 'CANCELLED' && <TxCard color="#6B7280" label="Cancelled" jobAddr={job.address}><TxRow label="Action">Funds refunded to client</TxRow></TxCard>}
+                    {job.stateName === 'CANCELLED' && (
+                      <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" jobAddr={job.address}>
+                        <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
+                      </TxCard>
+                    )}
+
                     {job.stateName === 'DISPUTED' && (
-                      <TxCard color="#EF4444" label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
                         <TxRow label="Evaluator"><AddrWithActions addr={job.evaluator} truncate long /></TxRow>
                         <TxRow label="Action">Result rejected, funds refunded</TxRow>
                       </TxCard>
@@ -133,7 +138,7 @@ export default function JobPage() {
                 </Section>
               </div>
 
-              <div className="lg:col-span-2 space-y-6">
+              <div className="lg:col-span-2 space-y-4">
                 <Section title="Participants">
                   <div className="space-y-4">
                     <div><div className="text-[#555] text-xs mb-1">Client</div><AddrWithActions addr={job.client} truncate long /></div>
@@ -143,7 +148,7 @@ export default function JobPage() {
                     <div><div className="text-[#555] text-xs mb-1">Evaluator</div>
                       <div className="flex items-center gap-2">
                         <AddrWithActions addr={job.evaluator} truncate long />
-                        {job.evaluator === AI_EVALUATOR && <span className="text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono">🤖 AI</span>}
+                        {job.evaluator === AI_EVALUATOR && <AIBadge />}
                       </div>
                     </div>
                   </div>
@@ -163,7 +168,7 @@ export default function JobPage() {
                         <div key={s} className="flex gap-3">
                           <div className="flex flex-col items-center">
                             {isCurrent && reached
-                              ? <div className="w-4 h-4 rounded-full border-2 border-[#4ADE80] bg-[#4ADE8040] shadow-[0_0_8px_#4ADE8060]" />
+                              ? <div className="w-[10px] h-[10px] rounded-full border-2 border-[#4ADE80] bg-[#4ADE8040] shadow-[0_0_8px_#4ADE8060]" />
                               : <div className={`w-3 h-3 rounded-full border-2 ${reached ? 'border-[#4ADE80] bg-[#4ADE8040]' : 'border-[#333]'}`} />}
                             {i < TIMELINE_STATES.length - 1 && (
                               i < reachedIndex
@@ -171,17 +176,19 @@ export default function JobPage() {
                                 : <div className="w-px h-8 border-l border-dashed border-[#333]" />
                             )}
                           </div>
-                          <div className="pb-6 flex items-start gap-2">
-                            <div>
-                              <div className={`text-sm ${reached ? 'text-white' : 'text-[#555]'}`}>{finalLabel}</div>
-                              {time && <div className="text-[#555] text-xs">{time}</div>}
-                            </div>
-                            {reached && <TonscanLink addr={job.address} size={12} />}
+                          <div className="pb-5">
+                            <div className={`text-sm ${reached ? 'text-white' : 'text-[#555]'}`}>{finalLabel}</div>
+                            {time && <div className="text-[#555] text-xs">{time}</div>}
                           </div>
                         </div>
                       );
                     })}
                   </div>
+                  <a href={tonscanUrl(job.address)} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-[#555] hover:text-white transition-colors mt-2">
+                    <TonscanLink addr={job.address} size={14} />
+                    View all transactions on TONScan
+                  </a>
                 </Section>
               </div>
             </div>
