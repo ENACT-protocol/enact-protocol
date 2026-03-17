@@ -106,8 +106,10 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, txHash: txAt(idx)?.hash };
     };
 
-    if (j.createdAt) events.push(mk('Created', 'OPEN', j.createdAt, bf, j.client, txIdx.created));
-    if (j.state >= 1 && j.createdAt) events.push(mk('Funded', 'FUNDED', j.createdAt + 1, bf, j.client, txIdx.funded));
+    // createdAt may come from tx utime for OPEN jobs (contract sets it at fund time)
+    const createTime = j.createdAt || txs[0]?.utime || 0;
+    if (createTime) events.push(mk('Created', 'OPEN', createTime, bf, j.client, txIdx.created));
+    if (j.state >= 1 && createTime) events.push(mk('Funded', 'FUNDED', j.createdAt || createTime + 1, bf, j.client, txIdx.funded));
     if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? '', txIdx.submitted));
     if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator, txIdx.terminal));
     if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client, txIdx.terminal));

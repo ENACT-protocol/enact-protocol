@@ -100,7 +100,7 @@ export default function JobPage() {
                             </span>
                             {job.reasonContent?.text && <span className="text-[#ccc]"> — {job.reasonContent.text}</span>}
                           </span>
-                          <CopyHash hash={job.descHash} />
+                          <CopyHash hash={job.resultHash} />
                         </div>
                       </div>
                     )}

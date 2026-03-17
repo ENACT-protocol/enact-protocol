@@ -6,14 +6,20 @@ const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const PINATA_GW = process.env.PINATA_GATEWAY || 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 const API_KEY = process.env.TONCENTER_API_KEY || '';
+const TERMINAL_STATES = ['COMPLETED', 'DISPUTED', 'CANCELLED'];
 
-interface CachedData { data: any; timestamp: number; }
-let cache: CachedData | null = null;
-const CACHE_TTL = 30_000;
+// ─── Caches ───
 
+interface CachedResponse { data: any; timestamp: number; }
+let responseCache: CachedResponse | null = null;
+const RESPONSE_TTL = 30_000;
+
+// Permanent cache for terminal-state jobs (they never change)
+const permanentJobCache = new Map<string, any>(); // key = "factory:id"
+
+// CID cache for IPFS lookups
 const CID_CACHE_MAX = 500;
 const cidCache = new Map<string, { cid: string; text: string | null }>();
-
 function cidCacheSet(key: string, value: { cid: string; text: string | null }) {
   if (cidCache.size >= CID_CACHE_MAX) {
     const firstKey = cidCache.keys().next().value;
@@ -21,6 +27,8 @@ function cidCacheSet(key: string, value: { cid: string; text: string | null }) {
   }
   cidCache.set(key, value);
 }
+
+// ─── Content Resolution ───
 
 async function resolveContent(hash: string): Promise<{
   text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string;
@@ -62,7 +70,8 @@ async function resolveContent(hash: string): Promise<{
   return { text: null, source: 'hash' };
 }
 
-// Fetch transactions for a job contract address from toncenter
+// ─── Transaction Fetching ───
+
 interface TxInfo { hash: string; fee: string; utime: number; }
 
 async function fetchJobTransactions(jobAddress: string): Promise<TxInfo[]> {
@@ -72,17 +81,71 @@ async function fetchJobTransactions(jobAddress: string): Promise<TxInfo[]> {
     if (!res.ok) return [];
     const data = await res.json();
     if (!data.ok || !data.result) return [];
-    return data.result.map((tx: any) => {
-      const hash = tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '';
-      // Use compute fee (fee field) — this is the actual gas consumed by the contract
-      const totalFee = Number(tx.fee || 0);
-      return {
-        hash,
-        fee: (totalFee / 1e9).toFixed(4),
-        utime: tx.utime || 0,
-      };
-    });
+    return data.result.map((tx: any) => ({
+      hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
+      fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
+      utime: tx.utime || 0,
+    }));
   } catch { return []; }
+}
+
+// ─── Job Fetching ───
+
+async function fetchJob(client: EnactClient, id: number, factory: string, type: 'ton' | 'usdt') {
+  const cacheKey = `${factory}:${id}`;
+
+  // Return permanent cache for terminal jobs
+  const cached = permanentJobCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const addr = await client.getJobAddress(id, factory);
+    const status = await client.getJobStatus(addr);
+
+    // Fetch transactions
+    const txs = await fetchJobTransactions(addr);
+
+    // For OPEN jobs: createdAt=0 in contract. Use first tx utime as creation time.
+    let effectiveCreatedAt = status.createdAt;
+    if (!effectiveCreatedAt && txs.length > 0) {
+      // Oldest tx = last in array (API returns newest first)
+      effectiveCreatedAt = txs[txs.length - 1].utime;
+    }
+
+    // Resolve content in parallel
+    const [desc, result, reason] = await Promise.all([
+      resolveContent(status.descHash),
+      resolveContent(status.resultHash),
+      status.state >= 3 ? resolveContent(
+        (() => { try { const r = (status as any).reason ?? ''; if (r && r !== '0') return typeof r === 'string' ? r.padStart(64, '0') : ''; } catch {} return ''; })()
+      ) : Promise.resolve({ text: null, source: 'hash' as const }),
+    ]);
+
+    const stateName = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'][status.state] ?? 'UNKNOWN';
+
+    const job = {
+      ...status,
+      createdAt: effectiveCreatedAt,
+      type,
+      budget: status.budget.toString(),
+      budgetFormatted: type === 'usdt'
+        ? `${(Number(status.budget) / 1e6).toFixed(2)} USDT`
+        : `${(Number(status.budget) / 1e9).toFixed(2)} TON`,
+      description: desc,
+      resultContent: result,
+      reasonContent: reason,
+      transactions: txs,
+    };
+
+    // Permanently cache terminal-state jobs
+    if (TERMINAL_STATES.includes(stateName)) {
+      permanentJobCache.set(cacheKey, job);
+    }
+
+    return job;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchAllJobs() {
@@ -93,39 +156,8 @@ async function fetchAllJobs() {
     client.getJettonJobCount().catch(() => 0),
   ]);
 
-  const fetchJob = async (id: number, factory: string, type: 'ton' | 'usdt') => {
-    try {
-      const addr = await client.getJobAddress(id, factory);
-      const status = await client.getJobStatus(addr);
-
-      const [desc, result, reason, txs] = await Promise.all([
-        resolveContent(status.descHash),
-        resolveContent(status.resultHash),
-        status.state >= 3 ? resolveContent(
-          (() => { try { const r = (status as any).reason ?? ''; if (r && r !== '0') return typeof r === 'string' ? r.padStart(64, '0') : ''; } catch {} return ''; })()
-        ) : Promise.resolve({ text: null, source: 'hash' as const }),
-        fetchJobTransactions(addr),
-      ]);
-
-      return {
-        ...status,
-        type,
-        budget: status.budget.toString(),
-        budgetFormatted: type === 'usdt'
-          ? `${(Number(status.budget) / 1e6).toFixed(2)} USDT`
-          : `${(Number(status.budget) / 1e9).toFixed(2)} TON`,
-        description: desc,
-        resultContent: result,
-        reasonContent: reason,
-        transactions: txs,
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const tonPromises = Array.from({ length: tonCount }, (_, i) => fetchJob(i, FACTORY, 'ton'));
-  const jettonPromises = Array.from({ length: jettonCount }, (_, i) => fetchJob(i, JETTON_FACTORY, 'usdt'));
+  const tonPromises = Array.from({ length: tonCount }, (_, i) => fetchJob(client, i, FACTORY, 'ton'));
+  const jettonPromises = Array.from({ length: jettonCount }, (_, i) => fetchJob(client, i, JETTON_FACTORY, 'usdt'));
 
   const [tonResults, jettonResults] = await Promise.all([
     Promise.all(tonPromises),
@@ -145,13 +177,14 @@ async function fetchAllJobs() {
 
 export async function GET() {
   try {
-    if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
-      return NextResponse.json(cache.data);
+    if (responseCache && Date.now() - responseCache.timestamp < RESPONSE_TTL) {
+      return NextResponse.json(responseCache.data);
     }
     const data = await fetchAllJobs();
-    cache = { data, timestamp: Date.now() };
+    responseCache = { data, timestamp: Date.now() };
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
