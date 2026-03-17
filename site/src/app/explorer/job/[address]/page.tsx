@@ -8,7 +8,7 @@ import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData,
   Badge, Shimmer, TypeIcon, AddrWithActions, Row, ContentDisplay,
-  BudgetDisplay, fmtDate, fmtTimeout, truncAddr, CopyButton,
+  BudgetDisplay, fmtDate, fmtTimeout,
 } from '../../shared';
 
 const TIMELINE_STATES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED'];
@@ -24,12 +24,13 @@ export default function JobPage() {
   }, [data, address]);
 
   const stateIndex = job ? TIMELINE_STATES.indexOf(job.stateName) : -1;
+  const reachedIndex = job ? (job.stateName === 'COMPLETED' ? 3 : job.stateName === 'CANCELLED' ? 1 : job.stateName === 'DISPUTED' ? 2 : stateIndex) : -1;
   const isFinal = job ? ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(job.stateName) : false;
 
   return (
     <>
       <Header />
-      <main className="min-h-screen pt-20 pb-16 px-4 sm:px-6 max-w-[1200px] mx-auto">
+      <main className="min-h-screen pt-20 pb-12 px-4 sm:px-6 max-w-[1200px] mx-auto">
         <div className="flex items-center gap-2 text-sm text-[#555] mb-6">
           <Link href="/explorer" className="hover:text-white transition-colors">← Explorer</Link>
           <span>/</span>
@@ -74,20 +75,34 @@ export default function JobPage() {
 
                 <Section title="Content">
                   <div className="space-y-4">
-                    <ContentBlock label="Description" hash={job.descHash} />
-                    <ContentBlock label="Result" hash={job.resultHash} />
+                    <div>
+                      <div className="text-[#555] text-xs mb-1">Description</div>
+                      <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm"><ContentDisplay hash={job.descHash} /></div>
+                    </div>
+                    <div>
+                      <div className="text-[#555] text-xs mb-1">Result</div>
+                      <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm"><ContentDisplay hash={job.resultHash} /></div>
+                    </div>
+                    {isFinal && (
+                      <div>
+                        <div className="text-[#555] text-xs mb-1">Evaluation Reason</div>
+                        <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm">
+                          <span className="text-[#ccc]">{job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Section>
 
                 {/* Transactions */}
                 <Section title="Transactions">
                   <div className="space-y-0">
-                    <TxEvent reached={true} label="Created" time={fmtDate(job.createdAt)} detail={`Client created job with ${job.budgetFormatted} budget`} last={job.state === 0} />
+                    <TxEvent reached label="Created" time={fmtDate(job.createdAt)} detail={`Client created job with ${job.budgetFormatted} budget`} last={job.state === 0} />
                     <TxEvent reached={job.state >= 1} label="Funded" time={job.state >= 1 ? fmtDate(job.createdAt) : undefined} detail={`Budget: ${job.budgetFormatted}`} last={job.state === 1 && !isFinal} />
                     <TxEvent reached={!!job.submittedAt} label="Submitted" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail={job.submittedAt ? `Result hash: ${job.resultHash.slice(0, 16)}...` : undefined} last={job.state === 2 && !isFinal} />
-                    {job.stateName === 'COMPLETED' && <TxEvent reached={true} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail={`Payout: ${job.budgetFormatted} → Provider`} last={true} color="#4ADE80" />}
-                    {job.stateName === 'CANCELLED' && <TxEvent reached={true} label="Cancelled" time={undefined} detail="Funds refunded to client" last={true} color="#6B7280" />}
-                    {job.stateName === 'DISPUTED' && <TxEvent reached={true} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail="Result rejected, funds refunded" last={true} color="#EF4444" />}
+                    {job.stateName === 'COMPLETED' && <TxEvent reached label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail={`Payout: ${job.budgetFormatted} → Provider`} last color="#4ADE80" />}
+                    {job.stateName === 'CANCELLED' && <TxEvent reached label="Cancelled" detail="Funds refunded to client" last color="#6B7280" />}
+                    {job.stateName === 'DISPUTED' && <TxEvent reached label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail="Result rejected, funds refunded" last color="#EF4444" />}
                   </div>
                 </Section>
               </div>
@@ -120,9 +135,10 @@ export default function JobPage() {
                 <Section title="Timeline">
                   <div className="space-y-0">
                     {TIMELINE_STATES.map((s, i) => {
-                      const reached = job.state >= i;
-                      const isCurrent = (i === stateIndex) || (isFinal && i === TIMELINE_STATES.length - 1);
+                      const reached = i <= reachedIndex;
+                      const isCurrent = (i === reachedIndex) || (isFinal && s === 'COMPLETED');
                       const finalLabel = isCurrent && isFinal && s === 'COMPLETED' ? job.stateName : s;
+                      const showDashed = !reached && i > reachedIndex;
 
                       let time = '';
                       if (s === 'OPEN' && job.createdAt) time = fmtDate(job.createdAt);
@@ -137,7 +153,9 @@ export default function JobPage() {
                               <div className={`w-3 h-3 rounded-full border-2 ${reached ? 'border-[#4ADE80] bg-[#4ADE8040]' : 'border-[#333]'}`} />
                             )}
                             {i < TIMELINE_STATES.length - 1 && (
-                              <div className={`w-px h-8 ${reached && i < (stateIndex >= 0 ? stateIndex : 999) ? 'bg-[#4ADE80]' : 'border-l border-dashed border-[#333]'}`} />
+                              showDashed
+                                ? <div className="w-px h-8 border-l border-dashed border-[#333]" />
+                                : <div className={`w-px h-8 ${reached ? 'bg-[#4ADE80]' : 'bg-[#222]'}`} />
                             )}
                           </div>
                           <div className="pb-6">
@@ -201,29 +219,6 @@ function TR({ label, children }: { label: string; children: React.ReactNode }) {
     <div className="flex gap-3">
       <span className="text-[#444] w-28 shrink-0">{label}</span>
       <span className="text-[#555]">{children}</span>
-    </div>
-  );
-}
-
-function ContentBlock({ label, hash }: { label: string; hash: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const zeroHash = '0'.repeat(64);
-  const hasContent = hash && hash !== zeroHash;
-
-  return (
-    <div>
-      <div className="text-[#555] text-xs mb-1">{label}</div>
-      <div className={`bg-[#0a0a0a] rounded-lg p-3 text-sm relative ${!expanded && hasContent ? 'max-h-[200px] overflow-hidden' : ''}`}>
-        <ContentDisplay hash={hash} label={label} />
-        {!expanded && hasContent && (
-          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#0a0a0a] to-transparent flex items-end justify-center pb-1">
-            <button onClick={() => setExpanded(true)} className="text-xs text-[#0098EA] hover:underline">Show full</button>
-          </div>
-        )}
-      </div>
-      {expanded && hasContent && (
-        <button onClick={() => setExpanded(false)} className="text-xs text-[#555] hover:text-[#888] mt-1">Collapse</button>
-      )}
     </div>
   );
 }
