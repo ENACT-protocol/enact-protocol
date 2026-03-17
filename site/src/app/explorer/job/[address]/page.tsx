@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
-  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS, GAS_COSTS,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS, GAS_FALLBACK,
   Badge, Shimmer, TypeIcon, TonIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge, CopyHash,
   BudgetDisplay, fmtDate, fmtTimeout,
 } from '../../shared';
@@ -27,6 +27,12 @@ export default function JobPage() {
     ? (job.stateName === 'CANCELLED' ? 1 : job.stateName === 'COMPLETED' ? 3 : 2)
     : TL_STATES.indexOf(job.stateName)) : -1;
   const isFinal = job ? ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(job.stateName) : false;
+
+  // Get tx info by index (reversed: oldest first)
+  const txs = job?.transactions ?? [];
+  const tx = (idx: number) => txs.length > idx ? txs[txs.length - 1 - idx] : null;
+  const txGas = (idx: number, fb: string) => tx(idx)?.fee ?? fb;
+  const txHash = (idx: number) => tx(idx)?.hash ?? '';
 
   return (
     <>
@@ -96,21 +102,21 @@ export default function JobPage() {
                 {/* Transaction Cards */}
                 <Section title="Transactions">
                   <div className="space-y-3">
-                    <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} jobAddr={job.address}>
+                    <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={txHash(0)}>
                       <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
                       <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
-                      <TxGas amount={GAS_COSTS.Created} />
+                      <TxGas amount={txGas(0, GAS_FALLBACK.Created)} />
                     </TxCard>
 
                     {job.state >= 1 && (
-                      <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={txHash(1)}>
                         <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                        <TxGas amount={GAS_COSTS.Funded} />
+                        <TxGas amount={txGas(1, GAS_FALLBACK.Funded)} />
                       </TxCard>
                     )}
 
                     {job.submittedAt > 0 && (
-                      <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} txHash={txHash(2)}>
                         {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
                         <TxRow label="Result">
                           <span className="inline-flex items-center gap-1.5">
@@ -119,31 +125,31 @@ export default function JobPage() {
                             <CopyHash hash={job.resultHash} />
                           </span>
                         </TxRow>
-                        <TxGas amount={GAS_COSTS.Submitted} />
+                        <TxGas amount={txGas(2, GAS_FALLBACK.Submitted)} />
                       </TxCard>
                     )}
 
                     {job.stateName === 'COMPLETED' && (
-                      <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txHash(3)}>
                         <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</span></TxRow>
                         <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                         {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                        <TxGas amount={GAS_COSTS.Completed} />
+                        <TxGas amount={txGas(3, GAS_FALLBACK.Completed)} />
                       </TxCard>
                     )}
 
                     {job.stateName === 'CANCELLED' && (
-                      <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" txHash={txHash(2)}>
                         <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
-                        <TxGas amount={GAS_COSTS.Cancelled} />
+                        <TxGas amount={txGas(2, GAS_FALLBACK.Cancelled)} />
                       </TxCard>
                     )}
 
                     {job.stateName === 'DISPUTED' && (
-                      <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
+                      <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txHash(3)}>
                         <TxRow label="Evaluator"><ClickAddr addr={job.evaluator} truncate /></TxRow>
                         <TxRow label="Action">Result rejected, funds refunded</TxRow>
-                        <TxGas amount={GAS_COSTS.Disputed} />
+                        <TxGas amount={txGas(3, GAS_FALLBACK.Disputed)} />
                       </TxCard>
                     )}
                   </div>
@@ -241,7 +247,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return <div className="bg-[#111] border border-[#222] rounded-xl p-5"><div className="text-[#555] text-xs font-mono mb-4 uppercase tracking-wider">{title}</div>{children}</div>;
 }
 
-function TxCard({ color, label, time, jobAddr, children }: { color: string; label: string; time?: string; jobAddr: string; children: React.ReactNode }) {
+function TxCard({ color, label, time, txHash, children }: { color: string; label: string; time?: string; txHash?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg p-4 bg-[#0a0a0a]" style={{ borderLeft: `3px solid ${color}` }}>
       <div className="flex items-center justify-between mb-2">
@@ -249,7 +255,11 @@ function TxCard({ color, label, time, jobAddr, children }: { color: string; labe
           <span style={{ color }} className="text-lg leading-none">●</span>
           <span className="text-white text-sm font-medium">{label}</span>
         </div>
-        <TonscanLink addr={jobAddr} />
+        {txHash && (
+          <a href={`https://tonscan.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View transaction on TONScan">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none"><path fill="currentColor" d="M4.14 6.881c0 .199.483.684.84.676.358-.007.88-.452.88-.676 0-.223-.523-.257-.839-.257s-.88.059-.88.257M2.677 5.679c.517.201 1.04.09 1.168-.247s-.189-.774-.706-.976-.958-.225-1.086.113c-.127.337.107.908.624 1.11M6.158 5.432c.128.338.66.425 1.15.188.488-.236.717-.713.59-1.051-.128-.338-.517-.315-1.035-.113s-.833.639-.705.976"/><path fill="currentColor" fillRule="evenodd" d="M1.814.343c.435.267.995.698 1.677 1.284Q4.4 1.469 5 1.468q.597.001 1.494.159C7.18 1.053 7.742.628 8.175.362c.227-.14.437-.247.62-.304.163-.05.414-.097.626.05a.7.7 0 0 1 .249.35q.066.19.093.443c.037.336.035.801-.012 1.414q-.045.581-.157 1.22c.404.768.503 1.627.314 2.557-.186.912-.784 1.726-1.672 2.468C7.368 9.285 6.292 10 4.99 10c-1.29 0-2.57-.733-3.338-1.454C.9 7.84.395 7.143.16 6.342-.114 5.416-.033 4.48.386 3.55q-.121-.67-.156-1.24C.188 1.59.177 1.13.21.824.225.67.254.531.31.411A.75.75 0 0 1 .544.118c.209-.16.462-.127.637-.077.19.054.403.16.633.302M.982.738.96.732A1 1 0 0 0 .93.9c-.025.237-.02.64.024 1.368q.032.56.165 1.262l.022.116-.051.107C.697 4.574.626 5.363.854 6.138c.186.632.595 1.222 1.295 1.88.686.644 1.798 1.257 2.842 1.257 1.033 0 1.938-.567 2.78-1.27.82-.687 1.286-1.368 1.426-2.057.169-.829.063-1.545-.297-2.171l-.066-.116.024-.131q.125-.675.17-1.27c.046-.594.044-1.009.014-1.28a1.5 1.5 0 0 0-.039-.227c-.1.032-.247.103-.45.227-.412.253-.984.686-1.721 1.31L6.7 2.4l-.169-.03C5.88 2.25 5.372 2.193 5 2.193q-.555-.001-1.552.177l-.17.03-.132-.113C2.414 1.65 1.846 1.212 1.435.96A2 2 0 0 0 .982.738" clipRule="evenodd"/></svg>
+          </a>
+        )}
       </div>
       {time && <div className="text-[#555] text-xs mb-2">{time}</div>}
       <div className="space-y-1.5">{children}</div>

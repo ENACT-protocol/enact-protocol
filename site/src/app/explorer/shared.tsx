@@ -21,7 +21,8 @@ export const STATUS_COLORS: Record<string, string> = {
   COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
-export const GAS_COSTS: Record<string, string> = {
+// Fallback gas estimates when real tx data unavailable
+export const GAS_FALLBACK: Record<string, string> = {
   Created: '0.013', Funded: '0.011', Submitted: '0.010',
   Completed: '0.009', Cancelled: '0.010', Disputed: '0.009',
 };
@@ -35,6 +36,7 @@ export type Job = {
   descHash: string; resultHash: string; timeout: number; createdAt: number;
   evalTimeout: number; submittedAt: number;
   description?: ResolvedContent; resultContent?: ResolvedContent; reasonContent?: ResolvedContent;
+  transactions?: Array<{ hash: string; fee: string; utime: number }>;
 };
 
 export type ExplorerData = {
@@ -45,7 +47,7 @@ export type ExplorerData = {
 
 export type ActivityEvent = {
   jobId: number; type: 'ton' | 'usdt'; address: string; event: string; status: string;
-  time: number; amount: string; from: string; gas: string;
+  time: number; amount: string; from: string; gas: string; txHash?: string;
 };
 
 export function truncAddr(a: string) {
@@ -92,12 +94,19 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
   for (const j of jobs) {
     const bf = j.budgetFormatted;
-    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client, gas: GAS_COSTS.Created });
-    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client, gas: GAS_COSTS.Funded });
-    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '', gas: GAS_COSTS.Submitted });
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator, gas: GAS_COSTS.Completed });
-    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, gas: GAS_COSTS.Cancelled });
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator, gas: GAS_COSTS.Disputed });
+    // Map transactions by time (reversed = oldest first in contract)
+    const txs = j.transactions ?? [];
+    const txByIdx = (idx: number) => txs.length > idx ? txs[txs.length - 1 - idx] : null;
+    const gasOf = (idx: number, fallback: string) => txByIdx(idx)?.fee ?? fallback;
+    const hashOf = (idx: number) => txByIdx(idx)?.hash ?? '';
+
+    let txIdx = 0;
+    if (j.createdAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client, gas: gasOf(txIdx, GAS_FALLBACK.Created), txHash: hashOf(txIdx) } as any); txIdx++; }
+    if (j.state >= 1 && j.createdAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client, gas: gasOf(txIdx, GAS_FALLBACK.Funded), txHash: hashOf(txIdx) } as any); txIdx++; }
+    if (j.submittedAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '', gas: gasOf(txIdx, GAS_FALLBACK.Submitted), txHash: hashOf(txIdx) } as any); txIdx++; }
+    if (j.stateName === 'COMPLETED' && j.submittedAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator, gas: gasOf(txIdx, GAS_FALLBACK.Completed), txHash: hashOf(txIdx) } as any); }
+    if (j.stateName === 'CANCELLED') { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, gas: gasOf(txIdx, GAS_FALLBACK.Cancelled), txHash: hashOf(txIdx) } as any); }
+    if (j.stateName === 'DISPUTED' && j.submittedAt) { events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator, gas: gasOf(txIdx, GAS_FALLBACK.Disputed), txHash: hashOf(txIdx) } as any); }
   }
   return events.sort((a, b) => b.time - a.time);
 }
