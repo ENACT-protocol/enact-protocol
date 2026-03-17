@@ -7,7 +7,7 @@ import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, useExplorerData, buildActivity, txCount,
-  Badge, Shimmer, TypeIcon, AddrWithActions, Row, TonscanLink, CopyButton,
+  Badge, Shimmer, TypeIcon, ClickAddr, Row, TonscanLink,
   LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_COLORS,
 } from '../../shared';
 
@@ -57,7 +57,7 @@ export default function FactoryPage() {
 
             <div className="bg-[#111] border border-[#222] rounded-xl p-5 mb-6">
               <div className="space-y-3">
-                <Row label="Address"><AddrWithActions addr={info.address} /></Row>
+                <Row label="Address"><ClickAddr addr={info.address} /></Row>
                 <Row label="Type">{info.type === 'ton' ? 'TON Escrow' : 'USDT/Jetton Escrow'}</Row>
                 <Row label="Network">Mainnet</Row>
               </div>
@@ -95,7 +95,7 @@ export default function FactoryPage() {
                     <tbody>
                       {activity.map((ev, i) => (
                         <tr key={i} onClick={() => router.push(`/explorer/job/${ev.address}`)} className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
-                          <td className="px-4 py-2.5"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
+                          <td className="px-4 py-2.5"><span style={{ color: STATUS_COLORS[ev.status] || '#888' }} className="mr-1.5">●</span>{ev.event}</td>
                           <td className="px-4 py-2.5 text-white">#{ev.jobId}</td>
                           <td className="px-4 py-2.5 hidden sm:table-cell font-mono text-xs text-[#888]">{truncAddr(ev.from)}</td>
                           <td className="px-4 py-2.5 text-[#555] text-xs">{timeAgo(ev.time)}</td>
