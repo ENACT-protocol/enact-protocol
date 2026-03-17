@@ -7,8 +7,8 @@ import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData,
-  Badge, Shimmer, TypeIcon, AddrWithActions, Row, ContentDisplay,
-  BudgetDisplay, fmtDate, fmtTimeout,
+  Badge, Shimmer, TypeIcon, AddrWithActions, Row, ContentBlock, TonscanLink,
+  BudgetDisplay, fmtDate, fmtTimeout, truncAddr, tonscanUrl, CopyButton,
 } from '../../shared';
 
 const TIMELINE_STATES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED'];
@@ -23,8 +23,7 @@ export default function JobPage() {
     return [...data.tonJobs, ...data.jettonJobs].find(j => j.address === address) ?? null;
   }, [data, address]);
 
-  const stateIndex = job ? TIMELINE_STATES.indexOf(job.stateName) : -1;
-  const reachedIndex = job ? (job.stateName === 'COMPLETED' ? 3 : job.stateName === 'CANCELLED' ? 1 : job.stateName === 'DISPUTED' ? 2 : stateIndex) : -1;
+  const reachedIndex = job ? (job.stateName === 'COMPLETED' ? 3 : job.stateName === 'CANCELLED' ? 1 : job.stateName === 'DISPUTED' ? 2 : TIMELINE_STATES.indexOf(job.stateName)) : -1;
   const isFinal = job ? ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(job.stateName) : false;
 
   return (
@@ -38,12 +37,8 @@ export default function JobPage() {
         </div>
 
         {loading ? (
-          <div className="space-y-4">
-            <Shimmer className="h-12 w-64 rounded-lg" />
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              <Shimmer className="h-80 rounded-xl lg:col-span-3" />
-              <Shimmer className="h-80 rounded-xl lg:col-span-2" />
-            </div>
+          <div className="space-y-4"><Shimmer className="h-12 w-64 rounded-lg" />
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6"><Shimmer className="h-80 rounded-xl lg:col-span-3" /><Shimmer className="h-80 rounded-xl lg:col-span-2" /></div>
           </div>
         ) : !job ? (
           <div className="bg-[#111] border border-[#222] rounded-xl p-8 text-center">
@@ -60,7 +55,6 @@ export default function JobPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              {/* Left column */}
               <div className="lg:col-span-3 space-y-6">
                 <Section title="Overview">
                   <div className="space-y-3">
@@ -75,71 +69,92 @@ export default function JobPage() {
 
                 <Section title="Content">
                   <div className="space-y-4">
-                    <div>
-                      <div className="text-[#555] text-xs mb-1">Description</div>
-                      <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm"><ContentDisplay hash={job.descHash} /></div>
+                    <div><div className="text-[#555] text-xs mb-1">Description</div>
+                      <div className="bg-[#0a0a0a] rounded-lg p-3"><ContentBlock content={job.description} hash={job.descHash} label="description" /></div>
                     </div>
-                    <div>
-                      <div className="text-[#555] text-xs mb-1">Result</div>
-                      <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm"><ContentDisplay hash={job.resultHash} /></div>
+                    <div><div className="text-[#555] text-xs mb-1">Result</div>
+                      <div className="bg-[#0a0a0a] rounded-lg p-3"><ContentBlock content={job.resultContent} hash={job.resultHash} label="result" /></div>
                     </div>
                     {isFinal && (
-                      <div>
-                        <div className="text-[#555] text-xs mb-1">Evaluation Reason</div>
+                      <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm">
-                          <span className="text-[#ccc]">{job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}</span>
+                          <span className={job.stateName === 'COMPLETED' ? 'text-[#4ADE80]' : 'text-[#EF4444]'}>
+                            {job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}
+                          </span>
+                          {job.reasonContent?.text && <div className="text-[#ccc] mt-1">{job.reasonContent.text}</div>}
                         </div>
                       </div>
                     )}
                   </div>
                 </Section>
 
-                {/* Transactions */}
+                {/* Transaction Cards */}
                 <Section title="Transactions">
-                  <div className="space-y-0">
-                    <TxEvent reached label="Created" time={fmtDate(job.createdAt)} detail={`Client created job with ${job.budgetFormatted} budget`} last={job.state === 0} />
-                    <TxEvent reached={job.state >= 1} label="Funded" time={job.state >= 1 ? fmtDate(job.createdAt) : undefined} detail={`Budget: ${job.budgetFormatted}`} last={job.state === 1 && !isFinal} />
-                    <TxEvent reached={!!job.submittedAt} label="Submitted" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail={job.submittedAt ? `Result hash: ${job.resultHash.slice(0, 16)}...` : undefined} last={job.state === 2 && !isFinal} />
-                    {job.stateName === 'COMPLETED' && <TxEvent reached label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail={`Payout: ${job.budgetFormatted} → Provider`} last color="#4ADE80" />}
-                    {job.stateName === 'CANCELLED' && <TxEvent reached label="Cancelled" detail="Funds refunded to client" last color="#6B7280" />}
-                    {job.stateName === 'DISPUTED' && <TxEvent reached label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} detail="Result rejected, funds refunded" last color="#EF4444" />}
+                  <div className="space-y-3">
+                    <TxCard color="#4ADE80" label="Created" time={fmtDate(job.createdAt)} jobAddr={job.address}>
+                      <TxRow label="Client"><AddrWithActions addr={job.client} truncate long /></TxRow>
+                      <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
+                    </TxCard>
+
+                    {job.state >= 1 && (
+                      <TxCard color="#F59E0B" label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
+                        <TxRow label="Amount"><BudgetDisplay job={job} /></TxRow>
+                      </TxCard>
+                    )}
+
+                    {job.submittedAt > 0 && (
+                      <TxCard color="#3B82F6" label="Submitted" time={fmtDate(job.submittedAt)} jobAddr={job.address}>
+                        {job.provider && job.provider !== 'none' && <TxRow label="Provider"><AddrWithActions addr={job.provider} truncate long /></TxRow>}
+                        {job.resultContent?.text && <TxRow label="Result"><span className="text-[#ccc] text-xs">{job.resultContent.text.slice(0, 80)}{job.resultContent.text.length > 80 ? '...' : ''}</span></TxRow>}
+                      </TxCard>
+                    )}
+
+                    {job.stateName === 'COMPLETED' && (
+                      <TxCard color="#4ADE80" label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
+                        <TxRow label="Evaluator">
+                          <span className="inline-flex items-center gap-1.5">
+                            <AddrWithActions addr={job.evaluator} truncate long />
+                            {job.evaluator === AI_EVALUATOR && <span className="text-xs text-[#3B82F6]">🤖</span>}
+                          </span>
+                        </TxRow>
+                        <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
+                        {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
+                      </TxCard>
+                    )}
+
+                    {job.stateName === 'CANCELLED' && <TxCard color="#6B7280" label="Cancelled" jobAddr={job.address}><TxRow label="Action">Funds refunded to client</TxRow></TxCard>}
+                    {job.stateName === 'DISPUTED' && (
+                      <TxCard color="#EF4444" label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
+                        <TxRow label="Evaluator"><AddrWithActions addr={job.evaluator} truncate long /></TxRow>
+                        <TxRow label="Action">Result rejected, funds refunded</TxRow>
+                      </TxCard>
+                    )}
                   </div>
                 </Section>
               </div>
 
-              {/* Right column */}
               <div className="lg:col-span-2 space-y-6">
                 <Section title="Participants">
                   <div className="space-y-4">
-                    <div>
-                      <div className="text-[#555] text-xs mb-1">Client</div>
-                      <AddrWithActions addr={job.client} truncate long />
+                    <div><div className="text-[#555] text-xs mb-1">Client</div><AddrWithActions addr={job.client} truncate long /></div>
+                    <div><div className="text-[#555] text-xs mb-1">Provider</div>
+                      {job.provider && job.provider !== 'none' ? <AddrWithActions addr={job.provider} truncate long /> : <span className="text-[#555] text-sm">Not assigned</span>}
                     </div>
-                    <div>
-                      <div className="text-[#555] text-xs mb-1">Provider</div>
-                      {job.provider && job.provider !== 'none'
-                        ? <AddrWithActions addr={job.provider} truncate long />
-                        : <span className="text-[#555] text-sm">Not assigned</span>}
-                    </div>
-                    <div>
-                      <div className="text-[#555] text-xs mb-1">Evaluator</div>
+                    <div><div className="text-[#555] text-xs mb-1">Evaluator</div>
                       <div className="flex items-center gap-2">
                         <AddrWithActions addr={job.evaluator} truncate long />
                         {job.evaluator === AI_EVALUATOR && <span className="text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono">🤖 AI</span>}
                       </div>
-                      {job.evaluator === AI_EVALUATOR && <div className="text-[#555] text-xs mt-0.5">AI Evaluator</div>}
                     </div>
                   </div>
                 </Section>
 
                 <Section title="Timeline">
-                  <div className="space-y-0">
+                  <div>
                     {TIMELINE_STATES.map((s, i) => {
                       const reached = i <= reachedIndex;
-                      const isCurrent = (i === reachedIndex) || (isFinal && s === 'COMPLETED');
+                      const isCurrent = i === reachedIndex;
                       const finalLabel = isCurrent && isFinal && s === 'COMPLETED' ? job.stateName : s;
-                      const showDashed = !reached && i > reachedIndex;
-
                       let time = '';
                       if (s === 'OPEN' && job.createdAt) time = fmtDate(job.createdAt);
                       if (s === 'SUBMITTED' && job.submittedAt) time = fmtDate(job.submittedAt);
@@ -147,20 +162,21 @@ export default function JobPage() {
                       return (
                         <div key={s} className="flex gap-3">
                           <div className="flex flex-col items-center">
-                            {isCurrent && reached ? (
-                              <div className="w-4 h-4 rounded-full border-2 border-[#4ADE80] bg-[#4ADE8040] shadow-[0_0_8px_#4ADE8060]" />
-                            ) : (
-                              <div className={`w-3 h-3 rounded-full border-2 ${reached ? 'border-[#4ADE80] bg-[#4ADE8040]' : 'border-[#333]'}`} />
-                            )}
+                            {isCurrent && reached
+                              ? <div className="w-4 h-4 rounded-full border-2 border-[#4ADE80] bg-[#4ADE8040] shadow-[0_0_8px_#4ADE8060]" />
+                              : <div className={`w-3 h-3 rounded-full border-2 ${reached ? 'border-[#4ADE80] bg-[#4ADE8040]' : 'border-[#333]'}`} />}
                             {i < TIMELINE_STATES.length - 1 && (
-                              showDashed
-                                ? <div className="w-px h-8 border-l border-dashed border-[#333]" />
-                                : <div className={`w-px h-8 ${reached ? 'bg-[#4ADE80]' : 'bg-[#222]'}`} />
+                              i < reachedIndex
+                                ? <div className="w-px h-8 bg-[#4ADE80]" />
+                                : <div className="w-px h-8 border-l border-dashed border-[#333]" />
                             )}
                           </div>
-                          <div className="pb-6">
-                            <div className={`text-sm ${reached ? 'text-white' : 'text-[#555]'}`}>{finalLabel}</div>
-                            {time && <div className="text-[#555] text-xs">{time}</div>}
+                          <div className="pb-6 flex items-start gap-2">
+                            <div>
+                              <div className={`text-sm ${reached ? 'text-white' : 'text-[#555]'}`}>{finalLabel}</div>
+                              {time && <div className="text-[#555] text-xs">{time}</div>}
+                            </div>
+                            {reached && <TonscanLink addr={job.address} size={12} />}
                           </div>
                         </div>
                       );
@@ -170,25 +186,17 @@ export default function JobPage() {
               </div>
             </div>
 
-            {/* Technical Details */}
             <div className="mt-4">
-              <button onClick={() => setShowTech(!showTech)}
-                className="flex items-center gap-2 text-xs text-[#555] hover:text-[#888] transition-colors font-mono">
-                <span className={`transform transition-transform ${showTech ? 'rotate-90' : ''}`}>▶</span>
-                Technical Details
+              <button onClick={() => setShowTech(!showTech)} className="flex items-center gap-2 text-xs text-[#555] hover:text-[#888] transition-colors font-mono">
+                <span className={`transform transition-transform ${showTech ? 'rotate-90' : ''}`}>▶</span> Technical Details
               </button>
               {showTech && (
                 <div className="mt-3 bg-[#111] border border-[#222] rounded-xl p-5 text-[13px] text-[#555] font-mono space-y-1">
-                  <TR label="jobId">{job.jobId}</TR>
-                  <TR label="state">{job.state} ({job.stateName})</TR>
-                  <TR label="descHash"><span className="break-all">{job.descHash}</span></TR>
-                  <TR label="resultHash"><span className="break-all">{job.resultHash}</span></TR>
-                  <TR label="timeout">{job.timeout}</TR>
-                  <TR label="evalTimeout">{job.evalTimeout}</TR>
-                  <TR label="createdAt">{job.createdAt}</TR>
-                  <TR label="submittedAt">{job.submittedAt}</TR>
-                  <TR label="budget (raw)">{job.budget}</TR>
-                  <TR label="factory">{job.type === 'ton' ? FACTORY : JETTON_FACTORY}</TR>
+                  {[['jobId', job.jobId], ['state', `${job.state} (${job.stateName})`], ['descHash', job.descHash], ['resultHash', job.resultHash],
+                    ['timeout', job.timeout], ['evalTimeout', job.evalTimeout], ['createdAt', job.createdAt], ['submittedAt', job.submittedAt],
+                    ['budget (raw)', job.budget], ['factory', job.type === 'ton' ? FACTORY : JETTON_FACTORY]].map(([k, v]) => (
+                    <div key={String(k)} className="flex gap-3"><span className="text-[#444] w-28 shrink-0">{String(k)}</span><span className="text-[#555] break-all">{String(v)}</span></div>
+                  ))}
                   <div className="pt-2 mt-2 border-t border-[#1a1a1a] text-[#444] space-y-0.5">
                     <div>Main Cell: jobId · factory · client · provider · state</div>
                     <div>Details: evaluator · budget · descHash · resultHash</div>
@@ -206,39 +214,25 @@ export default function JobPage() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="bg-[#111] border border-[#222] rounded-xl p-5"><div className="text-[#555] text-xs font-mono mb-4 uppercase tracking-wider">{title}</div>{children}</div>;
+}
+
+function TxCard({ color, label, time, jobAddr, children }: { color: string; label: string; time?: string; jobAddr: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#111] border border-[#222] rounded-xl p-5">
-      <div className="text-[#555] text-xs font-mono mb-4 uppercase tracking-wider">{title}</div>
-      {children}
+    <div className="rounded-lg p-4 bg-[#0a0a0a]" style={{ borderLeft: `3px solid ${color}` }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span style={{ color }} className="text-lg leading-none">●</span>
+          <span className="text-white text-sm font-medium">{label}</span>
+        </div>
+        <TonscanLink addr={jobAddr} />
+      </div>
+      {time && <div className="text-[#555] text-xs mb-2">{time}</div>}
+      <div className="space-y-1.5">{children}</div>
     </div>
   );
 }
 
-function TR({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <span className="text-[#444] w-28 shrink-0">{label}</span>
-      <span className="text-[#555]">{children}</span>
-    </div>
-  );
-}
-
-function TxEvent({ reached, label, time, detail, last, color }: {
-  reached: boolean; label: string; time?: string; detail?: string; last?: boolean; color?: string;
-}) {
-  if (!reached) return null;
-  const dotColor = color ?? '#4ADE80';
-  return (
-    <div className="flex gap-3">
-      <div className="flex flex-col items-center">
-        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dotColor + '60', border: `2px solid ${dotColor}` }} />
-        {!last && <div className="w-px h-full min-h-[32px]" style={{ backgroundColor: dotColor }} />}
-      </div>
-      <div className="pb-4">
-        <div className="text-white text-sm font-medium">{label}</div>
-        {time && <div className="text-[#555] text-xs">{time}</div>}
-        {detail && <div className="text-[#666] text-xs mt-0.5">{detail}</div>}
-      </div>
-    </div>
-  );
+function TxRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="flex gap-2 text-sm"><span className="text-[#555] w-20 shrink-0">{label}</span><span className="text-[#ccc] min-w-0">{children}</span></div>;
 }

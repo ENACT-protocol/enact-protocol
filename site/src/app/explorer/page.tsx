@@ -6,13 +6,13 @@ import Link from 'next/link';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import {
-  FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity,
-  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon,
-  AddrWithActions, LiveTimer, BudgetDisplay, TonscanLink, CopyButton,
-  truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_DOTS,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
+  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, CopyButton,
+  AddrWithActions, LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_DOTS,
 } from './shared';
 
-type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed';
+type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed' | 'transactions';
+const PAGE_SIZE = 20;
 
 export default function ExplorerPage() {
   const { data, loading, error } = useExplorerData();
@@ -22,8 +22,11 @@ export default function ExplorerPage() {
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'id' | 'status' | 'budget'>('id');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [jobPage, setJobPage] = useState(0);
+  const [txPage, setTxPage] = useState(0);
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
+  const allActivity = useMemo(() => buildActivity(allJobs), [allJobs]);
 
   const filteredJobs = useMemo(() => {
     let jobs = allJobs;
@@ -41,22 +44,13 @@ export default function ExplorerPage() {
   }, [allJobs, tab, sortBy, sortDir]);
 
   const stats = useMemo(() => {
-    if (!data) return { total: 0, ton: 0, usdt: 0, tonDone: 0, usdtDone: 0, txCount: 0 };
+    if (!data) return { total: 0, ton: 0, usdt: 0, tonDone: 0, usdtDone: 0, txTotal: 0 };
     const tonDone = data.tonJobs.filter(j => j.stateName === 'COMPLETED').length;
     const usdtDone = data.jettonJobs.filter(j => j.stateName === 'COMPLETED').length;
-    // Estimate transactions: each job has at least create+fund, submitted adds 1, completed adds 1
-    let txCount = 0;
-    for (const j of allJobs) {
-      txCount += 1; // create
-      if (j.state >= 1) txCount += 1; // fund
-      if (j.submittedAt) txCount += 1; // submit (includes take)
-      if (j.stateName === 'COMPLETED' || j.stateName === 'DISPUTED') txCount += 1; // evaluate
-      if (j.stateName === 'CANCELLED') txCount += 1; // cancel
-    }
-    return { total: allJobs.length, ton: data.tonJobs.length, usdt: data.jettonJobs.length, tonDone, usdtDone, txCount };
+    let txTotal = 0;
+    for (const j of allJobs) txTotal += txCount(j);
+    return { total: allJobs.length, ton: data.tonJobs.length, usdt: data.jettonJobs.length, tonDone, usdtDone, txTotal };
   }, [data, allJobs]);
-
-  const activity = useMemo(() => buildActivity(allJobs).slice(0, 12), [allJobs]);
 
   const handleSearch = () => {
     if (!search.trim() || !data) return;
@@ -66,22 +60,24 @@ export default function ExplorerPage() {
     if (q === JETTON_FACTORY || (q.length >= 8 && JETTON_FACTORY.startsWith(q))) { router.push(`/explorer/factory/${JETTON_FACTORY}`); return; }
     const job = allJobs.find(j => j.address === q || (q.length >= 8 && j.address.startsWith(q)));
     if (job) { router.push(`/explorer/job/${job.address}`); return; }
-    if (/^[0-9a-fA-F]{64}$/.test(q)) {
-      setSearchMsg('tx_hash');
-    } else {
-      setSearchMsg('not_found');
-    }
+    setSearchMsg(/^[0-9a-fA-F]{64}$/.test(q) ? 'tx_hash' : 'not_found');
   };
 
   const toggleSort = (col: 'id' | 'status' | 'budget') => {
     if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
     else { setSortBy(col); setSortDir('desc'); }
+    setJobPage(0);
   };
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'all', label: 'All Jobs' }, { key: 'ton', label: 'TON' }, { key: 'usdt', label: 'USDT' },
-    { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' },
+    { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' }, { key: 'transactions', label: 'All Transactions' },
   ];
+
+  const jobsOnPage = filteredJobs.slice(jobPage * PAGE_SIZE, (jobPage + 1) * PAGE_SIZE);
+  const totalJobPages = Math.ceil(filteredJobs.length / PAGE_SIZE) || 1;
+  const txOnPage = allActivity.slice(txPage * PAGE_SIZE, (txPage + 1) * PAGE_SIZE);
+  const totalTxPages = Math.ceil(allActivity.length / PAGE_SIZE) || 1;
 
   return (
     <>
@@ -93,32 +89,19 @@ export default function ExplorerPage() {
         {/* Search */}
         <div className="mb-8">
           <div className="flex gap-2">
-            <input type="text" value={search}
-              onChange={e => { setSearch(e.target.value); setSearchMsg(null); }}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder="Search by job or factory address..."
-              className="flex-1 bg-[#111] border border-[#222] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#555] font-mono focus:outline-none focus:border-[#0098EA] transition-colors"
-            />
+            <input type="text" value={search} onChange={e => { setSearch(e.target.value); setSearchMsg(null); }}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Search by job or factory address..."
+              className="flex-1 bg-[#111] border border-[#222] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#555] font-mono focus:outline-none focus:border-[#0098EA] transition-colors" />
             <button onClick={handleSearch} className="bg-[#111] border border-[#222] rounded-lg px-4 py-2.5 text-sm text-[#888] hover:text-white hover:border-[#0098EA] transition-colors">Search</button>
           </div>
-          {searchMsg === 'not_found' && (
-            <div className="mt-3 text-sm text-[#888] bg-[#111] border border-[#222] rounded-lg p-4">
-              Address not found in ENACT Protocol. This explorer tracks only ENACT contracts.
-              <div className="mt-1 text-[#555]">Looking for a wallet? Try <a href="https://tonscan.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0098EA]">tonscan.org</a></div>
-            </div>
-          )}
-          {searchMsg === 'tx_hash' && (
-            <div className="mt-3 text-sm text-[#888] bg-[#111] border border-[#222] rounded-lg p-4">
-              Transaction hash search is not supported. <a href="https://tonscan.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0098EA]">Use tonscan.org to search by transaction hash.</a>
-            </div>
-          )}
+          {searchMsg === 'not_found' && <div className="mt-3 text-sm text-[#888] bg-[#111] border border-[#222] rounded-lg p-4">Address not found in ENACT Protocol. <a href="https://tonscan.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0098EA]">Try tonscan.org</a></div>}
+          {searchMsg === 'tx_hash' && <div className="mt-3 text-sm text-[#888] bg-[#111] border border-[#222] rounded-lg p-4">Transaction hash search is not supported. <a href="https://tonscan.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0098EA]">Use tonscan.org</a></div>}
         </div>
 
         {loading ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[1,2,3,4].map(i => <Shimmer key={i} className="h-20 rounded-xl" />)}</div>
             <Shimmer className="h-48 rounded-xl" />
-            <div className="space-y-2">{[1,2,3,4,5].map(i => <Shimmer key={i} className="h-12" />)}</div>
           </div>
         ) : error ? (
           <div className="text-red-400 bg-[#111] border border-[#222] rounded-xl p-6 text-center">Failed to load: {error}</div>
@@ -126,100 +109,132 @@ export default function ExplorerPage() {
           <>
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
-              <StatCard label="Transactions" value={stats.txCount} />
-              <StatCard label="TON Jobs" value={`${stats.ton}`} sub={`${stats.tonDone} done`} icon={<TonIcon size={18} />} />
-              <StatCard label="USDT Jobs" value={`${stats.usdt}`} sub={`${stats.usdtDone} done`} icon={<UsdtIcon size={18} />} />
+              <StatCard label="Transactions" value={stats.txTotal} />
+              <StatCard label="TON Jobs" value={stats.ton} sub={`${stats.tonDone} done`} icon={<TonIcon size={18} />} />
+              <StatCard label="USDT Jobs" value={stats.usdt} sub={`${stats.usdtDone} done`} icon={<UsdtIcon size={18} />} />
               <StatCard label="Total Jobs" value={stats.total} />
             </div>
-            <div className="text-[#444] text-xs font-mono mb-6">
-              Last updated: <LiveTimer timestamp={data.lastUpdated} /> · Auto-refreshes every 30s
-            </div>
+            <div className="text-[#444] text-xs font-mono mb-6">Last updated: <LiveTimer timestamp={data.lastUpdated} /> · Auto-refreshes every 30s</div>
 
             {/* Factories */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              {[
-                { label: 'JobFactory', type: 'ton' as const, addr: data.factories.ton.address, count: data.factories.ton.jobCount },
-                { label: 'JettonJobFactory', type: 'usdt' as const, addr: data.factories.jetton.address, count: data.factories.jetton.jobCount },
-              ].map(f => (
+              {[{ label: 'JobFactory', type: 'ton' as const, addr: data.factories.ton.address, count: data.factories.ton.jobCount },
+                { label: 'JettonJobFactory', type: 'usdt' as const, addr: data.factories.jetton.address, count: data.factories.jetton.jobCount }].map(f => (
                 <Link key={f.label} href={`/explorer/factory/${f.addr}`} className="bg-[#111] border border-[#222] rounded-xl p-4 hover:border-[#333] transition-colors block">
                   <div className="flex items-center justify-between mb-2">
                     <span className="flex items-center gap-2 text-white font-medium"><TypeIcon type={f.type} size={20} /> {f.label}</span>
                     <span className="text-[#888] text-sm">{f.count} jobs</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs text-[#555] truncate">{f.addr}</span>
-                    <TonscanLink addr={f.addr} />
-                    <CopyButton text={f.addr} />
-                  </div>
+                  <div className="flex items-center gap-1.5"><span className="font-mono text-xs text-[#555] truncate">{f.addr}</span><TonscanLink addr={f.addr} /><CopyButton text={f.addr} /></div>
                 </Link>
               ))}
             </div>
 
             {/* Latest Activity */}
-            {activity.length > 0 && (
-              <>
-                <div className="border-t border-[#222] my-6" />
-                <div className="mb-6">
-                  <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Latest Activity</div>
-                  <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
-                    {activity.map((ev, i) => (
-                      <div key={`${ev.address}-${ev.event}-${i}`}
-                        onClick={() => router.push(`/explorer/job/${ev.address}`)}
-                        className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors text-sm">
-                        <span className={`${STATUS_DOTS[ev.status]} text-lg leading-none`}>●</span>
-                        <span className="text-white whitespace-nowrap">Job #{ev.jobId}</span>
-                        <TypeIcon type={ev.type} size={14} />
-                        <span className="text-[#888]">{ev.event}</span>
-                        {ev.budget && <span className="text-[#555] hidden sm:inline">{ev.budget}</span>}
-                        <span className="ml-auto text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</span>
-                      </div>
+            <div className="border-t border-[#222] my-6" />
+            <div className="mb-6">
+              <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Latest Activity</div>
+              <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-xs font-mono uppercase">
+                    <th className="text-left px-4 py-2.5">Event</th>
+                    <th className="text-left px-4 py-2.5">Job</th>
+                    <th className="text-left px-4 py-2.5 hidden sm:table-cell">From</th>
+                    <th className="text-left px-4 py-2.5">Amount</th>
+                    <th className="text-left px-4 py-2.5">Time</th>
+                  </tr></thead>
+                  <tbody>
+                    {allActivity.slice(0, 15).map((ev, i) => (
+                      <tr key={`${ev.address}-${ev.event}-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
+                        className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
+                        <td className="px-4 py-2.5 whitespace-nowrap"><span className={`${STATUS_DOTS[ev.status]} mr-1.5`}>●</span>{ev.event}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
+                        <td className="px-4 py-2.5 hidden sm:table-cell">{ev.from ? <span className="inline-flex items-center gap-1 font-mono text-xs text-[#888]">{truncAddr(ev.from)} <TonscanLink addr={ev.from} size={12} /></span> : '—'}</td>
+                        <td className="px-4 py-2.5 text-[#ccc]">{ev.budget ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
+                      </tr>
                     ))}
-                  </div>
-                </div>
-              </>
-            )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
             <div className="border-t border-[#222] my-6" />
 
             {/* Tabs */}
             <div className="flex gap-1 mb-4 overflow-x-auto">
               {tabs.map(t => (
-                <button key={t.key} onClick={() => setTab(t.key)}
+                <button key={t.key} onClick={() => { setTab(t.key); setJobPage(0); setTxPage(0); }}
                   className={`px-4 py-2 text-sm rounded-lg transition-colors whitespace-nowrap ${tab === t.key ? 'bg-[#1a1a1a] text-white border border-[#333]' : 'text-[#888] hover:text-white hover:bg-[#111]'}`}>
                   {t.label}
                 </button>
               ))}
             </div>
 
-            {/* Jobs Table */}
-            <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[#1a1a1a] text-[#555] text-xs font-mono uppercase">
-                    <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('id')}># {sortBy === 'id' && (sortDir === 'desc' ? '↓' : '↑')}</th>
-                    <th className="text-left px-4 py-3 hidden sm:table-cell">Address</th>
-                    <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'desc' ? '↓' : '↑')}</th>
-                    <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('budget')}>Budget {sortBy === 'budget' && (sortDir === 'desc' ? '↓' : '↑')}</th>
-                    <th className="text-left px-4 py-3 hidden md:table-cell">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredJobs.length === 0 && <tr><td colSpan={5} className="text-center text-[#555] py-8">No jobs match filter</td></tr>}
-                  {filteredJobs.map(job => (
-                    <tr key={`${job.type}-${job.jobId}`} onClick={() => router.push(`/explorer/job/${job.address}`)}
-                      className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#151515] transition-colors">
-                      <td className="px-4 py-3 text-white font-medium">
-                        <span className="inline-flex items-center gap-1.5">#{job.jobId} <TypeIcon type={job.type} size={14} /></span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[#888] hidden sm:table-cell">{truncAddr(job.address)}</td>
-                      <td className="px-4 py-3"><Badge status={job.stateName} /></td>
-                      <td className="px-4 py-3 text-[#ccc]"><BudgetDisplay job={job} /></td>
-                      <td className="px-4 py-3 text-[#555] text-xs hidden md:table-cell">{fmtDateShort(job.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {tab === 'transactions' ? (
+              /* All Transactions Table */
+              <>
+                <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-xs font-mono uppercase">
+                      <th className="text-left px-4 py-3">Event</th>
+                      <th className="text-left px-4 py-3">Job</th>
+                      <th className="text-left px-4 py-3 hidden sm:table-cell">From</th>
+                      <th className="text-left px-4 py-3">Amount</th>
+                      <th className="text-left px-4 py-3">Time</th>
+                    </tr></thead>
+                    <tbody>
+                      {txOnPage.map((ev, i) => (
+                        <tr key={`tx-${txPage}-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
+                          className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
+                          <td className="px-4 py-2.5 whitespace-nowrap"><span className={`${STATUS_DOTS[ev.status]} mr-1.5`}>●</span>{ev.event}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
+                          <td className="px-4 py-2.5 hidden sm:table-cell">{ev.from ? <span className="inline-flex items-center gap-1 font-mono text-xs text-[#888]">{truncAddr(ev.from)} <TonscanLink addr={ev.from} size={12} /></span> : '—'}</td>
+                          <td className="px-4 py-2.5 text-[#ccc]">{ev.budget ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination page={txPage} total={totalTxPages} onChange={setTxPage} />
+              </>
+            ) : (
+              /* Jobs Table */
+              <>
+                <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-xs font-mono uppercase">
+                      <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('id')}># {sortBy === 'id' && (sortDir === 'desc' ? '↓' : '↑')}</th>
+                      <th className="text-left px-4 py-3 hidden sm:table-cell">Address</th>
+                      <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'desc' ? '↓' : '↑')}</th>
+                      <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('budget')}>Budget {sortBy === 'budget' && (sortDir === 'desc' ? '↓' : '↑')}</th>
+                      <th className="text-left px-4 py-3 hidden md:table-cell">Client</th>
+                      <th className="text-left px-4 py-3 hidden lg:table-cell">Evaluator</th>
+                      <th className="text-left px-4 py-3 hidden md:table-cell">Txns</th>
+                      <th className="text-left px-4 py-3 hidden md:table-cell">Created</th>
+                    </tr></thead>
+                    <tbody>
+                      {jobsOnPage.length === 0 && <tr><td colSpan={8} className="text-center text-[#555] py-8">No jobs match filter</td></tr>}
+                      {jobsOnPage.map(job => (
+                        <tr key={`${job.type}-${job.jobId}`} onClick={() => router.push(`/explorer/job/${job.address}`)}
+                          className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#151515] transition-colors">
+                          <td className="px-4 py-3 text-white font-medium"><span className="inline-flex items-center gap-1.5">#{job.jobId} <TypeIcon type={job.type} size={14} /></span></td>
+                          <td className="px-4 py-3 font-mono text-xs text-[#888] hidden sm:table-cell">{truncAddr(job.address)}</td>
+                          <td className="px-4 py-3"><Badge status={job.stateName} /></td>
+                          <td className="px-4 py-3 text-[#ccc]"><BudgetDisplay job={job} /></td>
+                          <td className="px-4 py-3 hidden md:table-cell"><span className="font-mono text-xs text-[#888]">{truncAddr(job.client)}</span></td>
+                          <td className="px-4 py-3 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <span className="text-xs text-[#3B82F6]">🤖 AI</span> : <span className="font-mono text-xs text-[#888]">{truncAddr(job.evaluator)}</span>}</td>
+                          <td className="px-4 py-3 hidden md:table-cell text-[#555] text-xs">{txCount(job)}</td>
+                          <td className="px-4 py-3 text-[#555] text-xs hidden md:table-cell whitespace-nowrap">{fmtDateShort(job.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination page={jobPage} total={totalJobPages} onChange={setJobPage} />
+              </>
+            )}
           </>
         )}
       </main>
@@ -231,14 +246,24 @@ export default function ExplorerPage() {
 function StatCard({ label, value, sub, icon }: { label: string; value: string | number; sub?: string; icon?: React.ReactNode }) {
   return (
     <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-[#555] text-xs font-mono uppercase">{label}</span>
-      </div>
+      <div className="flex items-center gap-2">{icon}<span className="text-[#555] text-xs font-mono uppercase">{label}</span></div>
       <div className="flex items-baseline gap-2 mt-1">
         <span className="text-white text-2xl font-semibold">{value}</span>
         {sub && <span className="text-[#555] text-xs">({sub})</span>}
       </div>
+    </div>
+  );
+}
+
+function Pagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
+  if (total <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 mt-4">
+      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0}
+        className="px-3 py-1.5 text-sm rounded border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">←</button>
+      <span className="text-[#555] text-sm">{page + 1} / {total}</span>
+      <button onClick={() => onChange(Math.min(total - 1, page + 1))} disabled={page >= total - 1}
+        className="px-3 py-1.5 text-sm rounded border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">→</button>
     </div>
   );
 }
