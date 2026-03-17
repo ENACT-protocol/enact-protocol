@@ -74,19 +74,32 @@ async function resolveContent(hash: string): Promise<{
 
 interface TxInfo { hash: string; fee: string; utime: number; }
 
-async function fetchJobTransactions(jobAddress: string): Promise<TxInfo[]> {
-  try {
-    const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(jobAddress)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!data.ok || !data.result) return [];
-    return data.result.map((tx: any) => ({
-      hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
-      fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
-      utime: tx.utime || 0,
-    }));
-  } catch { return []; }
+async function fetchJobTransactions(jobAddress: string, retries = 2): Promise<TxInfo[]> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(jobAddress)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (res.status === 429 && attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!data.ok || !data.result) return [];
+      return data.result.map((tx: any) => ({
+        hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
+        fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
+        utime: tx.utime || 0,
+      }));
+    } catch {
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      return [];
+    }
+  }
+  return [];
 }
 
 // ─── Job Fetching ───
@@ -156,12 +169,23 @@ async function fetchAllJobs() {
     client.getJettonJobCount().catch(() => 0),
   ]);
 
-  const tonPromises = Array.from({ length: tonCount }, (_, i) => fetchJob(client, i, FACTORY, 'ton'));
-  const jettonPromises = Array.from({ length: jettonCount }, (_, i) => fetchJob(client, i, JETTON_FACTORY, 'usdt'));
+  // Batch fetch to avoid rate limiting — 5 concurrent jobs max
+  async function batchFetch(items: Array<{ id: number; factory: string; type: 'ton' | 'usdt' }>) {
+    const results: any[] = [];
+    for (let i = 0; i < items.length; i += 5) {
+      const batch = items.slice(i, i + 5);
+      const batchResults = await Promise.all(batch.map(item => fetchJob(client, item.id, item.factory, item.type)));
+      results.push(...batchResults);
+    }
+    return results;
+  }
+
+  const tonItems = Array.from({ length: tonCount }, (_, i) => ({ id: i, factory: FACTORY, type: 'ton' as const }));
+  const jettonItems = Array.from({ length: jettonCount }, (_, i) => ({ id: i, factory: JETTON_FACTORY, type: 'usdt' as const }));
 
   const [tonResults, jettonResults] = await Promise.all([
-    Promise.all(tonPromises),
-    Promise.all(jettonPromises),
+    batchFetch(tonItems),
+    batchFetch(jettonItems),
   ]);
 
   return {
