@@ -12,7 +12,7 @@ const TERMINAL_STATES = ['COMPLETED', 'DISPUTED', 'CANCELLED'];
 
 interface CachedResponse { data: any; timestamp: number; }
 let responseCache: CachedResponse | null = null;
-const RESPONSE_TTL = 30_000;
+const RESPONSE_TTL = 15_000; // 15s for faster updates
 
 // Permanent cache for terminal-state jobs (they never change)
 const permanentJobCache = new Map<string, any>(); // key = "factory:id"

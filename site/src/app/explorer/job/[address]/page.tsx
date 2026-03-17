@@ -112,26 +112,32 @@ export default function JobPage() {
                   <div className="space-y-3">
                     {(() => {
                       const isAI = job.evaluator === AI_EVALUATOR;
+                      // Use tx utime for accurate timestamps (contract createdAt changes at fund)
+                      const createTx = txAt(txIdx.created);
+                      const fundTx = txAt(txIdx.funded);
+                      const submitTx = txAt(txIdx.submitted);
+                      const terminalTx = txAt(txIdx.terminal);
+                      const walletTx = txAt(txIdx.setWallet);
                       return <>
-                        <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={txAt(txIdx.created)?.hash ?? ''}>
+                        <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(createTx?.utime || job.createdAt)} txHash={createTx?.hash ?? ''}>
                           <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
                           <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
                         </TxCard>
 
                         {job.type === 'usdt' && job.state >= 1 && (
-                          <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(job.createdAt)} txHash={txAt(txIdx.setWallet)?.hash ?? ''}>
+                          <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(walletTx?.utime || job.createdAt)} txHash={walletTx?.hash ?? ''}>
                             <TxRow label="Action">USDT wallet configured</TxRow>
                           </TxCard>
                         )}
 
                         {job.state >= 1 && (
-                          <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={txAt(txIdx.funded)?.hash ?? ''}>
+                          <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(fundTx?.utime || job.createdAt)} txHash={fundTx?.hash ?? ''}>
                             <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
                           </TxCard>
                         )}
 
-                        {job.submittedAt > 0 && (
-                          <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(job.submittedAt)} txHash={txAt(txIdx.submitted)?.hash ?? ''}>
+                        {(job.submittedAt > 0 || submitTx) && (
+                          <TxCard color={STATUS_COLORS.SUBMITTED} label="Submitted" time={fmtDate(submitTx?.utime || job.submittedAt)} txHash={submitTx?.hash ?? ''}>
                             {job.provider && job.provider !== 'none' && <TxRow label="Provider"><ClickAddr addr={job.provider} truncate /></TxRow>}
                             <TxRow label="Result">
                               <span className="inline-flex items-center gap-1.5">
@@ -144,7 +150,7 @@ export default function JobPage() {
                         )}
 
                         {job.stateName === 'COMPLETED' && (
-                          <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txAt(txIdx.terminal)?.hash ?? ''}>
+                          <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={fmtDate(terminalTx?.utime || job.submittedAt)} txHash={terminalTx?.hash ?? ''}>
                             <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
                             <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                             {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
@@ -152,13 +158,13 @@ export default function JobPage() {
                         )}
 
                         {job.stateName === 'CANCELLED' && (
-                          <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" txHash={txAt(txIdx.terminal)?.hash ?? ''}>
+                          <TxCard color={STATUS_COLORS.CANCELLED} label="Cancelled" time={fmtDate(terminalTx?.utime || 0)} txHash={terminalTx?.hash ?? ''}>
                             <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
                           </TxCard>
                         )}
 
                         {job.stateName === 'DISPUTED' && (
-                          <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={txAt(txIdx.terminal)?.hash ?? ''}>
+                          <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={fmtDate(terminalTx?.utime || job.submittedAt)} txHash={terminalTx?.hash ?? ''}>
                             <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
                             <TxRow label="Action">Result rejected, funds refunded</TxRow>
                           </TxCard>

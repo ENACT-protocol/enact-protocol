@@ -106,14 +106,31 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, txHash: txAt(idx)?.hash };
     };
 
-    // createdAt may come from tx utime for OPEN jobs (contract sets it at fund time)
-    const createTime = j.createdAt || txs[0]?.utime || 0;
+    // Always use initJob tx utime for Created (contract createdAt changes at fund time)
+    const initTxTime = txs[0]?.utime || 0;
+    const createTime = initTxTime || j.createdAt || 0;
     if (createTime) events.push(mk('Created', 'OPEN', createTime, bf, j.client, txIdx.created));
-    if (j.state >= 1 && createTime) events.push(mk('Funded', 'FUNDED', j.createdAt || createTime + 1, bf, j.client, txIdx.funded));
-    if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? '', txIdx.submitted));
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator, txIdx.terminal));
-    if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client, txIdx.terminal));
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push(mk('Disputed', 'DISPUTED', j.submittedAt + 1, bf, j.evaluator, txIdx.terminal));
+    if (j.state >= 1) {
+      // Fund time: use fund tx utime, fallback to createdAt from contract
+      const fundTxTime = txAt(txIdx.funded)?.utime || j.createdAt || createTime + 1;
+      events.push(mk('Funded', 'FUNDED', fundTxTime, bf, j.client, txIdx.funded));
+    }
+    if (j.submittedAt || txAt(txIdx.submitted)) {
+      const submitTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
+      if (submitTime) events.push(mk('Submitted', 'SUBMITTED', submitTime, bf, j.provider ?? '', txIdx.submitted));
+    }
+    if (j.stateName === 'COMPLETED') {
+      const evalTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);
+      if (evalTime) events.push(mk('Completed', 'COMPLETED', evalTime, `${bf} → Provider`, j.evaluator, txIdx.terminal));
+    }
+    if (j.stateName === 'CANCELLED') {
+      const cancelTime = txAt(txIdx.terminal)?.utime || j.createdAt + j.timeout;
+      events.push(mk('Cancelled', 'CANCELLED', cancelTime, `${bf} → Client`, j.client, txIdx.terminal));
+    }
+    if (j.stateName === 'DISPUTED') {
+      const disputeTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);
+      if (disputeTime) events.push(mk('Disputed', 'DISPUTED', disputeTime, bf, j.evaluator, txIdx.terminal));
+    }
   }
   return events.sort((a, b) => b.time - a.time);
 }
@@ -241,7 +258,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 30_000;
+const POLL_INTERVAL = 15_000; // Match server cache TTL
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);

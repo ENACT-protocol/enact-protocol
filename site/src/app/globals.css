@@ -429,3 +429,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   margin-bottom: 4px;
 }
 .doc-nav .nav-title { font-size: 0.875rem; color: white; font-weight: 500; }
+
+/* Explorer row fade-in animation */
+@keyframes explorer-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.explorer-row { animation: explorer-fade-in 0.3s ease-out; }
