@@ -136,8 +136,8 @@ export default function ExplorerPage() {
               <div className="bg-[#111] border border-[#222] rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-[#1a1a1a] text-[#555] text-[11px] font-mono uppercase tracking-[1px] font-medium">
-                    <th className="text-left px-3 py-2">Event</th>
                     <th className="text-left px-3 py-2">Job</th>
+                    <th className="text-left px-3 py-2">Event</th>
                     <th className="text-left px-3 py-2 hidden xl:table-cell">Tx Address</th>
                     <th className="text-left px-3 py-2 hidden lg:table-cell">Status</th>
                     <th className="text-left px-3 py-2 hidden md:table-cell">From</th>
@@ -149,8 +149,8 @@ export default function ExplorerPage() {
                     {allActivity.slice(0, activityLimit).map((ev, i) => (
                       <tr key={`act-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                         className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
-                        <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
                         <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
+                        <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
                         <td className="px-3 py-2 hidden xl:table-cell"><ClickAddr addr={ev.address} truncate /></td>
                         <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
@@ -233,7 +233,7 @@ export default function ExplorerPage() {
                           <td className="px-3 py-2.5"><Badge status={job.stateName} /></td>
                           <td className="px-3 py-2.5 text-[#ccc]"><BudgetDisplay job={job} /></td>
                           <td className="px-3 py-2.5 hidden md:table-cell"><ClickAddr addr={job.client} truncate /></td>
-                          <td className="px-3 py-2.5 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <AIBadge /> : <ClickAddr addr={job.evaluator} truncate />}</td>
+                          <td className="px-3 py-2.5 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</td>
                           <td className="px-3 py-2.5 hidden md:table-cell text-[#555] text-xs">{txCount(job)}</td>
                           <td className="px-3 py-2.5 text-[#555] text-xs hidden md:table-cell whitespace-nowrap">{fmtDateShort(job.createdAt)}</td>
                         </tr>

@@ -21,6 +21,12 @@ export const STATUS_COLORS: Record<string, string> = {
   COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
+// Gas costs per operation (from contract analysis, 2 decimal places)
+export const GAS_COSTS: Record<string, string> = {
+  Created: '0.03', Funded: '0.01', Submitted: '0.01',
+  Completed: '0.01', Cancelled: '0.01', Disputed: '0.01',
+};
+
 export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string };
 
 export type Job = {
@@ -49,7 +55,6 @@ export function truncAddr(a: string, long = false) {
 }
 
 export function tonscanUrl(addr: string) { return `https://tonscan.org/address/${addr}`; }
-export function tonscanTxUrl(addr: string) { return `https://tonscan.org/address/${addr}#transactions`; }
 
 export function fmtDate(unix: number) {
   if (!unix) return '—';
@@ -86,15 +91,14 @@ export function txCount(j: Job): number {
 
 export function buildActivity(jobs: Job[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
-  const gas = '~0.01';
   for (const j of jobs) {
     const bf = j.budgetFormatted;
-    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client, gas });
-    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client, gas });
-    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '', gas });
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator, gas: '~0.003' });
-    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, gas });
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator, gas: '~0.003' });
+    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, amount: bf, from: j.client, gas: GAS_COSTS.Created });
+    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, amount: bf, from: j.client, gas: GAS_COSTS.Funded });
+    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '', gas: GAS_COSTS.Submitted });
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator, gas: GAS_COSTS.Completed });
+    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, gas: GAS_COSTS.Cancelled });
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator, gas: GAS_COSTS.Disputed });
   }
   return events.sort((a, b) => b.time - a.time);
 }
@@ -118,15 +122,22 @@ export function TonIcon({ size = 16 }: { size?: number }) {
 }
 
 export function UsdtIcon({ size = 16 }: { size?: number }) {
-  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} style={{ width: size, height: size, minWidth: size, minHeight: size }} className="inline-block shrink-0 align-middle" />;
+  // Multiply by 1.7 to match TON icon visual size
+  const s = Math.round(size * 1.7);
+  return <img src="/usdt-icon.svg" alt="USDT" width={s} height={s} style={{ width: s, height: s }} className="inline-block shrink-0 align-middle" />;
 }
 
 export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: number }) {
   return type === 'ton' ? <TonIcon size={size} /> : <UsdtIcon size={size} />;
 }
 
-export function AIBadge() {
-  return <span className="inline-flex items-center gap-1 text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono"><Bot size={12} /> AI</span>;
+export function AIBadge({ addr }: { addr?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="inline-flex items-center gap-1 text-xs bg-[#3B82F620] text-[#3B82F6] border border-[#3B82F6] rounded px-1.5 py-0.5 font-mono"><Bot size={12} /> AI</span>
+      {addr && <TonscanLink addr={addr} size={14} />}
+    </span>
+  );
 }
 
 export function CopyHash({ hash }: { hash: string }) {
@@ -141,17 +152,15 @@ export function CopyHash({ hash }: { hash: string }) {
   );
 }
 
-export function TonscanLink({ addr, size = 16, hash }: { addr: string; size?: number; hash?: boolean }) {
-  const url = hash ? tonscanTxUrl(addr) : tonscanUrl(addr);
+export function TonscanLink({ addr, size = 16 }: { addr: string; size?: number }) {
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+    <a href={tonscanUrl(addr)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
       className="text-[#555] hover:text-white transition-colors shrink-0 cursor-pointer inline-flex items-center" title="View on TONScan">
       <svg width={size} height={size} viewBox="0 0 10 10" fill="none"><path fill="currentColor" d="M4.14 6.881c0 .199.483.684.84.676.358-.007.88-.452.88-.676 0-.223-.523-.257-.839-.257s-.88.059-.88.257M2.677 5.679c.517.201 1.04.09 1.168-.247s-.189-.774-.706-.976-.958-.225-1.086.113c-.127.337.107.908.624 1.11M6.158 5.432c.128.338.66.425 1.15.188.488-.236.717-.713.59-1.051-.128-.338-.517-.315-1.035-.113s-.833.639-.705.976"/><path fill="currentColor" fillRule="evenodd" d="M1.814.343c.435.267.995.698 1.677 1.284Q4.4 1.469 5 1.468q.597.001 1.494.159C7.18 1.053 7.742.628 8.175.362c.227-.14.437-.247.62-.304.163-.05.414-.097.626.05a.7.7 0 0 1 .249.35q.066.19.093.443c.037.336.035.801-.012 1.414q-.045.581-.157 1.22c.404.768.503 1.627.314 2.557-.186.912-.784 1.726-1.672 2.468C7.368 9.285 6.292 10 4.99 10c-1.29 0-2.57-.733-3.338-1.454C.9 7.84.395 7.143.16 6.342-.114 5.416-.033 4.48.386 3.55q-.121-.67-.156-1.24C.188 1.59.177 1.13.21.824.225.67.254.531.31.411A.75.75 0 0 1 .544.118c.209-.16.462-.127.637-.077.19.054.403.16.633.302M.982.738.96.732A1 1 0 0 0 .93.9c-.025.237-.02.64.024 1.368q.032.56.165 1.262l.022.116-.051.107C.697 4.574.626 5.363.854 6.138c.186.632.595 1.222 1.295 1.88.686.644 1.798 1.257 2.842 1.257 1.033 0 1.938-.567 2.78-1.27.82-.687 1.286-1.368 1.426-2.057.169-.829.063-1.545-.297-2.171l-.066-.116.024-.131q.125-.675.17-1.27c.046-.594.044-1.009.014-1.28a1.5 1.5 0 0 0-.039-.227c-.1.032-.247.103-.45.227-.412.253-.984.686-1.721 1.31L6.7 2.4l-.169-.03C5.88 2.25 5.372 2.193 5 2.193q-.555-.001-1.552.177l-.17.03-.132-.113C2.414 1.65 1.846 1.212 1.435.96A2 2 0 0 0 .982.738" clipRule="evenodd"/></svg>
     </a>
   );
 }
 
-/** Clickable address: click copies, tonscan icon separate */
 export function ClickAddr({ addr, truncate = false, long = false }: { addr: string; truncate?: boolean; long?: boolean }) {
   const [copied, setCopied] = useState(false);
   const display = truncate ? truncAddr(addr, long) : addr;
@@ -167,22 +176,16 @@ export function ClickAddr({ addr, truncate = false, long = false }: { addr: stri
 }
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <span className="text-[#555] w-24 shrink-0 text-sm">{label}</span>
-      <span className="text-[#ccc] min-w-0 text-sm">{children}</span>
-    </div>
-  );
+  return <div className="flex gap-3"><span className="text-[#555] w-24 shrink-0 text-sm">{label}</span><span className="text-[#ccc] min-w-0 text-sm">{children}</span></div>;
 }
 
 export function LiveTimer({ timestamp }: { timestamp: number }) {
-  const [now, setNow] = useState(Date.now());
+  const [, setTick] = useState(0);
   useEffect(() => {
-    setNow(Date.now());
-    const i = setInterval(() => setNow(Date.now()), 1000);
+    const i = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(i);
-  }, [timestamp]);
-  const diff = Math.max(0, Math.floor((now - timestamp) / 1000));
+  }, []);
+  const diff = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   const ago = diff < 60 ? `${diff}s ago` : `${Math.floor(diff / 60)}m ${diff % 60}s ago`;
   const date = new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return <span>{date} ({ago})</span>;
@@ -197,10 +200,8 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   const [expanded, setExpanded] = useState(false);
   const zeroHash = '0'.repeat(64);
   if (!hash || hash === zeroHash) return <span className="text-[#555]">—</span>;
-
   const text = content?.text;
   const isLong = !!text && text.length > 200;
-
   return (
     <div>
       <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
@@ -228,7 +229,6 @@ export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const fetchRef = useRef<() => Promise<void>>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -240,13 +240,11 @@ export function useExplorerData() {
     finally { setLoading(false); }
   }, []);
 
-  fetchRef.current = fetchData;
-
   useEffect(() => {
-    fetchRef.current?.();
-    const i = setInterval(() => fetchRef.current?.(), 30_000);
+    fetchData();
+    const i = setInterval(fetchData, 30_000);
     return () => clearInterval(i);
-  }, []);
+  }, [fetchData]);
 
   return { data, loading, error };
 }

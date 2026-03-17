@@ -6,9 +6,9 @@ import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
-  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS,
-  Badge, Shimmer, TypeIcon, TonIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge,
-  BudgetDisplay, fmtDate, fmtTimeout, tonscanTxUrl,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS, GAS_COSTS,
+  Badge, Shimmer, TypeIcon, TonIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge, CopyHash,
+  BudgetDisplay, fmtDate, fmtTimeout,
 } from '../../shared';
 
 const TL_STATES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED'];
@@ -83,11 +83,8 @@ export default function JobPage() {
                           <span className={job.stateName === 'COMPLETED' ? 'text-[#4ADE80]' : job.stateName === 'DISPUTED' ? 'text-[#EF4444]' : 'text-[#6B7280]'}>
                             {job.stateName === 'COMPLETED' ? '✓ Approved' : job.stateName === 'DISPUTED' ? '✗ Rejected' : '⛔ Cancelled'}
                           </span>
-                          {job.reasonContent?.text ? (
-                            <span className="text-[#ccc]"> — {job.reasonContent.text}</span>
-                          ) : job.reasonContent?.source === 'hash' && job.reasonContent.text === null && job.descHash !== '0'.repeat(64) ? (
-                            <span className="text-[#555] text-xs font-mono ml-2">(hash: {job.descHash.slice(0, 12)}...)</span>
-                          ) : null}
+                          {job.reasonContent?.text && <span className="text-[#ccc]"> — {job.reasonContent.text}</span>}
+                          <span className="ml-2 inline-flex items-center"><CopyHash hash={job.descHash} /></span>
                         </div>
                       </div>
                     )}
@@ -106,7 +103,7 @@ export default function JobPage() {
                     {job.state >= 1 && (
                       <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} jobAddr={job.address}>
                         <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                        <TxGas amount="~0.01" />
+                        <TxGas amount="0.01" />
                       </TxCard>
                     )}
 
@@ -120,10 +117,10 @@ export default function JobPage() {
 
                     {job.stateName === 'COMPLETED' && (
                       <TxCard color={STATUS_COLORS.COMPLETED} label="Completed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} jobAddr={job.address}>
-                        <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge />}</span></TxRow>
+                        <TxRow label="Evaluator"><span className="inline-flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</span></TxRow>
                         <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                         {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                        <TxGas amount="~0.003" />
+                        <TxGas amount="0.01" />
                       </TxCard>
                     )}
 
@@ -153,7 +150,7 @@ export default function JobPage() {
                       {job.provider && job.provider !== 'none' ? <ClickAddr addr={job.provider} truncate long /> : <span className="text-[#555] text-sm">Not assigned</span>}
                     </div>
                     <div><div className="text-[#555] text-xs mb-1">Evaluator</div>
-                      <div className="flex items-center gap-2"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge />}</div>
+                      <div className="flex items-center gap-2"><ClickAddr addr={job.evaluator} truncate long />{job.evaluator === AI_EVALUATOR && <AIBadge addr={AI_EVALUATOR} />}</div>
                     </div>
                   </div>
                 </Section>
@@ -167,7 +164,9 @@ export default function JobPage() {
                       const finalLabel = isCurrent && isFinal && s === 'COMPLETED' ? job.stateName : s;
                       let time = '';
                       if (s === 'OPEN' && job.createdAt) time = fmtDate(job.createdAt);
+                      if (s === 'FUNDED' && job.state >= 1 && job.createdAt) time = fmtDate(job.createdAt);
                       if (s === 'SUBMITTED' && job.submittedAt) time = fmtDate(job.submittedAt);
+                      if (s === 'COMPLETED' && reached && job.submittedAt) time = fmtDate(job.submittedAt);
                       const isLast = i === TL_STATES.length - 1;
 
                       return (
@@ -192,11 +191,6 @@ export default function JobPage() {
                       );
                     })}
                   </div>
-                  <a href={tonscanTxUrl(job.address)} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs text-[#555] hover:text-white transition-colors mt-4 cursor-pointer">
-                    <TonscanLink addr={job.address} size={14} />
-                    View all transactions on TONScan
-                  </a>
                 </Section>
               </div>
             </div>
@@ -247,7 +241,7 @@ function TxCard({ color, label, time, jobAddr, children }: { color: string; labe
           <span style={{ color }} className="text-lg leading-none">●</span>
           <span className="text-white text-sm font-medium">{label}</span>
         </div>
-        <TonscanLink addr={jobAddr} hash />
+        <TonscanLink addr={jobAddr} />
       </div>
       {time && <div className="text-[#555] text-xs mb-2">{time}</div>}
       <div className="space-y-1.5">{children}</div>
@@ -259,6 +253,6 @@ function TxRow({ label, children }: { label: string; children: React.ReactNode }
   return <div className="flex gap-2 text-sm"><span className="text-[#555] w-20 shrink-0">{label}</span><span className="text-[#ccc] min-w-0">{children}</span></div>;
 }
 
-function TxGas({ amount = '~0.01' }: { amount?: string }) {
+function TxGas({ amount = '0.01' }: { amount?: string }) {
   return <TxRow label="Gas"><span className="inline-flex items-center gap-1">{amount} <TonIcon size={14} /></span></TxRow>;
 }
