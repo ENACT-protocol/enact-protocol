@@ -21,11 +21,6 @@ export const STATUS_COLORS: Record<string, string> = {
   COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
-// Fallback gas estimates when real tx data unavailable
-export const GAS_FALLBACK: Record<string, string> = {
-  Created: '0.013', Funded: '0.011', Submitted: '0.010',
-  Completed: '0.009', Cancelled: '0.010', Disputed: '0.009',
-};
 
 export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string };
 
@@ -47,7 +42,7 @@ export type ExplorerData = {
 
 export type ActivityEvent = {
   jobId: number; type: 'ton' | 'usdt'; address: string; event: string; status: string;
-  time: number; amount: string; from: string; gas: string; txHash?: string;
+  time: number; amount: string; from: string; txHash?: string;
 };
 
 export function truncAddr(a: string) {
@@ -105,17 +100,17 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       }
       return Math.abs(best.utime - time) < 120 ? best : null; // within 2 min
     };
-    const mk = (event: string, status: string, time: number, amount: string, from: string, fallbackGas: string): ActivityEvent => {
+    const mk = (event: string, status: string, time: number, amount: string, from: string): ActivityEvent => {
       const tx = findTx(time);
-      return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, gas: tx?.fee ?? fallbackGas, txHash: tx?.hash } as any;
+      return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, txHash: tx?.hash };
     };
 
-    if (j.createdAt) events.push(mk('Created', 'OPEN', j.createdAt, bf, j.client, GAS_FALLBACK.Created));
-    if (j.state >= 1 && j.createdAt) events.push(mk('Funded', 'FUNDED', j.createdAt + 1, bf, j.client, GAS_FALLBACK.Funded));
-    if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? '', GAS_FALLBACK.Submitted));
-    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator, GAS_FALLBACK.Completed));
-    if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client, GAS_FALLBACK.Cancelled));
-    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push(mk('Disputed', 'DISPUTED', j.submittedAt + 1, bf, j.evaluator, GAS_FALLBACK.Disputed));
+    if (j.createdAt) events.push(mk('Created', 'OPEN', j.createdAt, bf, j.client));
+    if (j.state >= 1 && j.createdAt) events.push(mk('Funded', 'FUNDED', j.createdAt + 1, bf, j.client));
+    if (j.submittedAt) events.push(mk('Submitted', 'SUBMITTED', j.submittedAt, bf, j.provider ?? ''));
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push(mk('Completed', 'COMPLETED', j.submittedAt + 1, `${bf} → Provider`, j.evaluator));
+    if (j.stateName === 'CANCELLED') events.push(mk('Cancelled', 'CANCELLED', j.createdAt + j.timeout, `${bf} → Client`, j.client));
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push(mk('Disputed', 'DISPUTED', j.submittedAt + 1, bf, j.evaluator));
   }
   return events.sort((a, b) => b.time - a.time);
 }

@@ -6,8 +6,8 @@ import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
-  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS, GAS_FALLBACK,
-  Badge, Shimmer, TypeIcon, TonIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge, CopyHash,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS,
+  Badge, Shimmer, TypeIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge, CopyHash,
   BudgetDisplay, fmtDate, fmtTimeout,
 } from '../../shared';
 
@@ -36,9 +36,9 @@ export default function JobPage() {
     for (const t of txsRev) { if (Math.abs(t.utime - time) < Math.abs(best.utime - time)) best = t; }
     return Math.abs(best.utime - time) < 120 ? best : null;
   };
-  const txFor = (time: number, fb: string) => {
+  const txFor = (time: number) => {
     const t = findTx(time);
-    return { gas: t?.fee ?? fb, hash: t?.hash ?? '' };
+    return { hash: t?.hash ?? '' };
   };
 
   return (
@@ -110,28 +110,30 @@ export default function JobPage() {
                 <Section title="Transactions">
                   <div className="space-y-3">
                     {(() => {
-                      const created = txFor(job.createdAt, GAS_FALLBACK.Created);
-                      const funded = txFor(job.createdAt + 1, GAS_FALLBACK.Funded);
-                      const submitted = job.submittedAt ? txFor(job.submittedAt, GAS_FALLBACK.Submitted) : null;
-                      const terminal = job.submittedAt ? txFor(job.submittedAt + 1, GAS_FALLBACK.Completed) : null;
+                      const created = txFor(job.createdAt);
+                      const funded = txFor(job.createdAt + 1);
+                      const submitted = job.submittedAt ? txFor(job.submittedAt) : null;
+                      const terminal = job.submittedAt ? txFor(job.submittedAt + 1) : null;
                       const isAI = job.evaluator === AI_EVALUATOR;
                       return <>
                         <TxCard color={STATUS_COLORS.OPEN} label="Created" time={fmtDate(job.createdAt)} txHash={created.hash}>
                           <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
                           <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
-                          <TxGas amount={created.gas} />
                         </TxCard>
 
-                        {job.type === 'usdt' && job.state >= 1 && (
-                          <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(job.createdAt)} txHash="">
-                            <TxRow label="Action">USDT wallet configured</TxRow>
-                          </TxCard>
-                        )}
+                        {job.type === 'usdt' && job.state >= 1 && (() => {
+                          // setJettonWallet tx is between created and funded
+                          const sjw = txsRev.length >= 2 ? txsRev[1] : null;
+                          return (
+                            <TxCard color="#888" label="Set Jetton Wallet" time={fmtDate(job.createdAt)} txHash={sjw?.hash ?? ''}>
+                              <TxRow label="Action">USDT wallet configured</TxRow>
+                            </TxCard>
+                          );
+                        })()}
 
                         {job.state >= 1 && (
                           <TxCard color={STATUS_COLORS.FUNDED} label="Funded" time={fmtDate(job.createdAt)} txHash={funded.hash}>
                             <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                            <TxGas amount={funded.gas} />
                           </TxCard>
                         )}
 
@@ -145,7 +147,6 @@ export default function JobPage() {
                                 <CopyHash hash={job.resultHash} />
                               </span>
                             </TxRow>
-                            <TxGas amount={submitted.gas} />
                           </TxCard>
                         )}
 
@@ -154,7 +155,6 @@ export default function JobPage() {
                             <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
                             <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
                             {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                            <TxGas amount={terminal.gas} />
                           </TxCard>
                         )}
 
@@ -168,7 +168,6 @@ export default function JobPage() {
                           <TxCard color={STATUS_COLORS.DISPUTED} label="Disputed" time={job.submittedAt ? fmtDate(job.submittedAt) : undefined} txHash={terminal.hash}>
                             <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
                             <TxRow label="Action">Result rejected, funds refunded</TxRow>
-                            <TxGas amount={terminal.gas} />
                           </TxCard>
                         )}
                       </>;
@@ -294,6 +293,3 @@ function TxRow({ label, children }: { label: string; children: React.ReactNode }
   return <div className="flex gap-2 text-sm"><span className="text-[#555] w-20 shrink-0">{label}</span><span className="text-[#ccc] min-w-0">{children}</span></div>;
 }
 
-function TxGas({ amount = '0.01' }: { amount?: string }) {
-  return <TxRow label="Gas"><span className="inline-flex items-center gap-1">{amount} <TonIcon size={14} /></span></TxRow>;
-}

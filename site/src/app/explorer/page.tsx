@@ -8,7 +8,7 @@ import Footer from '../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
   Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge,
-  LiveTimer, BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, timeAgo,
+  BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, timeAgo,
 } from './shared';
 
 type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed' | 'transactions';
@@ -114,7 +114,6 @@ export default function ExplorerPage() {
               <StatCard label="USDT Jobs" value={stats.usdt} sub={stats.usdtDone ? `${stats.usdtDone} done` : undefined} icon={<UsdtIcon size={18} />} />
               <StatCard label="Total Jobs" value={stats.total} />
             </div>
-            <div className="text-[#444] text-xs font-mono mb-6">Last updated: <LiveTimer timestamp={data.lastUpdated} /> · Auto-refreshes every 30s</div>
 
             {/* Factories */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
@@ -143,7 +142,6 @@ export default function ExplorerPage() {
                     <th className="text-left px-3 py-2 hidden lg:table-cell">Status</th>
                     <th className="text-left px-3 py-2 hidden md:table-cell">From</th>
                     <th className="text-left px-3 py-2 hidden sm:table-cell">Amount</th>
-                    <th className="text-left px-3 py-2 hidden lg:table-cell">Gas</th>
                     <th className="text-left px-3 py-2">Time</th>
                   </tr></thead>
                   <tbody>
@@ -156,7 +154,6 @@ export default function ExplorerPage() {
                         <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                         <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
-                        <td className="px-3 py-2 text-[#555] text-xs hidden lg:table-cell whitespace-nowrap">{ev.gas} <TonIcon size={12} /></td>
                         <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                       </tr>
                     ))}
@@ -186,7 +183,6 @@ export default function ExplorerPage() {
                       <th className="text-left px-3 py-2.5">Event</th><th className="text-left px-3 py-2.5">Job</th>
                       <th className="text-left px-3 py-2.5 hidden md:table-cell">From</th>
                       <th className="text-left px-3 py-2.5 hidden sm:table-cell">Amount</th>
-                      <th className="text-left px-3 py-2.5 hidden lg:table-cell">Gas</th>
                       <th className="text-left px-3 py-2.5">Time</th>
                     </tr></thead>
                     <tbody>
@@ -197,8 +193,7 @@ export default function ExplorerPage() {
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                           <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
-                          <td className="px-3 py-2 text-[#555] text-xs hidden lg:table-cell whitespace-nowrap">{ev.gas} <TonIcon size={12} /></td>
-                          <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
+                            <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                         </tr>
                       ))}
                     </tbody>

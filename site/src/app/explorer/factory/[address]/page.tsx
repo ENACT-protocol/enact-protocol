@@ -57,9 +57,8 @@ export default function FactoryPage() {
           </div>
         ) : (
           <>
-            {/* Header — icon above title */}
-            <div className="mb-8">
-              <div className="mb-2"><TypeIcon type={info.type} size={36} /></div>
+            <div className="flex items-center gap-3 mb-8">
+              <TypeIcon type={info.type} size={32} />
               <h1 className="font-serif text-3xl text-white">{info.label}</h1>
             </div>
 
@@ -97,7 +96,6 @@ export default function FactoryPage() {
                       <th className="text-left px-3 py-2 hidden lg:table-cell">Status</th>
                       <th className="text-left px-3 py-2 hidden md:table-cell">From</th>
                       <th className="text-left px-3 py-2 hidden sm:table-cell">Amount</th>
-                      <th className="text-left px-3 py-2 hidden lg:table-cell">Gas</th>
                       <th className="text-left px-3 py-2">Time</th>
                     </tr></thead>
                     <tbody>
@@ -110,7 +108,6 @@ export default function FactoryPage() {
                           <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                           <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
-                          <td className="px-3 py-2 text-[#555] text-xs hidden lg:table-cell whitespace-nowrap">{ev.gas} <TonIcon size={12} /></td>
                           <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                         </tr>
                       ))}
