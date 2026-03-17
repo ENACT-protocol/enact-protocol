@@ -235,7 +235,7 @@ export default function JobPage() {
                     ['client', job.client], ['provider', job.provider ?? 'none'], ['evaluator', job.evaluator],
                     ['budget (raw)', job.budget], ['budgetFormatted', job.budgetFormatted],
                     ['descHash', job.descHash], ['resultHash', job.resultHash],
-                    ['resultType', (job as any).resultType ?? 0],
+                    ['resultType', job.resultType ?? 0],
                     ['timeout', job.timeout], ['evalTimeout', job.evalTimeout],
                     ['createdAt', job.createdAt], ['submittedAt', job.submittedAt],
                     ['factory', job.type === 'ton' ? FACTORY : JETTON_FACTORY],

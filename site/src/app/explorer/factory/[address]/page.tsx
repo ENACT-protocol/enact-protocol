@@ -7,7 +7,7 @@ import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
-  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, ClickAddr, Row, TonscanLink,
+  Badge, Shimmer, TypeIcon, ClickAddr, Row, TonscanLink,
   BudgetDisplay, truncAddr, fmtDateShort, timeAgo, STATUS_COLORS, AIBadge,
 } from '../../shared';
 
@@ -104,7 +104,7 @@ export default function FactoryPage() {
                           className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
-                          <td className="px-3 py-2 hidden xl:table-cell">{(ev as any).txHash ? <a href={`https://tonscan.org/tx/${(ev as any).txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#888] hover:text-white cursor-pointer">{truncAddr((ev as any).txHash)}</a> : <ClickAddr addr={ev.address} truncate />}</td>
+                          <td className="px-3 py-2 hidden xl:table-cell">{ev.txHash ? <a href={`https://tonscan.org/tx/${ev.txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#888] hover:text-white cursor-pointer">{truncAddr(ev.txHash)}</a> : <span className="text-[#555]">—</span>}</td>
                           <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                           <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
@@ -169,10 +169,10 @@ function SC({ label, value, color }: { label: string; value: string | number; co
 function Pager({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
   if (total <= 1) return null;
   return (
-    <div className="flex items-center justify-center gap-2 mt-4">
-      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1.5 text-sm rounded border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">←</button>
-      <span className="text-[#555] text-sm">{page + 1} / {total}</span>
-      <button onClick={() => onChange(Math.min(total - 1, page + 1))} disabled={page >= total - 1} className="px-3 py-1.5 text-sm rounded border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">→</button>
-    </div>
+    <nav className="flex items-center justify-center gap-2 mt-4" aria-label="Pagination">
+      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0} aria-label="Previous page" className="px-3 py-1.5 text-sm rounded border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">&larr;</button>
+      <span className="text-[#555] text-sm" aria-live="polite">{page + 1} / {total}</span>
+      <button onClick={() => onChange(Math.min(total - 1, page + 1))} disabled={page >= total - 1} aria-label="Next page" className="px-3 py-1.5 text-sm rounded border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">&rarr;</button>
+    </nav>
   );
 }

@@ -11,7 +11,16 @@ interface CachedData { data: any; timestamp: number; }
 let cache: CachedData | null = null;
 const CACHE_TTL = 30_000;
 
+const CID_CACHE_MAX = 500;
 const cidCache = new Map<string, { cid: string; text: string | null }>();
+
+function cidCacheSet(key: string, value: { cid: string; text: string | null }) {
+  if (cidCache.size >= CID_CACHE_MAX) {
+    const firstKey = cidCache.keys().next().value;
+    if (firstKey !== undefined) cidCache.delete(firstKey);
+  }
+  cidCache.set(key, value);
+}
 
 async function resolveContent(hash: string): Promise<{
   text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string;
@@ -40,11 +49,11 @@ async function resolveContent(hash: string): Promise<{
             if (contentRes.ok) {
               const data = await contentRes.json();
               const text = data.description ?? data.result ?? data.reason ?? JSON.stringify(data);
-              cidCache.set(hash, { cid, text });
+              cidCacheSet(hash, { cid, text });
               return { text, source: 'ipfs', ipfsUrl };
             }
           } catch {}
-          cidCache.set(hash, { cid, text: null });
+          cidCacheSet(hash, { cid, text: null });
           return { text: null, source: 'ipfs', ipfsUrl };
         }
       }
