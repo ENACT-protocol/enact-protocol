@@ -120,16 +120,12 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
       const fundTxTime = txAt(txIdx.funded)?.utime || j.createdAt || createTime + 1;
       events.push(mk('Funded', 'FUNDED', fundTxTime, bf, j.client, txIdx.funded));
     }
-    // Take: provider is set when job is taken (before submit). Use submit tx - 1 or a separate tx.
-    // In TON contract, take+submit can be separate txs or combined. If provider exists and job was submitted,
-    // take happened. The take tx is the one right before submit in the tx list.
-    if (j.provider && j.provider !== 'none' && (j.submittedAt || txAt(txIdx.submitted))) {
-      // Take tx index: for TON it's the submit tx (take+submit often same tx),
-      // but if there's an extra tx it would shift. Use submit index as approximation.
-      const takeTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
-      if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime - 1, '—', j.provider, txIdx.submitted));
-    }
-    if (j.submittedAt || txAt(txIdx.submitted)) {
+    // Take + Submit only if job actually reached SUBMITTED state (state >= 2)
+    if (j.state >= 2) {
+      if (j.provider && j.provider !== 'none') {
+        const takeTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
+        if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime - 1, '—', j.provider, txIdx.submitted));
+      }
       const submitTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
       if (submitTime) events.push(mk('Submitted', 'SUBMITTED', submitTime, bf, j.provider ?? '', txIdx.submitted));
     }
