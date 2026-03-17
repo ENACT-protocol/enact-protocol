@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
 export const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
@@ -13,6 +13,11 @@ export const STATUS_STYLES: Record<string, string> = {
   COMPLETED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
   CANCELLED: 'border-[#6B7280] text-[#6B7280] bg-[#6B728020]',
   DISPUTED: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
+};
+
+export const STATUS_DOTS: Record<string, string> = {
+  OPEN: 'text-[#4ADE80]', FUNDED: 'text-[#F59E0B]', SUBMITTED: 'text-[#3B82F6]',
+  COMPLETED: 'text-[#4ADE80]', CANCELLED: 'text-[#6B7280]', DISPUTED: 'text-[#EF4444]',
 };
 
 export type Job = {
@@ -29,9 +34,13 @@ export type ExplorerData = {
   lastUpdated: number;
 };
 
-export function truncAddr(a: string) {
+export type ActivityEvent = {
+  jobId: number; type: 'ton' | 'usdt'; address: string; event: string; status: string; time: number; budget?: string;
+};
+
+export function truncAddr(a: string, long = false) {
   if (!a || a.length < 16) return a;
-  return a.slice(0, 8) + '...' + a.slice(-4);
+  return long ? a.slice(0, 12) + '...' + a.slice(-6) : a.slice(0, 8) + '...' + a.slice(-4);
 }
 
 export function tonscanUrl(addr: string) {
@@ -47,7 +56,8 @@ export function fmtDate(unix: number) {
 export function fmtDateShort(unix: number) {
   if (!unix) return '—';
   const d = new Date(unix * 1000);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 export function fmtTimeout(sec: number) {
@@ -55,17 +65,41 @@ export function fmtTimeout(sec: number) {
   return `${Math.round(sec / 3600)}h`;
 }
 
+export function timeAgo(ts: number) {
+  const diff = Math.floor((Date.now() / 1000) - ts);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 export function decodeHexContent(hash: string): string | null {
   if (!hash || hash === '0'.repeat(64)) return null;
   try {
     const clean = hash.replace(/0+$/, '');
     if (clean.length < 4) return null;
-    const buf = Buffer.from(clean, 'hex');
-    const text = buf.toString('utf-8').replace(/\0/g, '');
+    const bytes: number[] = [];
+    for (let i = 0; i < clean.length; i += 2) bytes.push(parseInt(clean.substring(i, i + 2), 16));
+    const text = String.fromCharCode(...bytes).replace(/\0/g, '');
     if (/^[\x20-\x7E\n\r\t]+$/.test(text) && text.length > 2) return text;
   } catch {}
   return null;
 }
+
+export function buildActivity(jobs: Job[]): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+  for (const j of jobs) {
+    if (j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: j.createdAt, budget: j.budgetFormatted });
+    if (j.state >= 1 && j.createdAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: j.createdAt + 1, budget: j.budgetFormatted });
+    if (j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt });
+    if (j.stateName === 'COMPLETED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Completed', status: 'COMPLETED', time: j.submittedAt + 1, budget: j.budgetFormatted });
+    if (j.stateName === 'CANCELLED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: j.createdAt + j.timeout });
+    if (j.stateName === 'DISPUTED' && j.submittedAt) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Disputed', status: 'DISPUTED', time: j.submittedAt + 1 });
+  }
+  return events.sort((a, b) => b.time - a.time);
+}
+
+// ─── Components ───
 
 export function Shimmer({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-[#1a1a1a] rounded ${className ?? ''}`} />;
@@ -80,11 +114,11 @@ export function Badge({ status }: { status: string }) {
 }
 
 export function TonIcon({ size = 16 }: { size?: number }) {
-  return <img src="/ton-icon.svg" alt="TON" width={size} height={size} className="inline-block" />;
+  return <img src="/ton-icon.svg" alt="TON" width={size} height={size} className="inline-block rounded-full" />;
 }
 
 export function UsdtIcon({ size = 16 }: { size?: number }) {
-  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} className="inline-block" />;
+  return <img src="/usdt-icon.svg" alt="USDT" width={size} height={size} className="inline-block rounded-full" />;
 }
 
 export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: number }) {
@@ -96,8 +130,7 @@ export function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); e.preventDefault(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      className="text-[#555] hover:text-[#0098EA] transition-colors relative"
-      title="Copy address"
+      className="text-[#555] hover:text-white transition-colors" title="Copy address"
     >
       {copied ? (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -110,16 +143,17 @@ export function CopyButton({ text }: { text: string }) {
 
 export function TonscanLink({ addr }: { addr: string }) {
   return (
-    <a href={tonscanUrl(addr)} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-[#0098EA] transition-colors" title="View on TONScan">
+    <a href={tonscanUrl(addr)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      className="text-[#555] hover:text-white transition-colors" title="View on TONScan">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
     </a>
   );
 }
 
-export function AddrWithActions({ addr, mono = true, truncate = false }: { addr: string; mono?: boolean; truncate?: boolean }) {
+export function AddrWithActions({ addr, truncate = false, long = false }: { addr: string; truncate?: boolean; long?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`${mono ? 'font-mono text-xs' : ''} text-[#ccc]`}>{truncate ? truncAddr(addr) : addr}</span>
+      <span className="font-mono text-xs text-[#ccc]">{truncate ? truncAddr(addr, long) : addr}</span>
       <TonscanLink addr={addr} />
       <CopyButton text={addr} />
     </span>
@@ -157,6 +191,21 @@ export function BudgetDisplay({ job }: { job: Job }) {
     <span className="inline-flex items-center gap-1">
       {num} <TypeIcon type={job.type} size={14} />
     </span>
+  );
+}
+
+export function ContentDisplay({ hash, label }: { hash: string; label: string }) {
+  const zeroHash = '0'.repeat(64);
+  if (!hash || hash === zeroHash) return <span className="text-[#555]">—</span>;
+
+  const decoded = decodeHexContent(hash);
+  if (decoded) return <span className="text-[#ccc] whitespace-pre-wrap">{decoded}</span>;
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[#555] font-mono text-xs">On-chain hash: {hash.slice(0, 20)}...</span>
+      <CopyButton text={hash} />
+    </div>
   );
 }
 

@@ -6,10 +6,10 @@ import Link from 'next/link';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import {
-  FACTORY, JETTON_FACTORY, Job, useExplorerData,
+  FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity,
   Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon,
-  AddrWithActions, LiveTimer, BudgetDisplay,
-  truncAddr, fmtDateShort, tonscanUrl,
+  AddrWithActions, LiveTimer, BudgetDisplay, TonscanLink, CopyButton,
+  truncAddr, fmtDateShort, tonscanUrl, timeAgo, STATUS_DOTS,
 } from './shared';
 
 type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed';
@@ -19,7 +19,7 @@ export default function ExplorerPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
-  const [searchError, setSearchError] = useState(false);
+  const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'id' | 'status' | 'budget'>('id');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -31,7 +31,6 @@ export default function ExplorerPage() {
     else if (tab === 'usdt') jobs = jobs.filter(j => j.type === 'usdt');
     else if (tab === 'active') jobs = jobs.filter(j => ['OPEN', 'FUNDED', 'SUBMITTED'].includes(j.stateName));
     else if (tab === 'completed') jobs = jobs.filter(j => j.stateName === 'COMPLETED');
-
     return [...jobs].sort((a, b) => {
       let cmp = 0;
       if (sortBy === 'id') cmp = a.jobId - b.jobId || (a.type === 'ton' ? -1 : 1);
@@ -42,22 +41,36 @@ export default function ExplorerPage() {
   }, [allJobs, tab, sortBy, sortDir]);
 
   const stats = useMemo(() => {
-    if (!data) return { total: 0, ton: 0, usdt: 0, completed: 0 };
-    return {
-      total: allJobs.length, ton: data.tonJobs.length, usdt: data.jettonJobs.length,
-      completed: allJobs.filter(j => j.stateName === 'COMPLETED').length,
-    };
+    if (!data) return { total: 0, ton: 0, usdt: 0, tonDone: 0, usdtDone: 0, txCount: 0 };
+    const tonDone = data.tonJobs.filter(j => j.stateName === 'COMPLETED').length;
+    const usdtDone = data.jettonJobs.filter(j => j.stateName === 'COMPLETED').length;
+    // Estimate transactions: each job has at least create+fund, submitted adds 1, completed adds 1
+    let txCount = 0;
+    for (const j of allJobs) {
+      txCount += 1; // create
+      if (j.state >= 1) txCount += 1; // fund
+      if (j.submittedAt) txCount += 1; // submit (includes take)
+      if (j.stateName === 'COMPLETED' || j.stateName === 'DISPUTED') txCount += 1; // evaluate
+      if (j.stateName === 'CANCELLED') txCount += 1; // cancel
+    }
+    return { total: allJobs.length, ton: data.tonJobs.length, usdt: data.jettonJobs.length, tonDone, usdtDone, txCount };
   }, [data, allJobs]);
+
+  const activity = useMemo(() => buildActivity(allJobs).slice(0, 12), [allJobs]);
 
   const handleSearch = () => {
     if (!search.trim() || !data) return;
     const q = search.trim();
-    setSearchError(false);
-    if (q === FACTORY || FACTORY.startsWith(q) && q.length >= 8) { router.push(`/explorer/factory/${FACTORY}`); return; }
-    if (q === JETTON_FACTORY || JETTON_FACTORY.startsWith(q) && q.length >= 8) { router.push(`/explorer/factory/${JETTON_FACTORY}`); return; }
+    setSearchMsg(null);
+    if (q === FACTORY || (q.length >= 8 && FACTORY.startsWith(q))) { router.push(`/explorer/factory/${FACTORY}`); return; }
+    if (q === JETTON_FACTORY || (q.length >= 8 && JETTON_FACTORY.startsWith(q))) { router.push(`/explorer/factory/${JETTON_FACTORY}`); return; }
     const job = allJobs.find(j => j.address === q || (q.length >= 8 && j.address.startsWith(q)));
     if (job) { router.push(`/explorer/job/${job.address}`); return; }
-    setSearchError(true);
+    if (/^[0-9a-fA-F]{64}$/.test(q)) {
+      setSearchMsg('tx_hash');
+    } else {
+      setSearchMsg('not_found');
+    }
   };
 
   const toggleSort = (col: 'id' | 'status' | 'budget') => {
@@ -81,17 +94,22 @@ export default function ExplorerPage() {
         <div className="mb-8">
           <div className="flex gap-2">
             <input type="text" value={search}
-              onChange={e => { setSearch(e.target.value); setSearchError(false); }}
+              onChange={e => { setSearch(e.target.value); setSearchMsg(null); }}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
               placeholder="Search by job or factory address..."
               className="flex-1 bg-[#111] border border-[#222] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#555] font-mono focus:outline-none focus:border-[#0098EA] transition-colors"
             />
             <button onClick={handleSearch} className="bg-[#111] border border-[#222] rounded-lg px-4 py-2.5 text-sm text-[#888] hover:text-white hover:border-[#0098EA] transition-colors">Search</button>
           </div>
-          {searchError && (
+          {searchMsg === 'not_found' && (
             <div className="mt-3 text-sm text-[#888] bg-[#111] border border-[#222] rounded-lg p-4">
               Address not found in ENACT Protocol. This explorer tracks only ENACT contracts.
               <div className="mt-1 text-[#555]">Looking for a wallet? Try <a href="https://tonscan.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0098EA]">tonscan.org</a></div>
+            </div>
+          )}
+          {searchMsg === 'tx_hash' && (
+            <div className="mt-3 text-sm text-[#888] bg-[#111] border border-[#222] rounded-lg p-4">
+              Transaction hash search is not supported. <a href="https://tonscan.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0098EA]">Use tonscan.org to search by transaction hash.</a>
             </div>
           )}
         </div>
@@ -99,6 +117,7 @@ export default function ExplorerPage() {
         {loading ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[1,2,3,4].map(i => <Shimmer key={i} className="h-20 rounded-xl" />)}</div>
+            <Shimmer className="h-48 rounded-xl" />
             <div className="space-y-2">{[1,2,3,4,5].map(i => <Shimmer key={i} className="h-12" />)}</div>
           </div>
         ) : error ? (
@@ -107,20 +126,10 @@ export default function ExplorerPage() {
           <>
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
-              {[
-                { label: 'Total', value: stats.total, icon: null },
-                { label: 'TON Jobs', value: stats.ton, icon: <TonIcon size={18} /> },
-                { label: 'USDT Jobs', value: stats.usdt, icon: <UsdtIcon size={18} /> },
-                { label: 'Completed', value: stats.completed, icon: null },
-              ].map(s => (
-                <div key={s.label} className="bg-[#111] border border-[#222] rounded-xl p-4">
-                  <div className="flex items-center gap-2">
-                    {s.icon}
-                    <span className="text-[#555] text-xs font-mono uppercase">{s.label}</span>
-                  </div>
-                  <div className="text-white text-2xl font-semibold mt-1">{s.value}</div>
-                </div>
-              ))}
+              <StatCard label="Transactions" value={stats.txCount} />
+              <StatCard label="TON Jobs" value={`${stats.ton}`} sub={`${stats.tonDone} done`} icon={<TonIcon size={18} />} />
+              <StatCard label="USDT Jobs" value={`${stats.usdt}`} sub={`${stats.usdtDone} done`} icon={<UsdtIcon size={18} />} />
+              <StatCard label="Total Jobs" value={stats.total} />
             </div>
             <div className="text-[#444] text-xs font-mono mb-6">
               Last updated: <LiveTimer timestamp={data.lastUpdated} /> · Auto-refreshes every 30s
@@ -134,19 +143,41 @@ export default function ExplorerPage() {
               ].map(f => (
                 <Link key={f.label} href={`/explorer/factory/${f.addr}`} className="bg-[#111] border border-[#222] rounded-xl p-4 hover:border-[#333] transition-colors block">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="flex items-center gap-2 text-white font-medium">
-                      <TypeIcon type={f.type} size={20} /> {f.label}
-                    </span>
+                    <span className="flex items-center gap-2 text-white font-medium"><TypeIcon type={f.type} size={20} /> {f.label}</span>
                     <span className="text-[#888] text-sm">{f.count} jobs</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-xs text-[#555] truncate">{f.addr}</span>
                     <TonscanLink addr={f.addr} />
-                    <CopyBtn text={f.addr} />
+                    <CopyButton text={f.addr} />
                   </div>
                 </Link>
               ))}
             </div>
+
+            {/* Latest Activity */}
+            {activity.length > 0 && (
+              <>
+                <div className="border-t border-[#222] my-6" />
+                <div className="mb-6">
+                  <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">Latest Activity</div>
+                  <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
+                    {activity.map((ev, i) => (
+                      <div key={`${ev.address}-${ev.event}-${i}`}
+                        onClick={() => router.push(`/explorer/job/${ev.address}`)}
+                        className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors text-sm">
+                        <span className={`${STATUS_DOTS[ev.status]} text-lg leading-none`}>●</span>
+                        <span className="text-white whitespace-nowrap">Job #{ev.jobId}</span>
+                        <TypeIcon type={ev.type} size={14} />
+                        <span className="text-[#888]">{ev.event}</span>
+                        {ev.budget && <span className="text-[#555] hidden sm:inline">{ev.budget}</span>}
+                        <span className="ml-auto text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="border-t border-[#222] my-6" />
 
@@ -197,22 +228,17 @@ export default function ExplorerPage() {
   );
 }
 
-function TonscanLink({ addr }: { addr: string }) {
+function StatCard({ label, value, sub, icon }: { label: string; value: string | number; sub?: string; icon?: React.ReactNode }) {
   return (
-    <a href={tonscanUrl(addr)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[#555] hover:text-[#0098EA] transition-colors" title="View on TONScan">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-    </a>
-  );
-}
-
-function CopyBtn({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button onClick={e => { e.stopPropagation(); e.preventDefault(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      className="text-[#555] hover:text-[#0098EA] transition-colors" title="Copy">
-      {copied
-        ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
-        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>}
-    </button>
+    <div className="bg-[#111] border border-[#222] rounded-xl p-4">
+      <div className="flex items-center gap-2">
+        {icon}
+        <span className="text-[#555] text-xs font-mono uppercase">{label}</span>
+      </div>
+      <div className="flex items-baseline gap-2 mt-1">
+        <span className="text-white text-2xl font-semibold">{value}</span>
+        {sub && <span className="text-[#555] text-xs">({sub})</span>}
+      </div>
+    </div>
   );
 }
