@@ -111,9 +111,9 @@ export default function ExplorerPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2 explorer-stats">
               <StatCard label="Transactions" value={stats.txTotal} />
+              <StatCard label="Total Jobs" value={stats.total} />
               <StatCard label="TON Jobs" value={stats.ton} sub={stats.tonDone ? `${stats.tonDone} done` : undefined} icon={<TonIcon size={18} />} />
               <StatCard label="USDT Jobs" value={stats.usdt} sub={stats.usdtDone ? `${stats.usdtDone} done` : undefined} icon={<UsdtIcon size={18} />} />
-              <StatCard label="Total Jobs" value={stats.total} />
             </div>
 
             {/* Factories */}
