@@ -82,7 +82,7 @@ export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title={`Volume (${type === 'ton' ? 'TON' : 'USDT'})`}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={volumeData} margin={{ top: 40, right: 16, bottom: 8, left: 8 }}>
+          <AreaChart data={volumeData} margin={{ top: 40, right: 44, bottom: 8, left: 8 }}>
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
             <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={28} />
             <Tooltip content={<VolumeTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
@@ -92,7 +92,7 @@ export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt
       </ChartCard>
       <ChartCard title="Jobs Per Day">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={barData} margin={{ top: 40, right: 16, bottom: 8, left: 8 }} barCategoryGap="20%">
+          <BarChart data={barData} margin={{ top: 40, right: 44, bottom: 8, left: 8 }} barCategoryGap="20%">
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
             <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={20} allowDecimals={false} />
             <Tooltip content={<JobsTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
@@ -116,7 +116,7 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title="Cumulative Volume">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={volumeData} margin={{ top: 40, right: 16, bottom: 8, left: 8 }}>
+          <AreaChart data={volumeData} margin={{ top: 40, right: 44, bottom: 8, left: 8 }}>
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
             <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={28} />
             <Tooltip content={<VolumeTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
@@ -127,7 +127,7 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
       </ChartCard>
       <ChartCard title="Jobs Per Day">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={barData} margin={{ top: 40, right: 16, bottom: 8, left: 8 }} barCategoryGap="20%">
+          <BarChart data={barData} margin={{ top: 40, right: 44, bottom: 8, left: 8 }} barCategoryGap="20%">
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
             <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={20} allowDecimals={false} />
             <Tooltip content={<JobsTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />

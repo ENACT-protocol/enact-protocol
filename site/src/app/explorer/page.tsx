@@ -80,7 +80,7 @@ export default function ExplorerPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'all', label: 'All Jobs' }, { key: 'ton', label: 'TON' }, { key: 'usdt', label: 'USDT' },
-    { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' }, { key: 'transactions', label: 'All Transactions' },
+    { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' },
   ];
 
   const jobsOnPage = filteredJobs.slice(jobPage * PAGE_SIZE, (jobPage + 1) * PAGE_SIZE);
