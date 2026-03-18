@@ -188,6 +188,16 @@ export default function JobPage() {
                           </TxCard>
                         )}
 
+                        {job.provider && job.provider !== 'none' && (() => {
+                          const takeIdx = isUsdt ? 3 : 2;
+                          const takeTx = txAt(takeIdx) || txsRev[txsRev.length - 1];
+                          return (
+                            <TxCard color={STATUS_COLORS.TAKEN || '#38BDF8'} label="Taken" time={fmtDate(takeTx?.utime || job.createdAt)} txHash={takeTx?.hash ?? ''}>
+                              <TxRow label="Provider"><ClickAddr addr={job.provider!} truncate /></TxRow>
+                            </TxCard>
+                          );
+                        })()}
+
                         {wasSubmitted && (() => {
                           const submitTx = txAt(txIdx.submitted);
                           return (
