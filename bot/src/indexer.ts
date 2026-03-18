@@ -171,16 +171,18 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         const evaluatorStr = evaluatorAddr.toString(uf);
 
         const addActivity = async (event: string, status: string, time: number, amount: string | null, from: string | null, txHash: string | null) => {
-            const { data: ex } = await sb.from('activity_events').select('id').eq('job_address', jobAddr).eq('event', event).limit(1);
+            const { data: ex, error: selErr } = await sb.from('activity_events').select('id').eq('job_address', jobAddr).eq('event', event).limit(1);
+            if (selErr) { log(`  DB SEL ERR ${event}: ${selErr.message}`); return; }
             if (ex && ex.length > 0) {
-                // Update tx_status if event exists
                 await sb.from('activity_events').update({ tx_status: txStatus }).eq('job_address', jobAddr).eq('event', event);
                 return;
             }
-            await sb.from('activity_events').insert({
+            const { error: insErr } = await sb.from('activity_events').insert({
                 job_id: jobId, factory_type: type, job_address: jobAddr,
                 event, status, time, amount, from_address: from, tx_hash: txHash, tx_status: txStatus,
             });
+            if (insErr) log(`  DB INS ERR ${event}: ${insErr.message} (${insErr.code})`);
+            else log(`  +${event} for ${type}#${jobId}`);
         };
 
         if (effectiveCreatedAt && chronTxs[0]) await addActivity('Created', 'OPEN', chronTxs[0].utime || effectiveCreatedAt, budgetFormatted, clientStr, chronTxs[0].hash);
