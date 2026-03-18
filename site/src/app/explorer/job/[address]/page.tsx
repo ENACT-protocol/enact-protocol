@@ -53,7 +53,7 @@ export default function JobPage() {
     if (!job) return [];
     const states: Array<{ name: string; reached: boolean; current: boolean; time: string; color: string }> = [];
     const addState = (name: string, reached: boolean, current: boolean, time: number) => {
-      states.push({ name, reached, current, time: time ? fmtDate(time) : '', color: STATUS_COLORS[name] || '#555' });
+      states.push({ name, reached, current, time: reached && time ? fmtDate(time) : '', color: STATUS_COLORS[name] || '#555' });
     };
 
     const createTime = txAt(0)?.utime || job.createdAt || 0;
