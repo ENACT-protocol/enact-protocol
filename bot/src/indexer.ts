@@ -188,10 +188,17 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         if (state >= 1 && chronTxs[fundIdx]) await addActivity('Funded', 'FUNDED', chronTxs[fundIdx].utime, budgetFormatted, clientStr, chronTxs[fundIdx].hash);
         // Taken: provider is set (even before submit)
         if (providerStr) {
-            // Take tx is right after fund for TON, or after setWallet+fund for USDT
             const takeIdx = isUsdt ? 3 : 2;
             const takeTx = chronTxs[takeIdx];
-            if (takeTx) await addActivity('Taken', 'FUNDED', takeTx.utime, null, providerStr, takeTx.hash);
+            log(`  Taken check: provider=${providerStr?.slice(0,10)}, takeIdx=${takeIdx}, hasTx=${!!takeTx}, totalTxs=${chronTxs.length}`);
+            if (takeTx) {
+                await addActivity('Taken', 'FUNDED', takeTx.utime, null, providerStr, takeTx.hash);
+            } else {
+                // Fallback: use last tx as take tx
+                const fallbackTx = chronTxs[chronTxs.length - 1];
+                if (fallbackTx) await addActivity('Taken', 'FUNDED', fallbackTx.utime, null, providerStr, fallbackTx.hash);
+                log(`  Taken fallback: used last tx`);
+            }
         }
         if (submittedAt) {
             const subIdx = isUsdt ? 3 : 2;
