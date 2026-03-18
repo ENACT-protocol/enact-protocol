@@ -912,9 +912,17 @@ bot.command('create', async (ctx) => {
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
 
         // Step 2: Auto-fund
-        const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
-        await new Promise(r => setTimeout(r, 10000));
+        let funded = false;
+        try {
+            const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+            await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
+            await new Promise(r => setTimeout(r, 10000));
+            // Verify fund actually went through
+            const status = await getJobStatus(client, jobAddr.toString());
+            funded = status.state >= 1; // FUNDED or higher
+        } catch (fundErr: any) {
+            console.error('Fund failed:', fundErr.message);
+        }
 
         saveDescription(jobId, description);
 
@@ -923,16 +931,31 @@ bot.command('create', async (ctx) => {
             .url('🔗 Explorer', explorerLink(jobAddr.toString())).row()
             .text('🏠 Main Menu', 'menu_main');
 
-        await ctx.reply(
-            `${e('✅')} <b>Job Created & Funded!</b>\n\n` +
-            `${e('🆔')} ID: <code>${jobId}</code>\n` +
-            `${e('🪙')} Budget: ${ton(budgetTon)}\n` +
-            `${e('📄')} Description: ${description}\n` +
-            `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
-            `Job is ready — waiting for a provider to take it.` +
+        if (funded) {
+            await ctx.reply(
+                `${e('✅')} <b>Job Created & Funded!</b>\n\n` +
+                `${e('🆔')} ID: <code>${jobId}</code>\n` +
+                `${e('🪙')} Budget: ${ton(budgetTon)}\n` +
+                `${e('📄')} Description: ${description}\n` +
+                `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
+                `Job is ready — waiting for a provider to take it.` +
             (evaluatorStr === AI_EVALUATOR ? `\n\n${e('🤖')} AI Evaluator will review this job.` : ''),
             { parse_mode: 'HTML', reply_markup: kb }
         );
+        } else {
+            const fundKb = new InlineKeyboard()
+                .text(`💰 Fund ${budgetTon} TON`, `fund_${jobId}`)
+                .text('🔭 Status', `status_${jobId}`).row()
+                .text('🏠 Main Menu', 'menu_main');
+            await ctx.reply(
+                `${e('✅')} <b>Job Created</b> (not funded yet)\n\n` +
+                `${e('🆔')} ID: <code>${jobId}</code>\n` +
+                `${e('📄')} Description: ${description}\n` +
+                `${e('📍')} Address: <code>${jobAddr.toString()}</code>\n\n` +
+                `${e('⚠️')} Auto-fund failed. Use /fund to fund manually.`,
+                { parse_mode: 'HTML', reply_markup: fundKb }
+            );
+        }
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
