@@ -186,9 +186,15 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         if (effectiveCreatedAt && chronTxs[0]) await addActivity('Created', 'OPEN', chronTxs[0].utime || effectiveCreatedAt, budgetFormatted, clientStr, chronTxs[0].hash);
         const fundIdx = isUsdt ? 2 : 1;
         if (state >= 1 && chronTxs[fundIdx]) await addActivity('Funded', 'FUNDED', chronTxs[fundIdx].utime, budgetFormatted, clientStr, chronTxs[fundIdx].hash);
+        // Taken: provider is set (even before submit)
+        if (providerStr) {
+            // Take tx is right after fund for TON, or after setWallet+fund for USDT
+            const takeIdx = isUsdt ? 3 : 2;
+            const takeTx = chronTxs[takeIdx];
+            if (takeTx) await addActivity('Taken', 'FUNDED', takeTx.utime, null, providerStr, takeTx.hash);
+        }
         if (submittedAt) {
             const subIdx = isUsdt ? 3 : 2;
-            if (providerStr && chronTxs[subIdx]) await addActivity('Taken', 'FUNDED', chronTxs[subIdx].utime - 1, null, providerStr, chronTxs[subIdx].hash);
             if (chronTxs[subIdx]) await addActivity('Submitted', 'SUBMITTED', chronTxs[subIdx].utime, budgetFormatted, providerStr, chronTxs[subIdx].hash);
         }
         const lastTx = chronTxs[chronTxs.length - 1];
