@@ -44,7 +44,7 @@ export default function Home() {
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>4 contracts</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
-          <span>14 MCP tools</span>
+          <span>15 MCP tools</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>0% fee</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />

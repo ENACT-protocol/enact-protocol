@@ -10,6 +10,7 @@ import {
   Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge,
   BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, timeAgo,
 } from './shared';
+import { ExplorerCharts } from './Charts';
 
 type Tab = 'all' | 'ton' | 'usdt' | 'active' | 'completed' | 'transactions';
 const PAGE_SIZE = 20;
@@ -26,6 +27,7 @@ export default function ExplorerPage() {
   const [jobPage, setJobPage] = useState(0);
   const [txPage, setTxPage] = useState(0);
   const [actPage, setActPage] = useState(0);
+  const [addrFilter, setAddrFilter] = useState('');
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
   const allActivity = useMemo(() => buildActivity(allJobs), [allJobs]);
@@ -36,6 +38,10 @@ export default function ExplorerPage() {
     else if (tab === 'usdt') jobs = jobs.filter(j => j.type === 'usdt');
     else if (tab === 'active') jobs = jobs.filter(j => ['OPEN', 'FUNDED', 'SUBMITTED'].includes(j.stateName));
     else if (tab === 'completed') jobs = jobs.filter(j => j.stateName === 'COMPLETED');
+    if (addrFilter) {
+      const f = addrFilter.toLowerCase();
+      jobs = jobs.filter(j => j.client?.toLowerCase().includes(f) || j.evaluator?.toLowerCase().includes(f) || j.provider?.toLowerCase().includes(f));
+    }
     return [...jobs].sort((a, b) => {
       let cmp = 0;
       if (sortBy === 'id') cmp = a.jobId - b.jobId || (a.type === 'ton' ? -1 : 1);
@@ -43,7 +49,7 @@ export default function ExplorerPage() {
       else if (sortBy === 'budget') cmp = Number(BigInt(a.budget) - BigInt(b.budget));
       return sortDir === 'desc' ? -cmp : cmp;
     });
-  }, [allJobs, tab, sortBy, sortDir]);
+  }, [allJobs, tab, sortBy, sortDir, addrFilter]);
 
   const stats = useMemo(() => {
     if (!data) return { total: 0, ton: 0, usdt: 0, tonDone: 0, usdtDone: 0, txTotal: 0 };
@@ -116,6 +122,9 @@ export default function ExplorerPage() {
               <StatCard label="USDT Jobs" value={stats.usdt} sub={stats.usdtDone ? `${stats.usdtDone} done` : undefined} icon={<UsdtIcon size={18} />} />
             </div>
 
+            {/* Charts */}
+            <ExplorerCharts />
+
             {/* Factories */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {[{ label: 'JobFactory', type: 'ton' as const, addr: data.factories.ton.address, count: data.factories.ton.jobCount },
@@ -165,6 +174,15 @@ export default function ExplorerPage() {
             </div>
 
             <div className="border-t border-[#222] my-6" />
+
+            {/* Address Filter */}
+            <div className="flex items-center gap-2 mb-4">
+              <input type="text" value={addrFilter} onChange={e => { setAddrFilter(e.target.value); setJobPage(0); }}
+                placeholder="Filter by client/evaluator/provider address..."
+                className="flex-1 bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-xs text-white placeholder-[#555] font-mono focus:outline-none focus:border-[#0098EA] transition-colors max-w-md" />
+              {addrFilter && <button onClick={() => setAddrFilter('')} className="text-[#555] hover:text-white text-xs cursor-pointer">Clear</button>}
+              <button onClick={() => setAddrFilter(AI_EVALUATOR)} className="text-xs text-[#3B82F6] hover:text-white cursor-pointer whitespace-nowrap hidden sm:block">AI Evaluator</button>
+            </div>
 
             {/* Tabs */}
             <div className="flex gap-1 mb-4 overflow-x-auto">

@@ -11,6 +11,8 @@ package.ts
 .env.*.local
 bot/.env
 mcp-server/.env
+indexer/.env
+site/.env.local
 
 # Wallet data (sensitive!)
 bot/data/
@@ -18,6 +20,7 @@ bot/data/
 # Build artifacts
 mcp-server/dist
 bot/dist
+indexer/
 sdk/dist
 sdk/node_modules
 site/.next

@@ -79,10 +79,18 @@ export function timeAgo(ts: number) {
 export function txCount(j: Job): number {
   // Use real tx count if available
   if (j.transactions && j.transactions.length > 0) return j.transactions.length;
-  // Fallback estimate
+  // Fallback estimate when transactions array is unavailable.
+  // Note: j.state for CANCELLED=5 so "j.state >= 1" is always true for cancelled jobs.
+  // We use submittedAt / provider to infer how far the job actually progressed.
+  const wasFunded = j.stateName === 'CANCELLED'
+    ? (j.submittedAt > 0 || (j.provider != null && j.provider !== 'none'))
+      ? true   // was at least submitted, so definitely funded
+      : j.createdAt > 0 // createdAt is set at fund time in contract; 0 means never funded
+    : j.state >= 1;
   let n = 1; // initJob
-  if (j.type === 'usdt' && j.state >= 1) n++; // setJettonWallet
-  if (j.state >= 1) n++; // fund
+  // setJettonWallet only happens for USDT jobs that actually reached FUNDED state
+  if (j.type === 'usdt' && wasFunded) n++; // setJettonWallet
+  if (wasFunded) n++; // fund
   if (j.provider && j.provider !== 'none') n++; // take
   if (j.submittedAt) n++; // submit
   if (['COMPLETED', 'DISPUTED'].includes(j.stateName)) n++; // evaluate
@@ -240,6 +248,8 @@ export function LiveTimer({ timestamp }: { timestamp: number }) {
 }
 
 export function BudgetDisplay({ job }: { job: Job }) {
+  // Note: Number(BigInt(...)) loses precision for values > 2^53 (~9007 TON / ~9B USDT).
+  // Acceptable for display since we format to 2 decimals; not suitable for exact arithmetic.
   const num = job.type === 'usdt' ? (Number(BigInt(job.budget)) / 1e6).toFixed(2) : (Number(BigInt(job.budget)) / 1e9).toFixed(2);
   return <span className="inline-flex items-center gap-0.5">{num}<TypeIcon type={job.type} size={14} /></span>;
 }
@@ -282,21 +292,30 @@ export function useExplorerData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Request version counter to prevent stale responses from overwriting newer data.
+  // If a slow response arrives after a newer fast one, we discard the stale result.
+  const requestVersionRef = useRef(0);
 
   const fetchData = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const version = ++requestVersionRef.current;
     try {
       const res = await fetch('/api/explorer', { signal: controller.signal });
       if (!res.ok) throw new Error('Failed to fetch');
-      setData(await res.json());
+      const json = await res.json();
+      // Only update state if this is still the latest request
+      if (version !== requestVersionRef.current) return;
+      setData(json);
       setError(null);
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
+      // Only update error if this is still the latest request
+      if (version !== requestVersionRef.current) return;
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (!controller.signal.aborted && version === requestVersionRef.current) setLoading(false);
     }
   }, []);
 

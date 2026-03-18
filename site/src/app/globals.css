@@ -430,38 +430,40 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 }
 .doc-nav .nav-title { font-size: 0.875rem; color: white; font-weight: 500; }
 
-/* Explorer mobile styles */
-@media (max-width: 640px) {
-  /* Stat cards */
-  .explorer-stats { gap: 8px !important; }
-  .explorer-stats > div { padding: 10px 12px !important; }
-  .explorer-stats > div .text-2xl { font-size: 1.25rem !important; }
+/* Explorer mobile styles — wrapped in @layer utilities so they win over Tailwind v4 layers */
+@layer utilities {
+  @media (max-width: 640px) {
+    /* Stat cards */
+    .explorer-stats { gap: 8px !important; }
+    .explorer-stats > div { padding: 10px 12px !important; }
+    .explorer-stats > div .text-2xl { font-size: 1.25rem !important; }
 
-  /* Tables: compact */
-  .explorer-table th { padding: 8px 10px !important; font-size: 10px !important; }
-  .explorer-table td { padding: 8px 10px !important; font-size: 12px !important; }
+    /* Tables: compact */
+    .explorer-table th { padding: 8px 10px !important; font-size: 10px !important; }
+    .explorer-table td { padding: 8px 10px !important; font-size: 12px !important; }
 
-  /* Factory cards */
-  .explorer-factory { padding: 12px !important; }
-  .explorer-factory .font-mono { font-size: 10px !important; }
+    /* Factory cards */
+    .explorer-factory { padding: 12px !important; }
+    .explorer-factory .font-mono { font-size: 10px !important; }
 
-  /* Job page sections */
-  .explorer-section { padding: 14px !important; }
-  .explorer-section .text-sm { font-size: 12px !important; }
+    /* Job page sections */
+    .explorer-section { padding: 14px !important; }
+    .explorer-section .text-sm { font-size: 12px !important; }
 
-  /* Tx cards */
-  .explorer-tx { padding: 12px !important; }
-  .explorer-tx .text-sm { font-size: 12px !important; }
+    /* Tx cards */
+    .explorer-tx { padding: 12px !important; }
+    .explorer-tx .text-sm { font-size: 12px !important; }
 
-  /* Search */
-  .explorer-search input { font-size: 12px !important; padding: 8px 12px !important; }
-  .explorer-search button { padding: 8px 12px !important; font-size: 12px !important; }
+    /* Search */
+    .explorer-search input { font-size: 12px !important; padding: 8px 12px !important; }
+    .explorer-search button { padding: 8px 12px !important; font-size: 12px !important; }
 
-  /* Title */
-  .explorer-title { font-size: 1.5rem !important; }
+    /* Title */
+    .explorer-title { font-size: 1.5rem !important; }
 
-  /* Badges smaller */
-  .explorer-badge { font-size: 10px !important; padding: 1px 6px !important; }
+    /* Badges smaller */
+    .explorer-badge { font-size: 10px !important; padding: 1px 6px !important; }
+  }
 }
 
 /* Explorer row fade-in animation */

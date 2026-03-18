@@ -2396,6 +2396,10 @@ async function main() {
     startFactoryWatcher().catch(err =>
         console.error('Factory watcher failed:', err.message));
 
+    // Start Supabase indexer (non-blocking)
+    import('./indexer').then(m => m.startIndexer()).catch(err =>
+        console.error('Indexer failed to start:', err.message));
+
     // Health-check HTTP server for Render
     const port = process.env.PORT || 10000;
     http.createServer((_, res) => {
