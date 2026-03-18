@@ -96,6 +96,7 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
   } catch {}
   if (process.env.PINATA_JWT) {
     try {
+      if (!/^[0-9a-fA-F]{1,64}$/.test(hash)) return { text: null, source: 'hash' };
       const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` }, signal: AbortSignal.timeout(5000) });
       if (res.ok) {
