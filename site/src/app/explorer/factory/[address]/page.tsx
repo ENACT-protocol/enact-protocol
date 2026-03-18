@@ -10,6 +10,7 @@ import {
   Badge, Shimmer, TypeIcon, ClickAddr, Row, TonscanLink,
   BudgetDisplay, truncAddr, fmtDateShort, timeAgo, STATUS_COLORS, AIBadge,
 } from '../../shared';
+import { FactoryCharts } from '../../Charts';
 
 const ACT_PAGE = 15;
 
@@ -82,6 +83,9 @@ export default function FactoryPage() {
               <SC label="Cancelled" value={stats.cancelled} color="#6B7280" />
               <SC label="Volume" value={stats.volume} />
             </div>
+
+            {/* Charts */}
+            <FactoryCharts jobs={info.jobs} type={info.type} />
 
             {/* Latest Activity — same as main explorer */}
             {activity.length > 0 && (
