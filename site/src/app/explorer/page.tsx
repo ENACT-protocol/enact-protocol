@@ -181,7 +181,7 @@ export default function ExplorerPage() {
                 placeholder="Filter by client/evaluator/provider address..."
                 className="flex-1 bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-xs text-white placeholder-[#555] font-mono focus:outline-none focus:border-[#0098EA] transition-colors max-w-md" />
               {addrFilter && <button onClick={() => setAddrFilter('')} className="text-[#555] hover:text-white text-xs cursor-pointer">Clear</button>}
-              <button onClick={() => setAddrFilter(AI_EVALUATOR)} className="text-xs text-[#3B82F6] hover:text-white cursor-pointer whitespace-nowrap hidden sm:block">AI Evaluator</button>
+              <button onClick={() => setAddrFilter(AI_EVALUATOR)} className="text-xs text-[#3B82F6] hover:text-white cursor-pointer whitespace-nowrap hidden sm:flex items-center gap-1"><AIBadge /></button>
             </div>
 
             {/* Tabs */}
