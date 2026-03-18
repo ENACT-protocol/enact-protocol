@@ -472,3 +472,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   to { opacity: 1; transform: translateY(0); }
 }
 .explorer-row { animation: explorer-fade-in 0.3s ease-out; }
+
+/* Transaction status animations */
+@keyframes tx-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.tx-pending { animation: tx-pulse 1.5s ease-in-out infinite; background: rgba(250,204,21,0.05) !important; }
+.tx-confirmed { animation: tx-pulse 3s ease-in-out infinite; background: rgba(96,165,250,0.04) !important; }

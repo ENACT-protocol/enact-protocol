@@ -1,7 +1,8 @@
 /**
  * ENACT Protocol Indexer — runs inside the bot process.
- * Backfills all jobs on startup, then listens via TON HTTP API v3 SSE
- * for real-time transaction updates. Writes to Supabase.
+ * Backfills all jobs on startup, then uses TON HTTP API v3
+ * with fast polling (2s) for near-realtime transaction tracking.
+ * Writes to Supabase with tx_status (pending → confirmed → finalized).
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -14,7 +15,8 @@ const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CA
 const ZERO_HASH = '0'.repeat(64);
 const PINATA_GW = process.env.PINATA_GATEWAY || 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
 const API_KEY = process.env.TONCENTER_API_KEY || '';
-const TON_API_V3 = 'https://toncenter.com/api/v3';
+const V3_BASE = 'https://toncenter.com/api/v3';
+const POLL_MS = 2000; // 2 second fast poll
 
 let supabase: SupabaseClient | null = null;
 
@@ -29,6 +31,10 @@ function getSupabase(): SupabaseClient | null {
     if (!url || !key) return null;
     supabase = createClient(url, key);
     return supabase;
+}
+
+function getClient(): TonClient {
+    return new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC', apiKey: API_KEY });
 }
 
 // ─── Content Resolution ───
@@ -66,15 +72,17 @@ async function resolveContent(hash: string): Promise<{ text: string | null; ipfs
     return { text: null, ipfsUrl: null };
 }
 
-// ─── Transaction Fetching ───
+// ─── V3 API Transaction Fetching ───
 
-async function fetchTransactions(address: string): Promise<any[]> {
+async function fetchTxsV3(address: string, startUtime?: number): Promise<any[]> {
     try {
-        const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(address)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        let url = `${V3_BASE}/transactions?account=${encodeURIComponent(address)}&limit=50&sort=desc`;
+        if (startUtime) url += `&start_utime=${startUtime}`;
+        if (API_KEY) url += `&api_key=${API_KEY}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
         if (!res.ok) return [];
-        const data = await res.json() as { ok: boolean; result?: any[] };
-        return data.ok ? (data.result ?? []) : [];
+        const data = await res.json() as { transactions?: any[] };
+        return data.transactions ?? [];
     } catch { return []; }
 }
 
@@ -90,11 +98,9 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         ]);
         const jobAddr = addrResult.stack.readAddress().toString();
 
-        // Check if terminal job already indexed
+        // Skip terminal jobs already indexed
         const { data: existing } = await sb.from('jobs').select('state').eq('address', jobAddr).single();
-        if (existing && [3, 4, 5].includes(existing.state)) {
-            return; // Terminal — skip
-        }
+        if (existing && [3, 4, 5].includes(existing.state)) return;
 
         const result = await client.runMethod(Address.parse(jobAddr), 'get_job_data');
         const jid = result.stack.readNumber();
@@ -127,11 +133,12 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             state >= 3 ? resolveContent(reason.toString(16).padStart(64, '0')) : Promise.resolve({ text: null, ipfsUrl: null }),
         ]);
 
-        const rawTxs = await fetchTransactions(jobAddr);
+        // Fetch txs via v3 API
+        const rawTxs = await fetchTxsV3(jobAddr);
         const txs = rawTxs.map((tx: any) => ({
-            hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
-            fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
-            utime: tx.utime || 0,
+            hash: tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : '',
+            fee: (Number(tx.total_fees || 0) / 1e9).toFixed(4),
+            utime: tx.now || 0,
             from: tx.in_msg?.source || null,
         }));
 
@@ -205,7 +212,7 @@ async function backfill() {
     if (!sb) return;
 
     log('Backfilling...');
-    const client = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC', apiKey: API_KEY });
+    const client = getClient();
 
     for (const { factory, type } of [
         { factory: FACTORY, type: 'ton' as const },
@@ -217,7 +224,7 @@ async function backfill() {
             log(`${type.toUpperCase()}: ${count} jobs`);
 
             for (let i = 0; i < count; i++) {
-                await new Promise(r => setTimeout(r, 500)); // Rate limit
+                await new Promise(r => setTimeout(r, 500));
                 await indexJob(client, factory, i, type);
             }
 
@@ -232,55 +239,65 @@ async function backfill() {
     log('Backfill done.');
 }
 
-// ─── SSE Listener (TON HTTP API v3) ───
+// ─── Fast Poller via TON HTTP API v3 ───
 
-async function listenSSE(factory: string, type: 'ton' | 'usdt') {
-    const client = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC', apiKey: API_KEY });
+async function startFastPoller(factory: string, type: 'ton' | 'usdt') {
+    const client = getClient();
+    const sb = getSupabase();
+    if (!sb) return;
+
+    let lastUtime = Math.floor(Date.now() / 1000); // Start from now
+    let lastJobCount = 0;
+
+    // Get initial job count
+    try {
+        const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
+        lastJobCount = state?.data?.last_job_count ?? 0;
+    } catch {}
+
+    log(`${type.toUpperCase()} fast poller started (every ${POLL_MS}ms)`);
 
     while (true) {
         try {
-            // Get current job count to detect new jobs
+            // 1. Check for new jobs via factory
             const countResult = await client.runMethod(Address.parse(factory), 'get_next_job_id');
             const currentCount = countResult.stack.readNumber();
 
-            const sb = getSupabase();
-            const stateRow = sb ? await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single() : null;
-            const lastCount = stateRow?.data?.last_job_count ?? 0;
-
-            if (currentCount > lastCount) {
-                log(`${type.toUpperCase()}: ${currentCount - lastCount} new job(s) detected (${lastCount} → ${currentCount})`);
-                for (let i = lastCount; i < currentCount; i++) {
-                    await new Promise(r => setTimeout(r, 1000));
+            if (currentCount > lastJobCount) {
+                log(`${type.toUpperCase()}: ${currentCount - lastJobCount} new job(s)!`);
+                for (let i = lastJobCount; i < currentCount; i++) {
                     await indexJob(client, factory, i, type);
                 }
-                if (sb) {
-                    await sb.from('indexer_state').upsert({
-                        factory_address: factory, last_job_count: currentCount,
-                        updated_at: new Date().toISOString(),
-                    }, { onConflict: 'factory_address' });
-                }
+                lastJobCount = currentCount;
+                await sb.from('indexer_state').upsert({
+                    factory_address: factory, last_job_count: currentCount,
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'factory_address' });
             }
 
-            // Also re-index active (non-terminal) jobs to catch state changes
-            if (sb) {
-                const { data: activeJobs } = await sb.from('jobs')
-                    .select('job_id, factory_type')
-                    .eq('factory_address', factory)
-                    .in('state', [0, 1, 2]); // OPEN, FUNDED, SUBMITTED
+            // 2. Check active jobs for state changes via v3 API
+            const { data: activeJobs } = await sb.from('jobs')
+                .select('job_id, address, factory_type')
+                .eq('factory_address', factory)
+                .in('state', [0, 1, 2]);
 
-                if (activeJobs) {
-                    for (const job of activeJobs) {
-                        await new Promise(r => setTimeout(r, 500));
+            if (activeJobs && activeJobs.length > 0) {
+                for (const job of activeJobs) {
+                    // Quick check: any new txs since last poll?
+                    const newTxs = await fetchTxsV3(job.address, lastUtime - 5);
+                    if (newTxs.length > 0) {
+                        log(`${type.toUpperCase()} #${job.job_id}: ${newTxs.length} new tx(s), re-indexing...`);
                         await indexJob(client, factory, job.job_id, type);
                     }
                 }
             }
+
+            lastUtime = Math.floor(Date.now() / 1000);
         } catch (err: any) {
-            log(`SSE listener error ${type}: ${err.message}`);
+            log(`Poller error ${type}: ${err.message}`);
         }
 
-        // Poll every 10 seconds for near-realtime
-        await new Promise(r => setTimeout(r, 10_000));
+        await new Promise(r => setTimeout(r, POLL_MS));
     }
 }
 
@@ -295,21 +312,20 @@ export async function startIndexer() {
     log(`Starting indexer... Supabase: ${process.env.SUPABASE_URL?.slice(0, 30)}...`);
     log(`Service key: ${process.env.SUPABASE_SERVICE_KEY ? 'set (' + process.env.SUPABASE_SERVICE_KEY.slice(0, 10) + '...)' : 'NOT SET'}`);
 
-    // Test Supabase connection
-    const { data: testData, error: testErr } = await sb.from('jobs').select('id').limit(1);
+    // Test connection
+    const { error: testErr } = await sb.from('jobs').select('id').limit(1);
     if (testErr) {
-        log(`Supabase connection FAILED: ${testErr.message} (${testErr.code})`);
-        log(`Details: ${JSON.stringify(testErr)}`);
+        log(`Supabase connection FAILED: ${testErr.message}`);
         return;
     }
-    log(`Supabase connection OK (${testData?.length ?? 0} existing jobs)`);
+    log('Supabase connection OK');
 
-    // Initial backfill
+    // Backfill
     await backfill();
 
-    // Start SSE listeners for both factories (non-blocking)
-    listenSSE(FACTORY, 'ton').catch(err => log(`TON listener crashed: ${err.message}`));
-    listenSSE(JETTON_FACTORY, 'usdt').catch(err => log(`USDT listener crashed: ${err.message}`));
+    // Start fast pollers (2s interval)
+    startFastPoller(FACTORY, 'ton').catch(err => log(`TON poller crashed: ${err.message}`));
+    startFastPoller(JETTON_FACTORY, 'usdt').catch(err => log(`USDT poller crashed: ${err.message}`));
 
-    log('Indexer running — listening for new transactions');
+    log('Indexer running — fast polling every 2s');
 }

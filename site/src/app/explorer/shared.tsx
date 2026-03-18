@@ -42,7 +42,7 @@ export type ExplorerData = {
 
 export type ActivityEvent = {
   jobId: number; type: 'ton' | 'usdt'; address: string; event: string; status: string;
-  time: number; amount: string; from: string; txHash?: string;
+  time: number; amount: string; from: string; txHash?: string; txStatus?: 'pending' | 'confirmed' | 'finalized';
 };
 
 export function truncAddr(a: string) {
