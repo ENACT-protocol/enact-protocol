@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Job } from './shared';
 
 interface DayStat { day: string; factory_type: string; job_count: number; volume: number; }
@@ -9,12 +9,12 @@ interface DayStat { day: string; factory_type: string; job_count: number; volume
 const VolumeTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ color: '#888', marginBottom: 4 }}>{label}</div>
+    <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+      <div style={{ color: '#666', marginBottom: 3 }}>{label}</div>
       {payload.map((p: any) => (
-        <div key={p.name} style={{ color: p.color, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-          <span>{p.name}: {Number(p.value).toFixed(2)}</span>
+        <div key={p.name} style={{ color: p.color, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
+          {p.name}: {Number(p.value).toFixed(2)}
         </div>
       ))}
     </div>
@@ -24,12 +24,12 @@ const VolumeTooltip = ({ active, payload, label }: any) => {
 const JobsTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ color: '#888', marginBottom: 4 }}>{label}</div>
+    <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+      <div style={{ color: '#666', marginBottom: 3 }}>{label}</div>
       {payload.map((p: any) => (
-        <div key={p.name} style={{ color: p.color, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-          <span>{p.name}: {Math.round(p.value)}</span>
+        <div key={p.name} style={{ color: p.color, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
+          {p.name}: {Math.round(p.value)}
         </div>
       ))}
     </div>
@@ -47,23 +47,17 @@ function buildChartData(stats: DayStat[]) {
   return Array.from(dayMap.values()).sort((a, b) => a.day.localeCompare(b.day));
 }
 
-/** Main explorer charts */
 export function ExplorerCharts() {
   const [stats, setStats] = useState<DayStat[]>([]);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     fetch('/api/explorer/stats').then(r => r.json()).then(d => { if (Array.isArray(d)) setStats(d); }).catch(() => {}).finally(() => setLoading(false));
   }, []);
-
-  if (loading) return <div className="h-48 bg-[#111] border border-[#222] rounded-xl animate-pulse" />;
+  if (loading) return <div className="h-[250px] bg-[#111] border border-[#222] rounded-xl animate-pulse" />;
   if (!stats.length) return null;
-
-  const chartData = buildChartData(stats);
-  return <ChartPair data={chartData} showBoth />;
+  return <ChartPair data={buildChartData(stats)} showBoth />;
 }
 
-/** Factory-specific charts */
 export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt' }) {
   const chartData = useMemo(() => {
     const dayMap = new Map<string, { day: string; jobs: number; vol: number }>();
@@ -79,33 +73,30 @@ export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt
   }, [jobs, type]);
 
   if (!chartData.length) return null;
-
   let cum = 0;
   const volumeData = chartData.map(d => { cum += d.vol; return { day: d.day.slice(5), vol: +cum.toFixed(2) }; });
   const barData = chartData.map(d => ({ day: d.day.slice(5), jobs: d.jobs }));
-  const color = type === 'ton' ? '#0098EA' : '#26A17B';
+  const color = type === 'ton' ? '#0088CC' : '#26A17B';
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title={`Volume (${type === 'ton' ? 'TON' : 'USDT'})`}>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={volumeData}>
-            <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={40} />
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={volumeData} margin={{ top: 30, right: 40, bottom: 20, left: 0 }}>
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
+            <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={36} />
             <Tooltip content={<VolumeTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
-            <Area type="monotone" dataKey="vol" name={type.toUpperCase()} stroke={color} fill={color} fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: color, stroke: '#0a0a0a', strokeWidth: 2 }} />
+            <Area type="monotone" dataKey="vol" name={type.toUpperCase()} stroke={color} fill={color} fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 3, fill: color, stroke: '#111', strokeWidth: 2 }} />
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
       <ChartCard title="Jobs Per Day">
-        <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={barData}>
-            <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={barData} margin={{ top: 30, right: 40, bottom: 20, left: 0 }} barCategoryGap="20%">
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
+            <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={24} allowDecimals={false} />
             <Tooltip content={<JobsTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-            <Bar dataKey="jobs" name="Jobs" fill={color} fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="jobs" name="Jobs" fill={color} fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={40} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -124,26 +115,24 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title="Cumulative Volume">
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={volumeData}>
-            <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={40} />
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={volumeData} margin={{ top: 30, right: 40, bottom: 20, left: 0 }}>
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
+            <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={36} />
             <Tooltip content={<VolumeTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
-            <Area type="monotone" dataKey="tonVol" name="TON" stroke="#0098EA" fill="#0098EA" fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#0098EA', stroke: '#0a0a0a', strokeWidth: 2 }} />
-            {showBoth && <Area type="monotone" dataKey="usdtVol" name="USDT" stroke="#26A17B" fill="#26A17B" fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#26A17B', stroke: '#0a0a0a', strokeWidth: 2 }} />}
+            <Area type="monotone" dataKey="tonVol" name="TON" stroke="#0088CC" fill="#0088CC" fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 3, fill: '#0088CC', stroke: '#111', strokeWidth: 2 }} />
+            {showBoth && <Area type="monotone" dataKey="usdtVol" name="USDT" stroke="#26A17B" fill="#26A17B" fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 3, fill: '#26A17B', stroke: '#111', strokeWidth: 2 }} />}
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
       <ChartCard title="Jobs Per Day">
-        <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={barData}>
-            <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={barData} margin={{ top: 30, right: 40, bottom: 20, left: 0 }} barCategoryGap="20%">
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} />
+            <YAxis orientation="right" tick={{ fontSize: 11, fill: '#555' }} axisLine={false} tickLine={false} width={24} allowDecimals={false} />
             <Tooltip content={<JobsTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-            <Bar dataKey="ton" name="TON" fill="#0098EA" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
-            {showBoth && <Bar dataKey="usdt" name="USDT" fill="#26A17B" fillOpacity={0.8} radius={[4, 4, 0, 0]} />}
+            <Bar dataKey="ton" name="TON" fill="#0088CC" fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={40} />
+            {showBoth && <Bar dataKey="usdt" name="USDT" fill="#26A17B" fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={40} />}
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -153,8 +142,8 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-      <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">{title}</div>
+    <div className="bg-[#111] border border-[#222] rounded-xl relative h-[250px] overflow-hidden">
+      <div className="absolute top-0 left-0 z-10 text-[#666] text-[10px] font-mono uppercase tracking-wider bg-[rgba(0,0,0,0.7)] px-2 py-1 rounded-br-lg">{title}</div>
       {children}
     </div>
   );
