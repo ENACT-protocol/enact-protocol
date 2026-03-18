@@ -253,7 +253,7 @@ export default function JobPage() {
                         <div key={s.name} className="relative flex items-start" style={{ paddingBottom: isLast ? 0 : 24 }}>
                           {!isLast && (
                             <div className="absolute left-[5px] top-[12px] w-[2px] bottom-0"
-                              style={s.reached && !s.current ? { backgroundColor: s.color } : { borderLeft: '2px dashed #333' }} />
+                              style={s.reached ? { backgroundColor: s.color } : { borderLeft: '2px dashed #333' }} />
                           )}
                           <div className="relative z-10 shrink-0" style={{ width: 12 }}>
                             {s.current
