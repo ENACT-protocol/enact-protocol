@@ -191,15 +191,23 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         // Taken: provider is set (even before submit)
         if (providerStr) {
             const takeIdx = isUsdt ? 3 : 2;
-            const takeTx = chronTxs[takeIdx];
-            log(`  Taken check: provider=${providerStr?.slice(0,10)}, takeIdx=${takeIdx}, hasTx=${!!takeTx}, totalTxs=${chronTxs.length}`);
+            const takeTx = chronTxs[takeIdx] || chronTxs[chronTxs.length - 1];
             if (takeTx) {
-                await addActivity('Taken', 'FUNDED', takeTx.utime, null, providerStr, takeTx.hash);
+                // Check if Taken already exists
+                const { data: existingTaken } = await sb.from('activity_events')
+                    .select('id').eq('job_address', jobAddr).eq('event', 'Taken').limit(1);
+                if (!existingTaken || existingTaken.length === 0) {
+                    const { error: takenErr } = await sb.from('activity_events').insert({
+                        job_id: jobId, factory_type: type, job_address: jobAddr,
+                        event: 'Taken', status: 'FUNDED', time: takeTx.utime,
+                        amount: null, from_address: providerStr, tx_hash: takeTx.hash,
+                    });
+                    log(`  Taken insert: ${takenErr ? 'ERR ' + takenErr.message + ' (' + takenErr.code + ')' : 'OK'} hash=${takeTx.hash?.slice(0,12)}`);
+                } else {
+                    log(`  Taken: already exists`);
+                }
             } else {
-                // Fallback: use last tx as take tx
-                const fallbackTx = chronTxs[chronTxs.length - 1];
-                if (fallbackTx) await addActivity('Taken', 'FUNDED', fallbackTx.utime, null, providerStr, fallbackTx.hash);
-                log(`  Taken fallback: used last tx`);
+                log(`  Taken: no tx found at idx ${takeIdx}, total=${chronTxs.length}`);
             }
         }
         if (submittedAt) {
