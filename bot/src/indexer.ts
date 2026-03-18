@@ -17,6 +17,7 @@ const API_KEY = process.env.TONCENTER_API_KEY || '';
 const SSE_URL = 'https://toncenter.com/api/streaming/v2/sse';
 
 let supabase: SupabaseClient | null = null;
+let sseAbort: AbortController | null = null;
 
 function log(msg: string) {
     console.log(`[IDX ${new Date().toISOString().slice(11, 19)}] ${msg}`);
@@ -70,7 +71,7 @@ async function resolveContent(hash: string): Promise<{ text: string | null; ipfs
     return { text: null, ipfsUrl: null };
 }
 
-// ─── Transaction Fetching (v2 for backfill) ───
+// ─── Transaction Fetching ───
 
 async function fetchTransactions(address: string): Promise<any[]> {
     try {
@@ -82,9 +83,9 @@ async function fetchTransactions(address: string): Promise<any[]> {
     } catch { return []; }
 }
 
-// ─── Job Indexing ───
+// ─── Job Indexing (only for finalized state) ───
 
-async function indexJob(client: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt', txStatus: string = 'finalized') {
+async function indexJob(client: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt') {
     const sb = getSupabase();
     if (!sb) return;
 
@@ -94,11 +95,9 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         ]);
         const jobAddr = addrResult.stack.readAddress().toString();
 
-        // Skip terminal jobs already indexed (unless pending/confirmed update)
-        if (txStatus === 'finalized') {
-            const { data: existing } = await sb.from('jobs').select('state').eq('address', jobAddr).single();
-            if (existing && [3, 4, 5].includes(existing.state)) return;
-        }
+        // Skip terminal jobs already indexed
+        const { data: existing } = await sb.from('jobs').select('state').eq('address', jobAddr).single();
+        if (existing && [3, 4, 5].includes(existing.state)) return;
 
         const result = await client.runMethod(Address.parse(jobAddr), 'get_job_data');
         const jid = result.stack.readNumber();
@@ -153,13 +152,13 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             result_text: resultContent.text, result_ipfs_url: resultContent.ipfsUrl,
             reason_text: reasonContent.text, updated_at: new Date().toISOString(),
         }, { onConflict: 'address' });
-        if (jobErr) log(`  DB ERROR jobs: ${jobErr.message} (${jobErr.code})`);
+        if (jobErr) log(`  DB ERR jobs: ${jobErr.message}`);
 
         for (const tx of txs) {
             if (!tx.hash) continue;
             await sb.from('transactions').upsert({
                 job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee,
-                utime: tx.utime, from_address: tx.from, tx_status: txStatus,
+                utime: tx.utime, from_address: tx.from,
             }, { onConflict: 'tx_hash' });
         }
 
@@ -169,61 +168,31 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         const clientStr = clientAddr.toString(uf);
         const providerStr = providerAddr?.toString(uf) ?? null;
         const evaluatorStr = evaluatorAddr.toString(uf);
+        const takeBase = isUsdt ? 3 : 2;
+        const subIdx = providerStr ? takeBase + 1 : takeBase;
 
-        const addActivity = async (event: string, status: string, time: number, amount: string | null, from: string | null, txHash: string | null) => {
-            const { data: ex, error: selErr } = await sb.from('activity_events').select('id').eq('job_address', jobAddr).eq('event', event).limit(1);
-            if (selErr) { log(`  DB SEL ERR ${event}: ${selErr.message}`); return; }
-            if (ex && ex.length > 0) {
-                await sb.from('activity_events').update({ tx_status: txStatus }).eq('job_address', jobAddr).eq('event', event);
-                return;
-            }
-            const { error: insErr } = await sb.from('activity_events').insert({
+        const addAct = async (event: string, status: string, time: number, amount: string | null, from: string | null, txHash: string | null) => {
+            const { data: ex } = await sb.from('activity_events').select('id').eq('job_address', jobAddr).eq('event', event).limit(1);
+            if (ex && ex.length > 0) return;
+            await sb.from('activity_events').insert({
                 job_id: jobId, factory_type: type, job_address: jobAddr,
-                event, status, time, amount, from_address: from, tx_hash: txHash, tx_status: txStatus,
+                event, status, time, amount, from_address: from, tx_hash: txHash,
             });
-            if (insErr) log(`  DB INS ERR ${event}: ${insErr.message} (${insErr.code})`);
-            else log(`  +${event} for ${type}#${jobId}`);
         };
 
-        if (effectiveCreatedAt && chronTxs[0]) await addActivity('Created', 'OPEN', chronTxs[0].utime || effectiveCreatedAt, budgetFormatted, clientStr, chronTxs[0].hash);
+        if (effectiveCreatedAt && chronTxs[0]) await addAct('Created', 'OPEN', chronTxs[0].utime || effectiveCreatedAt, budgetFormatted, clientStr, chronTxs[0].hash);
         const fundIdx = isUsdt ? 2 : 1;
-        if (state >= 1 && chronTxs[fundIdx]) await addActivity('Funded', 'FUNDED', chronTxs[fundIdx].utime, budgetFormatted, clientStr, chronTxs[fundIdx].hash);
-        // Taken: provider is set (even before submit)
-        if (providerStr) {
-            const takeIdx = isUsdt ? 3 : 2;
-            const takeTx = chronTxs[takeIdx] || chronTxs[chronTxs.length - 1];
-            if (takeTx) {
-                // Check if Taken already exists
-                const { data: existingTaken } = await sb.from('activity_events')
-                    .select('id').eq('job_address', jobAddr).eq('event', 'Taken').limit(1);
-                if (!existingTaken || existingTaken.length === 0) {
-                    const { error: takenErr } = await sb.from('activity_events').insert({
-                        job_id: jobId, factory_type: type, job_address: jobAddr,
-                        event: 'Taken', status: 'FUNDED', time: takeTx.utime,
-                        amount: null, from_address: providerStr, tx_hash: takeTx.hash,
-                    });
-                    log(`  Taken insert: ${takenErr ? 'ERR ' + takenErr.message + ' (' + takenErr.code + ')' : 'OK'} hash=${takeTx.hash?.slice(0,12)}`);
-                } else {
-                    log(`  Taken: already exists`);
-                }
-            } else {
-                log(`  Taken: no tx found at idx ${takeIdx}, total=${chronTxs.length}`);
-            }
-        }
-        if (submittedAt) {
-            // Submit is after take (separate tx)
-            const takeIdx = isUsdt ? 3 : 2;
-            const subIdx = providerStr ? takeIdx + 1 : takeIdx;
-            if (chronTxs[subIdx]) await addActivity('Submitted', 'SUBMITTED', chronTxs[subIdx].utime, budgetFormatted, providerStr, chronTxs[subIdx].hash);
-        }
+        if (state >= 1 && chronTxs[fundIdx]) await addAct('Funded', 'FUNDED', chronTxs[fundIdx].utime, budgetFormatted, clientStr, chronTxs[fundIdx].hash);
+        if (providerStr && chronTxs[takeBase]) await addAct('Taken', 'FUNDED', chronTxs[takeBase].utime, null, providerStr, chronTxs[takeBase].hash);
+        if (submittedAt && chronTxs[subIdx]) await addAct('Submitted', 'SUBMITTED', chronTxs[subIdx].utime, budgetFormatted, providerStr, chronTxs[subIdx].hash);
         const lastTx = chronTxs[chronTxs.length - 1];
-        if (stateName === 'COMPLETED' && lastTx) await addActivity('Approved', 'COMPLETED', lastTx.utime, `${budgetFormatted} → Provider`, evaluatorStr, lastTx.hash);
-        if (stateName === 'CANCELLED' && lastTx) await addActivity('Cancelled', 'CANCELLED', lastTx.utime, `${budgetFormatted} → Client`, clientStr, lastTx.hash);
-        if (stateName === 'DISPUTED' && lastTx) await addActivity('Rejected', 'DISPUTED', lastTx.utime, budgetFormatted, evaluatorStr, lastTx.hash);
+        if (stateName === 'COMPLETED' && lastTx) await addAct('Approved', 'COMPLETED', lastTx.utime, `${budgetFormatted} → Provider`, evaluatorStr, lastTx.hash);
+        if (stateName === 'CANCELLED' && lastTx) await addAct('Cancelled', 'CANCELLED', lastTx.utime, `${budgetFormatted} → Client`, clientStr, lastTx.hash);
+        if (stateName === 'DISPUTED' && lastTx) await addAct('Rejected', 'DISPUTED', lastTx.utime, budgetFormatted, evaluatorStr, lastTx.hash);
 
-        log(`${type.toUpperCase()} #${jobId} ${stateName} [${txStatus}]`);
+        log(`${type.toUpperCase()} #${jobId} ${stateName}`);
     } catch (err: any) {
-        log(`Error indexing ${type} #${jobId}: ${err.message}`);
+        log(`Err ${type} #${jobId}: ${err.message}`);
     }
 }
 
@@ -252,15 +221,14 @@ async function backfill() {
                 updated_at: new Date().toISOString(),
             }, { onConflict: 'factory_address' });
         } catch (err: any) {
-            log(`Backfill error for ${type}: ${err.message}`);
+            log(`Backfill err ${type}: ${err.message}`);
         }
     }
     log('Backfill done.');
 }
 
-// ─── SSE Streaming via Toncenter Streaming API v2 ───
+// ─── SSE Streaming ───
 
-// Tracked addresses: both factories + all known job addresses
 let trackedAddresses: string[] = [FACTORY, JETTON_FACTORY];
 
 async function refreshTrackedAddresses() {
@@ -269,6 +237,10 @@ async function refreshTrackedAddresses() {
     const { data } = await sb.from('jobs').select('address').in('state', [0, 1, 2]);
     const jobAddrs = (data ?? []).map((j: any) => j.address);
     trackedAddresses = [FACTORY, JETTON_FACTORY, ...jobAddrs];
+}
+
+function reconnectSSE() {
+    if (sseAbort) { sseAbort.abort(); sseAbort = null; }
 }
 
 async function connectSSE() {
@@ -281,6 +253,7 @@ async function connectSSE() {
             await refreshTrackedAddresses();
             log(`SSE connecting with ${trackedAddresses.length} addresses...`);
 
+            sseAbort = new AbortController();
             const res = await fetch(SSE_URL, {
                 method: 'POST',
                 headers: {
@@ -293,100 +266,88 @@ async function connectSSE() {
                     types: ['transactions'],
                     min_finality: 'pending',
                 }),
+                signal: sseAbort.signal,
             });
 
-            if (!res.ok) {
-                log(`SSE connection failed: ${res.status} ${res.statusText}`);
+            if (!res.ok || !res.body) {
+                log(`SSE failed: ${res.status}`);
                 await new Promise(r => setTimeout(r, 5000));
                 continue;
             }
 
-            if (!res.body) {
-                log('SSE: no response body');
-                await new Promise(r => setTimeout(r, 5000));
-                continue;
-            }
-
-            log('SSE connected! Listening for transactions...');
+            log('SSE connected!');
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
 
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) {
-                    log('SSE stream ended, reconnecting...');
-                    break;
-                }
+                if (done) break;
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
                 buffer = lines.pop() ?? '';
 
                 for (const line of lines) {
-                    // Skip keepalive comments
-                    if (line.startsWith(':') || line.trim() === '') continue;
+                    if (line.startsWith(':') || !line.startsWith('data: ')) continue;
+                    try {
+                        const event = JSON.parse(line.slice(6));
+                        if (event.type !== 'transactions' || !event.transactions) continue;
+                        const finality = event.finality || 'finalized';
 
-                    // SSE data lines start with "data: "
-                    if (line.startsWith('data: ')) {
-                        const jsonStr = line.slice(6);
-                        try {
-                            const event = JSON.parse(jsonStr);
+                        for (const tx of event.transactions) {
+                            let account = tx.account;
+                            try { account = Address.parse(tx.account).toString(); } catch {}
 
-                            if (event.type === 'transactions' && event.transactions) {
-                                const finality = event.finality || 'finalized';
-                                log(`SSE: ${event.transactions.length} tx(s) [${finality}]`);
-
-                                for (const tx of event.transactions) {
-                                    // Normalize account address (SSE returns raw 0:... format)
-                                    let account = tx.account;
-                                    try { account = Address.parse(tx.account).toString(); } catch {}
-                                    // Check if this is a factory tx (new job created)
-                                    if (account === FACTORY || account === JETTON_FACTORY) {
-                                        const type = account === FACTORY ? 'ton' : 'usdt';
-                                        const countResult = await client.runMethod(Address.parse(account), 'get_next_job_id');
-                                        const count = countResult.stack.readNumber();
-                                        const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', account).single();
-                                        const lastCount = state?.data?.last_job_count ?? 0;
-                                        if (count > lastCount) {
-                                            for (let i = lastCount; i < count; i++) {
-                                                await indexJob(client, account, i, type, finality);
-                                            }
-                                            await sb.from('indexer_state').upsert({
-                                                factory_address: account, last_job_count: count,
-                                                updated_at: new Date().toISOString(),
-                                            }, { onConflict: 'factory_address' });
-                                            await refreshTrackedAddresses();
+                            if (finality === 'finalized') {
+                                // Only index on finalized — data is confirmed on-chain
+                                if (account === FACTORY || account === JETTON_FACTORY) {
+                                    const type = account === FACTORY ? 'ton' : 'usdt';
+                                    const countResult = await client.runMethod(Address.parse(account), 'get_next_job_id');
+                                    const count = countResult.stack.readNumber();
+                                    const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', account).single();
+                                    const lastCount = state?.data?.last_job_count ?? 0;
+                                    if (count > lastCount) {
+                                        log(`SSE: ${type.toUpperCase()} ${count - lastCount} new job(s)!`);
+                                        for (let i = lastCount; i < count; i++) {
+                                            await indexJob(client, account, i, type);
                                         }
-                                    } else {
-                                        // Job contract tx — re-index this job
-                                        // Try both bounceable and non-bounceable formats
-                                        let matchAddr = account;
-                                        try { matchAddr = Address.parse(tx.account).toString({ bounceable: true }); } catch {}
-                                        const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address').eq('address', matchAddr).single();
-                                        if (job) {
-                                            await indexJob(client, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', finality);
-                                        }
+                                        await sb.from('indexer_state').upsert({
+                                            factory_address: account, last_job_count: count,
+                                            updated_at: new Date().toISOString(),
+                                        }, { onConflict: 'factory_address' });
+                                        // Reconnect SSE with new job address
+                                        reconnectSSE();
+                                        break;
+                                    }
+                                } else {
+                                    let matchAddr = account;
+                                    try { matchAddr = Address.parse(tx.account).toString({ bounceable: true }); } catch {}
+                                    const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address').eq('address', matchAddr).single();
+                                    if (job) {
+                                        await indexJob(client, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
+                                        log(`SSE: ${job.factory_type.toUpperCase()} #${job.job_id} updated [${finality}]`);
                                     }
                                 }
+                            } else {
+                                log(`SSE: tx [${finality}] on ${account.slice(0, 12)}...`);
                             }
-                        } catch (parseErr: any) {
-                            // Not JSON or parse error — skip
                         }
-                    }
+                    } catch {}
                 }
             }
         } catch (err: any) {
-            log(`SSE error: ${err.message}`);
+            if (err.name === 'AbortError') {
+                log('SSE reconnecting (new addresses)...');
+            } else {
+                log(`SSE err: ${err.message}`);
+            }
         }
-
-        // Reconnect after delay
-        log('SSE reconnecting in 3s...');
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 2000));
     }
 }
 
-// ─── Fallback poller (in case SSE fails) ───
+// ─── Fallback poller ───
 
 async function fallbackPoller() {
     const client = getClient();
@@ -394,7 +355,7 @@ async function fallbackPoller() {
     if (!sb) return;
 
     while (true) {
-        await new Promise(r => setTimeout(r, 30_000)); // Every 30s as backup
+        await new Promise(r => setTimeout(r, 60_000)); // Every 60s as safety net
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },
@@ -414,11 +375,9 @@ async function fallbackPoller() {
                         updated_at: new Date().toISOString(),
                     }, { onConflict: 'factory_address' });
                 }
-
-                // SSE handles active job updates — fallback only checks new jobs
             }
         } catch (err: any) {
-            log(`Fallback error: ${err.message}`);
+            log(`Fallback err: ${err.message}`);
         }
     }
 }
@@ -427,27 +386,15 @@ async function fallbackPoller() {
 
 export async function startIndexer() {
     const sb = getSupabase();
-    if (!sb) {
-        log('Supabase not configured — indexer disabled');
-        return;
-    }
-    log(`Starting indexer... Supabase: ${process.env.SUPABASE_URL?.slice(0, 30)}...`);
+    if (!sb) { log('Supabase not configured'); return; }
+    log(`Indexer starting... Supabase: ${process.env.SUPABASE_URL?.slice(0, 30)}...`);
 
     const { error: testErr } = await sb.from('jobs').select('id').limit(1);
-    if (testErr) {
-        log(`Supabase connection FAILED: ${testErr.message}`);
-        return;
-    }
-    log('Supabase connection OK');
+    if (testErr) { log(`Supabase FAILED: ${testErr.message}`); return; }
+    log('Supabase OK');
 
-    // Backfill existing data
     await backfill();
-
-    // Start SSE streaming (primary)
     connectSSE().catch(err => log(`SSE crashed: ${err.message}`));
-
-    // Start fallback poller (backup, every 30s)
     fallbackPoller().catch(err => log(`Fallback crashed: ${err.message}`));
-
-    log('Indexer running — SSE streaming + 30s fallback poller');
+    log('Indexer running — SSE + 60s fallback');
 }
