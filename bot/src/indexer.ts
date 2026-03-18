@@ -415,16 +415,7 @@ async function fallbackPoller() {
                     }, { onConflict: 'factory_address' });
                 }
 
-                // Re-index active jobs
-                const { data: activeJobs } = await sb.from('jobs')
-                    .select('job_id, factory_address, factory_type')
-                    .eq('factory_address', factory)
-                    .in('state', [0, 1, 2]);
-                if (activeJobs) {
-                    for (const job of activeJobs) {
-                        await indexJob(client, factory, job.job_id, type);
-                    }
-                }
+                // SSE handles active job updates — fallback only checks new jobs
             }
         } catch (err: any) {
             log(`Fallback error: ${err.message}`);

@@ -10,7 +10,7 @@ const ZERO_HASH = '0'.repeat(64);
 
 interface CachedResponse { data: any; timestamp: number; }
 let responseCache: CachedResponse | null = null;
-const RESPONSE_TTL = 10_000;
+const RESPONSE_TTL = 3_000; // 3s cache — Supabase Realtime triggers refetch
 
 // ─── Supabase Read ───
 

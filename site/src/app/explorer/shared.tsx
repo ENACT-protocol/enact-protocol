@@ -292,15 +292,13 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 15_000; // Match server cache TTL
+const POLL_INTERVAL = 30_000; // Fallback poll (Supabase Realtime is primary)
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  // Request version counter to prevent stale responses from overwriting newer data.
-  // If a slow response arrives after a newer fast one, we discard the stale result.
   const requestVersionRef = useRef(0);
 
   const fetchData = useCallback(async () => {
@@ -312,13 +310,11 @@ export function useExplorerData() {
       const res = await fetch('/api/explorer', { signal: controller.signal });
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
-      // Only update state if this is still the latest request
       if (version !== requestVersionRef.current) return;
       setData(json);
       setError(null);
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      // Only update error if this is still the latest request
       if (version !== requestVersionRef.current) return;
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -329,18 +325,30 @@ export function useExplorerData() {
   useEffect(() => {
     fetchData();
     const i = setInterval(fetchData, POLL_INTERVAL);
-    // Refetch when page becomes visible again (mobile tab switch)
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setError(null);
-        fetchData();
-      }
+      if (document.visibilityState === 'visible') { setError(null); fetchData(); }
     };
     document.addEventListener('visibilitychange', onVisibility);
+
+    // Supabase Realtime: instant updates when indexer writes to DB
+    let channel: any = null;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseKey) {
+      import('@supabase/supabase-js').then(({ createClient }) => {
+        const sb = createClient(supabaseUrl, supabaseKey);
+        channel = sb.channel('explorer-live')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => fetchData())
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, () => fetchData())
+          .subscribe();
+      }).catch(() => {});
+    }
+
     return () => {
       clearInterval(i);
       abortRef.current?.abort();
       document.removeEventListener('visibilitychange', onVisibility);
+      if (channel) channel.unsubscribe();
     };
   }, [fetchData]);
 
