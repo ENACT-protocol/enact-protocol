@@ -6,15 +6,30 @@ import { Job } from './shared';
 
 interface DayStat { day: string; factory_type: string; job_count: number; volume: number; }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const VolumeTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
       <div style={{ color: '#888', marginBottom: 4 }}>{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} style={{ color: p.color, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-          <span>{p.name}: {typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</span>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
+          <span>{p.name}: {Number(p.value).toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const JobsTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ color: '#888', marginBottom: 4 }}>{label}</div>
+      {payload.map((p: any) => (
+        <div key={p.name} style={{ color: p.color, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
+          <span>{p.name}: {Math.round(p.value)}</span>
         </div>
       ))}
     </div>
@@ -32,7 +47,7 @@ function buildChartData(stats: DayStat[]) {
   return Array.from(dayMap.values()).sort((a, b) => a.day.localeCompare(b.day));
 }
 
-/** Main explorer charts — fetches from /api/explorer/stats */
+/** Main explorer charts */
 export function ExplorerCharts() {
   const [stats, setStats] = useState<DayStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +63,7 @@ export function ExplorerCharts() {
   return <ChartPair data={chartData} showBoth />;
 }
 
-/** Factory-specific charts — uses job data directly */
+/** Factory-specific charts */
 export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt' }) {
   const chartData = useMemo(() => {
     const dayMap = new Map<string, { day: string; jobs: number; vol: number }>();
@@ -77,8 +92,8 @@ export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt
           <AreaChart data={volumeData}>
             <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={40} />
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
+            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={40} />
+            <Tooltip content={<VolumeTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
             <Area type="monotone" dataKey="vol" name={type.toUpperCase()} stroke={color} fill={color} fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: color, stroke: '#0a0a0a', strokeWidth: 2 }} />
           </AreaChart>
         </ResponsiveContainer>
@@ -88,8 +103,8 @@ export function FactoryCharts({ jobs, type }: { jobs: Job[]; type: 'ton' | 'usdt
           <BarChart data={barData}>
             <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
+            <Tooltip content={<JobsTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
             <Bar dataKey="jobs" name="Jobs" fill={color} fillOpacity={0.8} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -113,8 +128,8 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
           <AreaChart data={volumeData}>
             <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={40} />
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
+            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={40} />
+            <Tooltip content={<VolumeTooltip />} cursor={{ stroke: '#333', strokeWidth: 1 }} />
             <Area type="monotone" dataKey="tonVol" name="TON" stroke="#0098EA" fill="#0098EA" fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#0098EA', stroke: '#0a0a0a', strokeWidth: 2 }} />
             {showBoth && <Area type="monotone" dataKey="usdtVol" name="USDT" stroke="#26A17B" fill="#26A17B" fillOpacity={0.08} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#26A17B', stroke: '#0a0a0a', strokeWidth: 2 }} />}
           </AreaChart>
@@ -125,8 +140,8 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
           <BarChart data={barData}>
             <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+            <YAxis orientation="right" tick={{ fontSize: 10, fill: '#444' }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
+            <Tooltip content={<JobsTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
             <Bar dataKey="ton" name="TON" fill="#0098EA" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
             {showBoth && <Bar dataKey="usdt" name="USDT" fill="#26A17B" fillOpacity={0.8} radius={[4, 4, 0, 0]} />}
           </BarChart>
@@ -138,7 +153,7 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-4">
+    <div className="bg-[#111] border border-[#222] rounded-xl p-4">
       <div className="text-[#555] text-xs font-mono mb-3 uppercase tracking-wider">{title}</div>
       {children}
     </div>

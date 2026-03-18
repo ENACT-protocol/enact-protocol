@@ -63,25 +63,25 @@ export default function FactoryPage() {
               <h1 className="font-serif text-3xl text-white">{info.label}</h1>
             </div>
 
-            {/* Factory Info */}
+            {/* Factory Info + Stats */}
             <div className="bg-[#111] border border-[#222] rounded-xl p-5 mb-6">
-              <div className="space-y-3">
+              <div className="space-y-3 mb-5">
                 <Row label="Address"><ClickAddr addr={info.address} /></Row>
                 <Row label="Type">{info.type === 'ton' ? 'TON Escrow' : 'USDT/Jetton Escrow'}</Row>
                 <Row label="Network">Mainnet</Row>
               </div>
-            </div>
-
-            {/* Stats — all states */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6 explorer-stats">
-              <SC label="Total" value={info.jobCount} />
-              <SC label="Open" value={stats.open} color="#FACC15" />
-              <SC label="Funded" value={stats.funded} color="#60A5FA" />
-              <SC label="Submitted" value={stats.submitted} color="#A78BFA" />
-              <SC label="Completed" value={stats.completed} color="#4ADE80" />
-              <SC label="Disputed" value={stats.disputed} color="#EF4444" />
-              <SC label="Cancelled" value={stats.cancelled} color="#6B7280" />
-              <SC label="Volume" value={stats.volume} />
+              <div className="border-t border-[#1a1a1a] pt-4">
+                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                  <span className="text-[#ccc]"><span className="text-[#555]">Total:</span> {info.jobCount}</span>
+                  <span style={{ color: '#FACC15' }}><span className="text-[#555]">Open:</span> {stats.open}</span>
+                  <span style={{ color: '#60A5FA' }}><span className="text-[#555]">Funded:</span> {stats.funded}</span>
+                  <span style={{ color: '#A78BFA' }}><span className="text-[#555]">Submitted:</span> {stats.submitted}</span>
+                  <span style={{ color: '#4ADE80' }}><span className="text-[#555]">Completed:</span> {stats.completed}</span>
+                  <span style={{ color: '#EF4444' }}><span className="text-[#555]">Disputed:</span> {stats.disputed}</span>
+                  <span style={{ color: '#6B7280' }}><span className="text-[#555]">Cancelled:</span> {stats.cancelled}</span>
+                  <span className="text-[#ccc]"><span className="text-[#555]">Volume:</span> {stats.volume}</span>
+                </div>
+              </div>
             </div>
 
             {/* Charts */}
@@ -161,14 +161,6 @@ export default function FactoryPage() {
   );
 }
 
-function SC({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div className="bg-[#111] border border-[#222] rounded-xl p-3">
-      <div className="text-[#555] text-[10px] font-mono uppercase">{label}</div>
-      <div className="text-white text-lg font-semibold mt-0.5" style={color ? { color } : undefined}>{value}</div>
-    </div>
-  );
-}
 
 function Pager({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
   if (total <= 1) return null;
