@@ -103,16 +103,22 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
   for (const j of jobs) {
     const bf = j.budgetFormatted;
     // Txs from API: newest-first → reverse to oldest-first (chronological)
-    // TON order:  [0]=initJob [1]=fund [2]=take+submit [3]=evaluate
-    // USDT order: [0]=initJob [1]=setJettonWallet [2]=fund [3]=take+submit [4]=evaluate
+    // TON:  [0]=initJob [1]=fund [2]=take [3]=submit [4]=evaluate
+    // USDT: [0]=initJob [1]=setWallet [2]=fund [3]=take [4]=submit [5]=evaluate
+    // But take+submit can be combined in older jobs, so detect from tx count
     const txs = [...(j.transactions ?? [])].reverse();
     const isUsdt = j.type === 'usdt';
+    const baseOffset = isUsdt ? 3 : 2; // take starts here
+    const hasSeparateTake = j.provider && j.provider !== 'none';
+    const submitOffset = hasSeparateTake ? baseOffset + 1 : baseOffset;
+    const terminalOffset = j.submittedAt ? submitOffset + 1 : baseOffset + 1;
     const txIdx = {
       created: 0,
       setWallet: isUsdt ? 1 : -1,
       funded: isUsdt ? 2 : 1,
-      submitted: isUsdt ? 3 : 2,
-      terminal: isUsdt ? 4 : 3,
+      taken: baseOffset,
+      submitted: submitOffset,
+      terminal: terminalOffset,
     };
     const txAt = (idx: number) => idx >= 0 && idx < txs.length ? txs[idx] : null;
     const mk = (event: string, status: string, time: number, amount: string, from: string, idx: number): ActivityEvent => {
@@ -130,9 +136,8 @@ export function buildActivity(jobs: Job[]): ActivityEvent[] {
     }
     // Taken: when provider is assigned (even before submit)
     if (j.provider && j.provider !== 'none') {
-      const takeIdx = isUsdt ? 3 : 2;
-      const takeTime = txAt(takeIdx)?.utime || j.createdAt + 2 || 0;
-      if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime, '—', j.provider, takeIdx));
+      const takeTime = txAt(txIdx.taken)?.utime || j.createdAt + 2 || 0;
+      if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime, '—', j.provider, txIdx.taken));
     }
     // Submit only if actually submitted
     if (j.submittedAt) {

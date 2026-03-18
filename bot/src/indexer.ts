@@ -211,7 +211,9 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             }
         }
         if (submittedAt) {
-            const subIdx = isUsdt ? 3 : 2;
+            // Submit is after take (separate tx)
+            const takeIdx = isUsdt ? 3 : 2;
+            const subIdx = providerStr ? takeIdx + 1 : takeIdx;
             if (chronTxs[subIdx]) await addActivity('Submitted', 'SUBMITTED', chronTxs[subIdx].utime, budgetFormatted, providerStr, chronTxs[subIdx].hash);
         }
         const lastTx = chronTxs[chronTxs.length - 1];

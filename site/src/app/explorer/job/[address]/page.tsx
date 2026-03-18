@@ -33,13 +33,18 @@ export default function JobPage() {
   // Last tx is always the terminal action (cancel/evaluate)
   const lastTx = txsRev.length > 0 ? txsRev[txsRev.length - 1] : null;
 
-  // Index mapping depends on job type and how far it progressed
+  // Index mapping: take and submit are separate txs
+  const hasTaken = !!(job?.provider && job.provider !== 'none');
+  const baseOffset = isUsdt ? 3 : 2;
+  const submitOffset = hasTaken ? baseOffset + 1 : baseOffset;
+  const terminalOffset = job?.submittedAt ? submitOffset + 1 : baseOffset + 1;
   const txIdx = {
     created: 0,
     setWallet: isUsdt ? 1 : -1,
     funded: isUsdt ? 2 : 1,
-    submitted: isUsdt ? 3 : 2,
-    terminal: isUsdt ? 4 : 3,
+    taken: baseOffset,
+    submitted: submitOffset,
+    terminal: terminalOffset,
   };
   const txAt = (idx: number) => idx >= 0 && idx < txsRev.length ? txsRev[idx] : null;
 
@@ -189,8 +194,7 @@ export default function JobPage() {
                         )}
 
                         {job.provider && job.provider !== 'none' && (() => {
-                          const takeIdx = isUsdt ? 3 : 2;
-                          const takeTx = txAt(takeIdx) || txsRev[txsRev.length - 1];
+                          const takeTx = txAt(txIdx.taken) || txsRev[txsRev.length - 1];
                           return (
                             <TxCard color={STATUS_COLORS.TAKEN || '#38BDF8'} label="Taken" time={fmtDate(takeTx?.utime || job.createdAt)} txHash={takeTx?.hash ?? ''}>
                               <TxRow label="Provider"><ClickAddr addr={job.provider!} truncate /></TxRow>
