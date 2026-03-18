@@ -138,7 +138,7 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
 
         // Upsert job
-        await sb.from('jobs').upsert({
+        const { error: jobErr } = await sb.from('jobs').upsert({
             job_id: jobId, factory_type: type, address: jobAddr, factory_address: factory,
             state, state_name: stateName,
             client: clientAddr.toString(uf), provider: providerAddr?.toString(uf) ?? null,
@@ -150,14 +150,16 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             result_text: resultContent.text, result_ipfs_url: resultContent.ipfsUrl,
             reason_text: reasonContent.text, updated_at: new Date().toISOString(),
         }, { onConflict: 'address' });
+        if (jobErr) log(`  DB ERROR jobs: ${jobErr.message} (${jobErr.code})`);
 
         // Upsert transactions
         for (const tx of txs) {
             if (!tx.hash) continue;
-            await sb.from('transactions').upsert({
+            const { error: txErr } = await sb.from('transactions').upsert({
                 job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee,
                 utime: tx.utime, from_address: tx.from,
             }, { onConflict: 'tx_hash' });
+            if (txErr) log(`  DB ERROR tx: ${txErr.message}`);
         }
 
         // Activity events
@@ -170,10 +172,11 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         const addActivity = async (event: string, status: string, time: number, amount: string | null, from: string | null, txHash: string | null) => {
             const { data: ex } = await sb.from('activity_events').select('id').eq('job_address', jobAddr).eq('event', event).limit(1);
             if (ex && ex.length > 0) return;
-            await sb.from('activity_events').insert({
+            const { error: actErr } = await sb.from('activity_events').insert({
                 job_id: jobId, factory_type: type, job_address: jobAddr,
                 event, status, time, amount, from_address: from, tx_hash: txHash,
             });
+            if (actErr) log(`  DB ERROR activity: ${actErr.message}`);
         };
 
         if (effectiveCreatedAt && chronTxs[0]) await addActivity('Created', 'OPEN', chronTxs[0].utime || effectiveCreatedAt, budgetFormatted, clientStr, chronTxs[0].hash);
@@ -289,7 +292,17 @@ export async function startIndexer() {
         log('Supabase not configured — indexer disabled');
         return;
     }
-    log('Starting indexer...');
+    log(`Starting indexer... Supabase: ${process.env.SUPABASE_URL?.slice(0, 30)}...`);
+    log(`Service key: ${process.env.SUPABASE_SERVICE_KEY ? 'set (' + process.env.SUPABASE_SERVICE_KEY.slice(0, 10) + '...)' : 'NOT SET'}`);
+
+    // Test Supabase connection
+    const { data: testData, error: testErr } = await sb.from('jobs').select('id').limit(1);
+    if (testErr) {
+        log(`Supabase connection FAILED: ${testErr.message} (${testErr.code})`);
+        log(`Details: ${JSON.stringify(testErr)}`);
+        return;
+    }
+    log(`Supabase connection OK (${testData?.length ?? 0} existing jobs)`);
 
     // Initial backfill
     await backfill();
