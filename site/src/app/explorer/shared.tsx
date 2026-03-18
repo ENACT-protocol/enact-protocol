@@ -17,7 +17,7 @@ export const STATUS_STYLES: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  OPEN: '#FACC15', FUNDED: '#60A5FA', SUBMITTED: '#A78BFA',
+  OPEN: '#FACC15', FUNDED: '#60A5FA', TAKEN: '#38BDF8', SUBMITTED: '#A78BFA',
   COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
@@ -322,9 +322,18 @@ export function useExplorerData() {
   useEffect(() => {
     fetchData();
     const i = setInterval(fetchData, POLL_INTERVAL);
+    // Refetch when page becomes visible again (mobile tab switch)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setError(null);
+        fetchData();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       clearInterval(i);
       abortRef.current?.abort();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [fetchData]);
 

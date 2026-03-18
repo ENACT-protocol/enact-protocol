@@ -313,7 +313,9 @@ async function connectSSE() {
                                 log(`SSE: ${event.transactions.length} tx(s) [${finality}]`);
 
                                 for (const tx of event.transactions) {
-                                    const account = tx.account;
+                                    // Normalize account address (SSE returns raw 0:... format)
+                                    let account = tx.account;
+                                    try { account = Address.parse(tx.account).toString(); } catch {}
                                     // Check if this is a factory tx (new job created)
                                     if (account === FACTORY || account === JETTON_FACTORY) {
                                         const type = account === FACTORY ? 'ton' : 'usdt';
@@ -333,7 +335,10 @@ async function connectSSE() {
                                         }
                                     } else {
                                         // Job contract tx — re-index this job
-                                        const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address').eq('address', account).single();
+                                        // Try both bounceable and non-bounceable formats
+                                        let matchAddr = account;
+                                        try { matchAddr = Address.parse(tx.account).toString({ bounceable: true }); } catch {}
+                                        const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address').eq('address', matchAddr).single();
                                         if (job) {
                                             await indexJob(client, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', finality);
                                         }

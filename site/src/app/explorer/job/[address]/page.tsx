@@ -57,21 +57,26 @@ export default function JobPage() {
 
     addState('OPEN', true, job.stateName === 'OPEN', createTime);
 
+    const hasTaken = !!(job.provider && job.provider !== 'none');
+    const takenTime = submitTime ? submitTime - 1 : fundTime + 1;
+
     if (job.stateName === 'CANCELLED' && !wasSubmitted) {
-      // Cancelled from FUNDED — show FUNDED then CANCELLED
       addState('FUNDED', job.state >= 1 || job.stateName === 'CANCELLED', false, fundTime);
       addState('CANCELLED', true, true, lastTx?.utime || 0);
     } else if (job.stateName === 'CANCELLED' && wasSubmitted) {
       addState('FUNDED', true, false, fundTime);
+      if (hasTaken) addState('TAKEN', true, false, takenTime);
       addState('SUBMITTED', true, false, submitTime);
       addState('CANCELLED', true, true, lastTx?.utime || 0);
     } else if (job.stateName === 'DISPUTED') {
       addState('FUNDED', true, false, fundTime);
+      if (hasTaken) addState('TAKEN', true, false, takenTime);
       addState('SUBMITTED', true, false, submitTime);
       addState('DISPUTED', true, true, lastTx?.utime || 0);
     } else {
-      // Normal flow: OPEN → FUNDED → SUBMITTED → COMPLETED
+      // Normal flow: OPEN → FUNDED → [TAKEN] → SUBMITTED → COMPLETED
       addState('FUNDED', job.state >= 1, job.stateName === 'FUNDED', fundTime);
+      if (hasTaken) addState('TAKEN', hasTaken, false, takenTime);
       addState('SUBMITTED', !!job.submittedAt, job.stateName === 'SUBMITTED', submitTime);
       const completedTime = txAt(txIdx.terminal)?.utime || (job.submittedAt ? job.submittedAt + 1 : 0);
       addState('COMPLETED', job.stateName === 'COMPLETED', job.stateName === 'COMPLETED', completedTime);
