@@ -581,6 +581,7 @@ async function main() {
         // HTTP mode — for remote deployment (Railway, etc.)
         const app = express();
         app.use(express.json());
+        app.use(express.static('public'));
 
         app.post('/mcp', async (req, res) => {
             const server = createServer();
