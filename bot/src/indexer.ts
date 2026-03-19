@@ -299,28 +299,61 @@ async function connectSSE() {
                             let account = tx.account;
                             try { account = Address.parse(tx.account).toString(); } catch {}
 
-                            if (finality === 'finalized' || finality === 'confirmed') {
-                                // Index on confirmed+finalized — confirmed is reliable enough
-                                if (account === FACTORY || account === JETTON_FACTORY) {
+                            // Handle factory txs: any finality triggers quick-poll for new jobs
+                            if (account === FACTORY || account === JETTON_FACTORY) {
+                                if (finality === 'pending') {
+                                    log(`SSE: ${account === FACTORY ? 'TON' : 'USDT'} factory tx [pending] — quick-polling...`);
+                                    // Quick poll: check every 3s for 30s until new job appears
                                     const type = account === FACTORY ? 'ton' : 'usdt';
-                                    const countResult = await client.runMethod(Address.parse(account), 'get_next_job_id');
-                                    const count = countResult.stack.readNumber();
-                                    const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', account).single();
-                                    const lastCount = state?.data?.last_job_count ?? 0;
-                                    if (count > lastCount) {
-                                        log(`SSE: ${type.toUpperCase()} ${count - lastCount} new job(s)!`);
-                                        for (let i = lastCount; i < count; i++) {
-                                            await indexJob(client, account, i, type);
+                                    (async () => {
+                                        for (let attempt = 0; attempt < 10; attempt++) {
+                                            await new Promise(r => setTimeout(r, 3000));
+                                            try {
+                                                const countResult = await client.runMethod(Address.parse(account), 'get_next_job_id');
+                                                const count = countResult.stack.readNumber();
+                                                const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', account).single();
+                                                const lastCount = state?.data?.last_job_count ?? 0;
+                                                if (count > lastCount) {
+                                                    log(`SSE quick-poll: ${type.toUpperCase()} ${count - lastCount} new job(s)!`);
+                                                    for (let i = lastCount; i < count; i++) {
+                                                        await indexJob(client, account, i, type);
+                                                    }
+                                                    await sb.from('indexer_state').upsert({
+                                                        factory_address: account, last_job_count: count,
+                                                        updated_at: new Date().toISOString(),
+                                                    }, { onConflict: 'factory_address' });
+                                                    reconnectSSE();
+                                                    return;
+                                                }
+                                            } catch {}
                                         }
-                                        await sb.from('indexer_state').upsert({
-                                            factory_address: account, last_job_count: count,
-                                            updated_at: new Date().toISOString(),
-                                        }, { onConflict: 'factory_address' });
-                                        // Reconnect SSE with new job address
-                                        reconnectSSE();
-                                        break;
+                                    })().catch(() => {});
+                                }
+                            } else {
+                                // Job contract tx — any finality
+                                if (finality === 'pending') {
+                                    // On pending, start quick-poll for state change
+                                    const matchAddr = account;
+                                    const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address, state').eq('address', matchAddr).single();
+                                    if (job) {
+                                        log(`SSE: ${job.factory_type.toUpperCase()} #${job.job_id} tx [pending] — quick-polling...`);
+                                        (async () => {
+                                            for (let attempt = 0; attempt < 10; attempt++) {
+                                                await new Promise(r => setTimeout(r, 3000));
+                                                try {
+                                                    await indexJob(client, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
+                                                    // Check if state changed
+                                                    const { data: updated } = await sb.from('jobs').select('state').eq('address', matchAddr).single();
+                                                    if (updated && updated.state !== job.state) {
+                                                        log(`SSE quick-poll: ${job.factory_type.toUpperCase()} #${job.job_id} state changed ${job.state} → ${updated.state}`);
+                                                        return;
+                                                    }
+                                                } catch {}
+                                            }
+                                        })().catch(() => {});
                                     }
                                 } else {
+                                    // confirmed/finalized — index immediately
                                     let matchAddr = account;
                                     try { matchAddr = Address.parse(tx.account).toString({ bounceable: true }); } catch {}
                                     const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address').eq('address', matchAddr).single();
@@ -329,8 +362,6 @@ async function connectSSE() {
                                         log(`SSE: ${job.factory_type.toUpperCase()} #${job.job_id} updated [${finality}]`);
                                     }
                                 }
-                            } else {
-                                log(`SSE: tx [${finality}] on ${account.slice(0, 12)}...`);
                             }
                         }
                     } catch {}
