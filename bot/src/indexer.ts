@@ -299,8 +299,8 @@ async function connectSSE() {
                             let account = tx.account;
                             try { account = Address.parse(tx.account).toString(); } catch {}
 
-                            if (finality === 'finalized') {
-                                // Only index on finalized — data is confirmed on-chain
+                            if (finality === 'finalized' || finality === 'confirmed') {
+                                // Index on confirmed+finalized — confirmed is reliable enough
                                 if (account === FACTORY || account === JETTON_FACTORY) {
                                     const type = account === FACTORY ? 'ton' : 'usdt';
                                     const countResult = await client.runMethod(Address.parse(account), 'get_next_job_id');
