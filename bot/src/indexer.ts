@@ -270,8 +270,9 @@ async function connectSSE() {
             });
 
             if (!res.ok || !res.body) {
-                log(`SSE failed: ${res.status}`);
-                await new Promise(r => setTimeout(r, 5000));
+                const wait = res.status === 429 ? 60000 : 5000;
+                log(`SSE failed: ${res.status} — retrying in ${wait / 1000}s`);
+                await new Promise(r => setTimeout(r, wait));
                 continue;
             }
 
