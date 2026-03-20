@@ -10,7 +10,7 @@ const ZERO_HASH = '0'.repeat(64);
 
 interface CachedResponse { data: any; timestamp: number; }
 let responseCache: CachedResponse | null = null;
-const RESPONSE_TTL = 3_000; // 3s cache — Supabase Realtime triggers refetch
+const RESPONSE_TTL = 15_000; // 15s in-memory cache per serverless instance
 
 // ─── Supabase Read ───
 
@@ -70,11 +70,27 @@ async function fetchFromSupabase() {
 
 // ─── RPC Fallback with transactions ───
 
+async function fetchWithRetry(url: string, retries = 3): Promise<Response | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+        continue;
+      }
+      return res;
+    } catch {
+      if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  return null;
+}
+
 async function fetchTxsForJob(address: string): Promise<any[]> {
+  const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(address)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
+  const res = await fetchWithRetry(url);
+  if (!res || !res.ok) return [];
   try {
-    const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(address)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) return [];
     const data = await res.json() as { ok: boolean; result?: any[] };
     if (!data.ok || !data.result) return [];
     return data.result.map((tx: any) => ({
@@ -134,35 +150,46 @@ async function fetchFromRPC() {
     const cached = terminalCache.get(cacheKey);
     if (cached) return cached;
 
-    try {
-      const addr = await client.getJobAddress(id, factory);
-      const status = await client.getJobStatus(addr);
-      const txs = await fetchTxsForJob(addr);
-      const effectiveCreatedAt = status.createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
+    // Retry up to 3 times for 429 errors
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const addr = await client.getJobAddress(id, factory);
+        const status = await client.getJobStatus(addr);
+        const txs = await fetchTxsForJob(addr);
+        const effectiveCreatedAt = status.createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
 
-      const [desc, result] = await Promise.all([
-        resolveContent(status.descHash),
-        resolveContent(status.resultHash),
-      ]);
+        const [desc, result] = await Promise.all([
+          resolveContent(status.descHash),
+          resolveContent(status.resultHash),
+        ]);
 
-      const job = {
-        ...status,
-        createdAt: effectiveCreatedAt,
-        type,
-        budget: status.budget.toString(),
-        budgetFormatted: type === 'usdt' ? `${(Number(status.budget) / 1e6).toFixed(2)} USDT` : `${(Number(status.budget) / 1e9).toFixed(2)} TON`,
-        description: desc,
-        resultContent: result,
-        reasonContent: { text: null, source: 'hash' },
-        transactions: txs,
-      };
+        const job = {
+          ...status,
+          createdAt: effectiveCreatedAt,
+          type,
+          budget: status.budget.toString(),
+          budgetFormatted: type === 'usdt' ? `${(Number(status.budget) / 1e6).toFixed(2)} USDT` : `${(Number(status.budget) / 1e9).toFixed(2)} TON`,
+          description: desc,
+          resultContent: result,
+          reasonContent: { text: null, source: 'hash' },
+          transactions: txs,
+        };
 
-      const stateName = ['OPEN','FUNDED','SUBMITTED','COMPLETED','DISPUTED','CANCELLED'][status.state];
-      if (['COMPLETED','DISPUTED','CANCELLED'].includes(stateName ?? '')) {
-        terminalCache.set(cacheKey, job);
+        const stateName = ['OPEN','FUNDED','SUBMITTED','COMPLETED','DISPUTED','CANCELLED'][status.state];
+        if (['COMPLETED','DISPUTED','CANCELLED'].includes(stateName ?? '')) {
+          terminalCache.set(cacheKey, job);
+        }
+        return job;
+      } catch (err: unknown) {
+        const is429 = err instanceof Error && err.message?.includes('429');
+        if (is429 && attempt < 2) {
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+        return null;
       }
-      return job;
-    } catch { return null; }
+    }
+    return null;
   };
 
   // Batch by 5
@@ -172,8 +199,8 @@ async function fetchFromRPC() {
   ];
 
   const results: any[] = [];
-  for (let i = 0; i < allItems.length; i += 5) {
-    const batch = allItems.slice(i, i + 5);
+  for (let i = 0; i < allItems.length; i += 3) {
+    const batch = allItems.slice(i, i + 3);
     const batchResults = await Promise.all(batch.map(item => fetchJob(item.id, item.factory, item.type)));
     results.push(...batchResults);
   }
@@ -190,10 +217,15 @@ async function fetchFromRPC() {
 
 // ─── API Handler ───
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     if (responseCache && Date.now() - responseCache.timestamp < RESPONSE_TTL) {
-      return NextResponse.json(responseCache.data);
+      return NextResponse.json(responseCache.data, {
+        headers: { 'Cache-Control': 'no-store, max-age=0' },
+      });
     }
 
     let data;
@@ -204,7 +236,9 @@ export async function GET() {
     }
 
     responseCache = { data, timestamp: Date.now() };
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

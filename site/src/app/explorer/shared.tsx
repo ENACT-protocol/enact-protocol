@@ -292,7 +292,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 30_000; // Fallback poll (Supabase Realtime is primary)
+const POLL_INTERVAL = 15_000; // Poll every 15s
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);
@@ -352,5 +352,5 @@ export function useExplorerData() {
     };
   }, [fetchData]);
 
-  return { data, loading, error };
+  return { data, loading, error, refresh: fetchData };
 }
