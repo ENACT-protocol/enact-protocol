@@ -2049,7 +2049,8 @@ async function handleEvaluate(ctx: any, jobId: number, approved: boolean, factor
             .storeUint(0n, 256)
             .endCell();
 
-        const evalGas = toNano('0.01');
+        const isJetton = factory === JETTON_FACTORY_ADDRESS;
+        const evalGas = toNano(isJetton ? '0.06' : '0.01');
 
         if (mode === 'tonconnect') {
             const link = tonTransferLink(jobAddr.toString(), evalGas, body);
