@@ -225,7 +225,7 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-const PINATA_GW = 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
+const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const descCache = new Map<string, string>();
 
 /** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */

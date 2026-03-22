@@ -12,7 +12,7 @@ const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 const ZERO_HASH = '0'.repeat(64);
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://green-known-basilisk-878.mypinata.cloud/ipfs';
+const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const API_KEY = process.env.TONCENTER_API_KEY || '';
 const SSE_URL = 'https://toncenter.com/api/streaming/v2/sse';
 
@@ -388,7 +388,7 @@ async function fallbackPoller() {
     if (!sb) return;
 
     while (true) {
-        await new Promise(r => setTimeout(r, 15_000)); // Every 15s
+        await new Promise(r => setTimeout(r, 30_000)); // Every 30s
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },
