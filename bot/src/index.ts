@@ -334,9 +334,31 @@ function decodeHexOnly(hash: string): string | null {
     return null;
 }
 
-/** Find IPFS CID for a hash via Pinata metadata search */
+/** Find IPFS URL for a hash — check Supabase first, then Pinata */
 async function findCID(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
+    // Try Supabase first
+    try {
+        const sbUrl = process.env.SUPABASE_URL;
+        const sbKey = process.env.SUPABASE_SERVICE_KEY;
+        if (sbUrl && sbKey) {
+            const { createClient: sc } = await import('@supabase/supabase-js');
+            const sb = sc(sbUrl, sbKey);
+            const { data } = await sb.from('jobs')
+                .select('description_ipfs_url, result_ipfs_url')
+                .or(`desc_hash.eq.${hash},result_hash.eq.${hash}`)
+                .limit(1).single();
+            if (data) {
+                const url = data.description_ipfs_url || data.result_ipfs_url;
+                if (url) {
+                    // Extract CID from URL
+                    const cid = url.split('/ipfs/')[1];
+                    if (cid) return cid;
+                }
+            }
+        }
+    } catch {}
+    // Fallback to Pinata
     const jwt = process.env.PINATA_JWT;
     if (!jwt) return null;
     try {
@@ -2551,6 +2573,7 @@ async function downloadTgFile(ctx: any): Promise<{ buffer: Buffer; filename: str
 bot.on(['message:photo', 'message:document'], async (ctx, next) => {
     const caption = ctx.message?.caption ?? '';
     if (!caption.startsWith('/create')) return next();
+    const isJetton = caption.startsWith('/createjetton');
 
     const args = caption.split(' ').slice(1);
     if (args.length < 2) {
@@ -2600,6 +2623,10 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
             descHash = uploaded.hashBig;
         }
 
+        const factoryAddr = isJetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS;
+        const createGas = isJetton ? toNano('0.03') : toNano('0.03');
+        const budgetCoins = isJetton ? BigInt(Math.round(parseFloat(budgetTon) * 1e6)) : toNano(budgetTon);
+
         const client = await createClient();
         if (mode === 'tonconnect') {
             const addr = userTcAddresses.get(userId)!;
@@ -2607,12 +2634,12 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
             const createBody = beginCell()
                 .storeUint(FactoryOpcodes.createJob, 32)
                 .storeAddress(evaluatorAddr)
-                .storeCoins(toNano(budgetTon))
+                .storeCoins(budgetCoins)
                 .storeUint(descHash, 256)
                 .storeUint(timeoutSec, 32)
                 .storeUint(timeoutSec, 32)
                 .endCell();
-            const link = tonTransferLink(FACTORY_ADDRESS, toNano('0.03'), createBody);
+            const link = tonTransferLink(factoryAddr, createGas, createBody);
             const kb = new InlineKeyboard().url('👛 Create in Tonkeeper', link).row().text('🏠 Menu', 'menu_main');
             await ctx.reply(
                 `${e('💎')} <b>Create Job with File</b>\n\n` +
@@ -2631,25 +2658,29 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         const createBody = beginCell()
             .storeUint(FactoryOpcodes.createJob, 32)
             .storeAddress(mnemonicEvaluator)
-            .storeCoins(toNano(budgetTon))
+            .storeCoins(budgetCoins)
             .storeUint(descHash, 256)
             .storeUint(timeoutSec, 32)
             .storeUint(timeoutSec, 32)
             .endCell();
-        await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
+        await sendTx(client, w, Address.parse(factoryAddr), createGas, createBody);
         await new Promise(r => setTimeout(r, 10000));
-        const jobCount = await getFactoryJobCount(client, FACTORY_ADDRESS);
+        const jobCount = await getFactoryJobCount(client, factoryAddr);
         const jobId = jobCount - 1;
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
-        const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
-        saveDescription(jobId, description);
-        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
+        const jobAddr = await getJobAddress(client, factoryAddr, jobId);
+        if (!isJetton) {
+            const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+            await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
+        }
+        saveDescription(jobId + (isJetton ? 100000 : 0), description);
+        const prefix = isJetton ? 'J#' : '#';
+        const statusCb = isJetton ? `jstatus_${jobId}` : `status_${jobId}`;
+        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
         await ctx.reply(
-            `${e('✅')} <b>Job #${jobId} Created & Funded!</b>\n\n` +
+            `${e('✅')} <b>Job ${prefix}${jobId} Created${isJetton ? '' : ' & Funded'}!</b>\n\n` +
             `${e('📄')} <b>Description:</b> ${escapeHtml(description)}\n` +
-            `${e('📎')} <b>File:</b> <a href="${fileUrl}">View on IPFS</a>\n` +
-            `${ton(budgetTon)} locked in escrow.`,
+            (fileUrl ? `${e('📎')} <b>File:</b> <a href="${fileUrl}">View on IPFS</a>\n` : '') +
+            (isJetton ? `Use /fund j${jobId} to fund with USDT.` : `${ton(budgetTon)} locked in escrow.`),
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
