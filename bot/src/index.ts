@@ -1317,13 +1317,11 @@ bot.command('submit', async (ctx) => {
             const fileUrl_ = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
             const fileRes = await fetch(fileUrl_);
             const buffer = Buffer.from(await fileRes.arrayBuffer());
-            const uploaded = await uploadFileToIPFS(buffer, fileName);
-            resultHash = uploaded.hashBig;
-            fileUrl = `${PINATA_GW}/${uploaded.cid}`;
-            // Also upload text description with file reference
-            if (resultText && resultText !== args[0]) {
-                await uploadToIPFS({ type: 'job_result', result: resultText, file: { cid: uploaded.cid, filename: fileName }, submittedAt: new Date().toISOString() });
-            }
+            const fileUploaded = await uploadFileToIPFS(buffer, fileName);
+            fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
+            // Store JSON hash in contract (contains text + file reference)
+            const jsonUploaded = await uploadToIPFS({ type: 'job_result', result: resultText, file: { cid: fileUploaded.cid, filename: fileName, ipfsUrl: fileUrl }, submittedAt: new Date().toISOString() });
+            resultHash = jsonUploaded.hashBig;
         } else {
             const uploaded = await uploadToIPFS({ type: 'job_result', result: resultText, submittedAt: new Date().toISOString() });
             resultHash = uploaded.hashBig;

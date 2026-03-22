@@ -132,7 +132,7 @@ export class EnactClient {
         return BigInt('0x' + hash);
     }
 
-    private async _uploadFileToIPFS(buffer: Buffer, filename: string): Promise<bigint> {
+    private async _uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: bigint; cid: string; filename: string; mimeType: string; size: number }> {
         if (!this.pinataJwt) throw new Error('pinataJwt required for file uploads');
         const hash = createHash('sha256').update(buffer).digest('hex');
         const ext = filename.split('.').pop()?.toLowerCase() || '';
@@ -152,7 +152,8 @@ export class EnactClient {
             body: formData,
         });
         if (!res.ok) throw new Error(`File upload failed: ${res.status}`);
-        return BigInt('0x' + hash);
+        const data = await res.json() as { IpfsHash: string };
+        return { hash: BigInt('0x' + hash), cid: data.IpfsHash, filename, mimeType, size: buffer.length };
     }
 
     /** Get wallet address (requires mnemonic) */
@@ -229,8 +230,13 @@ export class EnactClient {
 
         let descHash: bigint;
         if (params.file && this.pinataJwt) {
-            descHash = await this._uploadFileToIPFS(params.file.buffer, params.file.filename);
-            await this._uploadToIPFS({ type: 'job_description', description: params.description, createdAt: new Date().toISOString() });
+            const f = await this._uploadFileToIPFS(params.file.buffer, params.file.filename);
+            // JSON with text + file reference → hash goes to contract
+            descHash = await this._uploadToIPFS({
+                type: 'job_description', description: params.description,
+                file: { cid: f.cid, filename: f.filename, mimeType: f.mimeType, size: f.size },
+                createdAt: new Date().toISOString(),
+            });
         } else {
             descHash = await this._uploadToIPFS({
                 type: 'job_description', description: params.description, createdAt: new Date().toISOString(),
@@ -271,9 +277,13 @@ export class EnactClient {
     async submitResult(jobAddress: string, result: string, file?: { buffer: Buffer; filename: string }): Promise<void> {
         let resultHash: bigint;
         if (file && this.pinataJwt) {
-            resultHash = await this._uploadFileToIPFS(file.buffer, file.filename);
-            // Also upload text result with file reference
-            await this._uploadToIPFS({ type: 'job_result', result, submittedAt: new Date().toISOString() });
+            const f = await this._uploadFileToIPFS(file.buffer, file.filename);
+            // JSON with text + file reference → hash goes to contract
+            resultHash = await this._uploadToIPFS({
+                type: 'job_result', result,
+                file: { cid: f.cid, filename: f.filename, mimeType: f.mimeType, size: f.size },
+                submittedAt: new Date().toISOString(),
+            });
         } else {
             resultHash = await this._uploadToIPFS({
                 type: 'job_result', result, submittedAt: new Date().toISOString(),

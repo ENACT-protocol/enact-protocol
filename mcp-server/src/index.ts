@@ -217,11 +217,10 @@ server.tool(
         let fileInfo: any = null;
         if (file_path) {
             const f = await uploadFileToIPFS(file_path);
-            cid = f.cid; hash = f.hash;
             fileInfo = { filename: f.filename, mimeType: f.mimeType, size: f.size, ipfsUrl: `${IPFS_GW}/${f.cid}` };
-            // Also upload description text separately for search
-            const descResult = await uploadToIPFS({ type: 'job_description', description, file: fileInfo, createdAt: new Date().toISOString() });
-            cidMap.set(descResult.hash, descResult.cid);
+            // JSON with text + file reference → hash goes to contract
+            const descResult = await uploadToIPFS({ type: 'job_description', description, file: { cid: f.cid, ...fileInfo }, createdAt: new Date().toISOString() });
+            cid = descResult.cid; hash = descResult.hash;
         } else {
             const result = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
             cid = result.cid; hash = result.hash;
@@ -284,11 +283,10 @@ server.tool(
 
         if (file_path) {
             const f = await uploadFileToIPFS(file_path);
-            cid = f.cid; hash = f.hash;
             fileInfo = { filename: f.filename, mimeType: f.mimeType, size: f.size, ipfsUrl: `${IPFS_GW}/${f.cid}` };
-            // Also upload result text with file reference
-            const textResult = await uploadToIPFS({ type: 'job_result', result: result_text, file: fileInfo, submittedAt: new Date().toISOString() });
-            cidMap.set(textResult.hash, textResult.cid);
+            // JSON with text + file reference → hash goes to contract
+            const textResult = await uploadToIPFS({ type: 'job_result', result: result_text, file: { cid: f.cid, ...fileInfo }, submittedAt: new Date().toISOString() });
+            cid = textResult.cid; hash = textResult.hash;
         } else {
             const uploaded = await uploadToIPFS({ type: 'job_result', result: result_text, submittedAt: new Date().toISOString() });
             cid = uploaded.cid; hash = uploaded.hash;
