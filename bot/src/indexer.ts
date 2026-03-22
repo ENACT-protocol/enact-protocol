@@ -248,7 +248,14 @@ async function connectSSE() {
     const sb = getSupabase();
     if (!sb) return;
 
+    let consecutiveFails = 0;
+    const MAX_SSE_FAILS = 5;
+
     while (true) {
+        if (consecutiveFails >= MAX_SSE_FAILS) {
+            log(`SSE: ${consecutiveFails} consecutive failures — disabling SSE, using polling only`);
+            return; // Stop SSE entirely, rely on fallback poller
+        }
         try {
             await refreshTrackedAddresses();
             log(`SSE connecting with ${trackedAddresses.length} addresses...`);
@@ -271,12 +278,14 @@ async function connectSSE() {
             });
 
             if (!res.ok || !res.body) {
+                consecutiveFails++;
                 const wait = res.status === 429 ? 60000 : 5000;
-                log(`SSE failed: ${res.status} — retrying in ${wait / 1000}s`);
+                log(`SSE failed: ${res.status} (attempt ${consecutiveFails}/${MAX_SSE_FAILS}) — retrying in ${wait / 1000}s`);
                 await new Promise(r => setTimeout(r, wait));
                 continue;
             }
 
+            consecutiveFails = 0;
             log('SSE connected!');
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
@@ -388,7 +397,7 @@ async function fallbackPoller() {
     if (!sb) return;
 
     while (true) {
-        await new Promise(r => setTimeout(r, 30_000)); // Every 30s
+        await new Promise(r => setTimeout(r, 60_000)); // Every 60s
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },
@@ -437,6 +446,24 @@ export async function startIndexer() {
     const { error: testErr } = await sb.from('jobs').select('id').limit(1);
     if (testErr) { log(`Supabase FAILED: ${testErr.message}`); return; }
     log('Supabase OK');
+
+    // Clean up old gateway URLs in Supabase
+    const oldGw = 'green-known-basilisk-878.mypinata.cloud';
+    const newGw = PINATA_GW.replace('https://', '').replace('/ipfs', '');
+    if (!newGw.includes(oldGw)) {
+        for (const col of ['description_ipfs_url', 'result_ipfs_url']) {
+            await sb.rpc('', {}).catch(() => {}); // noop
+            const { count } = await sb.from('jobs').select('id', { count: 'exact', head: true }).like(col, `%${oldGw}%`);
+            if (count && count > 0) {
+                log(`Cleaning ${count} old gateway URLs in ${col}...`);
+                const { data: rows } = await sb.from('jobs').select(`id, ${col}`).like(col, `%${oldGw}%`);
+                for (const row of (rows ?? [])) {
+                    const newUrl = (row as any)[col]?.replace(oldGw, newGw);
+                    if (newUrl) await sb.from('jobs').update({ [col]: newUrl }).eq('id', row.id);
+                }
+            }
+        }
+    }
 
     await backfill();
     connectSSE().catch(err => log(`SSE crashed: ${err.message}`));
