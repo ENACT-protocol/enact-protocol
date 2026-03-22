@@ -225,7 +225,7 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
+const PINATA_GW = process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 const descCache = new Map<string, string>();
 
 /** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */
@@ -2562,11 +2562,13 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         let descHash: bigint;
         let fileUrl = '';
         if (fileData) {
-            // Upload file to IPFS first
+            console.log(`[FILE] Uploading ${fileData.filename} (${fileData.buffer.length} bytes)...`);
             const fileUploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
+            console.log(`[FILE] Uploaded, CID: ${fileUploaded.cid}`);
             fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
-            // Store description JSON (with file reference) hash in contract — so explorer can resolve text + file
+            console.log(`[FILE] Creating JSON wrapper...`);
             const descUploaded = await uploadToIPFS({ type: 'job_description', description, file: { cid: fileUploaded.cid, filename: fileData.filename, ipfsUrl: fileUrl }, createdAt: new Date().toISOString() });
+            console.log(`[FILE] JSON uploaded, hash: ${descUploaded.hash.slice(0, 16)}...`);
             descHash = descUploaded.hashBig;
         } else {
             const uploaded = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });

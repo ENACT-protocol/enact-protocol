@@ -5,7 +5,7 @@ import { EnactClient } from '@enact-protocol/sdk';
 const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const API_KEY = process.env.TONCENTER_API_KEY || '';
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
+const PINATA_GW = process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 
 interface CachedResponse { data: any; timestamp: number; }
@@ -41,43 +41,24 @@ async function fetchFromSupabase() {
     txByJob.set(tx.job_address, arr);
   }
 
-  // Resolve file references from IPFS JSON
-  async function resolveFileRef(ipfsUrl: string | null): Promise<{ filename: string; mimeType: string; size: number; ipfsUrl: string } | null> {
-    if (!ipfsUrl) return null;
-    try {
-      const res = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
-      if (!res.ok) return null;
-      const d = await res.json();
-      if (d.file?.cid) {
-        const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
-        return { filename: d.file.filename || 'file', mimeType: d.file.mimeType || 'application/octet-stream', size: d.file.size || 0, ipfsUrl: fUrl };
-      }
-    } catch {}
-    return null;
-  }
-
-  // Fetch file refs in parallel for all jobs that have IPFS URLs
-  const fileRefPromises = (jobs as any[]).map(async (j: any) => {
-    const [descFile, resFile] = await Promise.all([
-      j.description_ipfs_url ? resolveFileRef(j.description_ipfs_url) : null,
-      j.result_ipfs_url ? resolveFileRef(j.result_ipfs_url) : null,
-    ]);
-    return { jobAddr: j.address, descFile, resFile };
-  });
-  const fileRefs = await Promise.all(fileRefPromises);
-  const fileRefMap = new Map(fileRefs.map(f => [f.jobAddr, f]));
-
   const transform = (j: any) => {
-    const refs = fileRefMap.get(j.address);
     const descContent: any = j.description_text
       ? { text: j.description_text, source: j.description_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.description_ipfs_url }
       : { text: null, source: 'hash' };
-    if (refs?.descFile) { descContent.file = refs.descFile; }
+    if (j.description_file_cid) {
+      const ext = (j.description_file_name || '').split('.').pop()?.toLowerCase() || '';
+      const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
+      descContent.file = { filename: j.description_file_name || 'file', mimeType: imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream', size: 0, ipfsUrl: `${PINATA_GW}/${j.description_file_cid}` };
+    }
 
     const resContent: any = j.result_text
       ? { text: j.result_text, source: j.result_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.result_ipfs_url }
       : { text: null, source: 'hash' };
-    if (refs?.resFile) { resContent.file = refs.resFile; }
+    if (j.result_file_cid) {
+      const ext = (j.result_file_name || '').split('.').pop()?.toLowerCase() || '';
+      const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
+      resContent.file = { filename: j.result_file_name || 'file', mimeType: imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream', size: 0, ipfsUrl: `${PINATA_GW}/${j.result_file_cid}` };
+    }
 
     return {
       jobId: j.job_id, address: j.address, type: j.factory_type,
@@ -91,7 +72,7 @@ async function fetchFromSupabase() {
       description: descContent,
       resultContent: resContent,
       reasonContent: j.reason_text ? { text: j.reason_text, source: 'hex' } : { text: null, source: 'hash' },
-      hasFile: !!(refs?.descFile || refs?.resFile),
+      hasFile: !!(j.description_file_cid || j.result_file_cid),
       transactions: txByJob.get(j.address) ?? [],
     };
   };

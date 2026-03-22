@@ -129,7 +129,7 @@ async function uploadFileToIPFS(filePath: string): Promise<{ cid: string; hash: 
     return { cid: data.IpfsHash, hash, filename, mimeType, size };
 }
 
-const IPFS_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
+const IPFS_GW = process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 
 async function fetchFromIPFS(cid: string): Promise<any> {
     const res = await fetch(`${IPFS_GW}/${cid}`);

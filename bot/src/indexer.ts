@@ -1,7 +1,6 @@
 /**
  * ENACT Protocol Indexer — runs inside the bot process.
- * Backfills all jobs on startup, then uses Toncenter Streaming API v2 SSE
- * for real-time transaction tracking with pending/confirmed/finalized states.
+ * Polls blockchain every 60s, writes to Supabase.
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -12,12 +11,10 @@ const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 const ZERO_HASH = '0'.repeat(64);
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const API_KEY = process.env.TONCENTER_API_KEY || '';
-const SSE_URL = 'https://toncenter.com/api/streaming/v2/sse';
+const IPFS_GW = 'https://ipfs.io/ipfs';
 
 let supabase: SupabaseClient | null = null;
-let sseAbort: AbortController | null = null;
 
 function log(msg: string) {
     console.log(`[IDX ${new Date().toISOString().slice(11, 19)}] ${msg}`);
@@ -33,42 +30,64 @@ function getSupabase(): SupabaseClient | null {
 }
 
 function getClient(): TonClient {
-    return new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC', apiKey: API_KEY });
+    return new TonClient({
+        endpoint: process.env.TON_ENDPOINT || 'https://toncenter.com/api/v2/jsonRPC',
+        apiKey: API_KEY,
+    });
 }
 
-// ─── Content Resolution ───
+// ─── IPFS Content Resolution ───
 
-async function resolveContent(hash: string): Promise<{ text: string | null; ipfsUrl: string | null }> {
-    if (!hash || hash === ZERO_HASH) return { text: null, ipfsUrl: null };
+async function fetchFromIPFS(cid: string): Promise<any> {
+    const gateways = [IPFS_GW, 'https://dweb.link/ipfs', 'https://cloudflare-ipfs.com/ipfs', 'https://w3s.link/ipfs'];
+    for (const gw of gateways) {
+        try {
+            const res = await fetch(`${gw}/${cid}`, { signal: AbortSignal.timeout(5000) });
+            if (res.ok) return await res.json();
+        } catch {}
+    }
+    return null;
+}
+
+async function resolveContent(hash: string): Promise<{ text: string | null; ipfsUrl: string | null; fileCid: string | null; fileName: string | null }> {
+    if (!hash || hash === ZERO_HASH) return { text: null, ipfsUrl: null, fileCid: null, fileName: null };
     try {
         const clean = hash.replace(/0+$/, '');
         if (clean.length >= 4) {
             const bytes = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
-            if (/^[\x20-\x7E\n\r\t]+$/.test(bytes) && bytes.length > 2) return { text: bytes, ipfsUrl: null };
+            if (/^[\x20-\x7E\n\r\t]+$/.test(bytes) && bytes.length > 2) return { text: bytes, ipfsUrl: null, fileCid: null, fileName: null };
         }
     } catch {}
     if (process.env.PINATA_JWT) {
         try {
-            const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+            const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
             const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` }, signal: AbortSignal.timeout(8000) });
             if (res.ok) {
-                const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
-                if (pins.rows?.length > 0) {
-                    const cid = pins.rows[0].ipfs_pin_hash;
-                    const ipfsUrl = `${PINATA_GW}/${cid}`;
-                    try {
-                        const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(8000) });
-                        if (cr.ok) {
-                            const d = await cr.json() as Record<string, any>;
-                            return { text: d.description ?? d.result ?? d.reason ?? JSON.stringify(d), ipfsUrl };
-                        }
-                    } catch {}
-                    return { text: null, ipfsUrl };
+                const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string; metadata?: { keyvalues?: Record<string, string> } }> };
+                // Prefer JSON over file pins
+                let fileFallback: { cid: string; filename: string } | null = null;
+                for (const pin of (pins.rows ?? [])) {
+                    const kv = pin.metadata?.keyvalues;
+                    const cid = pin.ipfs_pin_hash;
+                    if (kv?.type === 'file') {
+                        fileFallback = { cid, filename: kv.filename || 'file' };
+                        continue;
+                    }
+                    const data = await fetchFromIPFS(cid);
+                    if (data) {
+                        const text = data.description ?? data.result ?? data.reason ?? null;
+                        const fileCid = data.file?.cid || null;
+                        const fileName = data.file?.filename || null;
+                        return { text, ipfsUrl: `${IPFS_GW}/${cid}`, fileCid, fileName };
+                    }
+                }
+                if (fileFallback) {
+                    return { text: null, ipfsUrl: `${IPFS_GW}/${fileFallback.cid}`, fileCid: fileFallback.cid, fileName: fileFallback.filename };
                 }
             }
         } catch {}
     }
-    return { text: null, ipfsUrl: null };
+    return { text: null, ipfsUrl: null, fileCid: null, fileName: null };
 }
 
 // ─── Transaction Fetching ───
@@ -83,7 +102,7 @@ async function fetchTransactions(address: string): Promise<any[]> {
     } catch { return []; }
 }
 
-// ─── Job Indexing (only for finalized state) ───
+// ─── Job Indexing ───
 
 async function indexJob(client: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt') {
     const sb = getSupabase();
@@ -127,7 +146,7 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         const [descContent, resultContent, reasonContent] = await Promise.all([
             resolveContent(descHashHex),
             resolveContent(resultHashHex),
-            state >= 3 ? resolveContent(reason.toString(16).padStart(64, '0')) : Promise.resolve({ text: null, ipfsUrl: null }),
+            state >= 3 ? resolveContent(reason.toString(16).padStart(64, '0')) : Promise.resolve({ text: null, ipfsUrl: null, fileCid: null, fileName: null }),
         ]);
 
         const rawTxs = await fetchTransactions(jobAddr);
@@ -135,7 +154,6 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
             fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
             utime: tx.utime || 0,
-            from: tx.in_msg?.source || null,
         }));
 
         const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
@@ -149,7 +167,9 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             timeout, created_at: effectiveCreatedAt, eval_timeout: evalTimeout,
             submitted_at: submittedAt, result_type: resultType,
             description_text: descContent.text, description_ipfs_url: descContent.ipfsUrl,
+            description_file_cid: descContent.fileCid, description_file_name: descContent.fileName,
             result_text: resultContent.text, result_ipfs_url: resultContent.ipfsUrl,
+            result_file_cid: resultContent.fileCid, result_file_name: resultContent.fileName,
             reason_text: reasonContent.text, updated_at: new Date().toISOString(),
         }, { onConflict: 'address' });
         if (jobErr) log(`  DB ERR jobs: ${jobErr.message}`);
@@ -157,17 +177,16 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         for (const tx of txs) {
             if (!tx.hash) continue;
             await sb.from('transactions').upsert({
-                job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee,
-                utime: tx.utime, from_address: tx.from,
+                job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee, utime: tx.utime,
             }, { onConflict: 'tx_hash' });
         }
 
         // Activity events
         const chronTxs = [...txs].reverse();
-        const isUsdt = type === 'usdt';
         const clientStr = clientAddr.toString(uf);
         const providerStr = providerAddr?.toString(uf) ?? null;
         const evaluatorStr = evaluatorAddr.toString(uf);
+        const isUsdt = type === 'usdt';
         const takeBase = isUsdt ? 3 : 2;
         const subIdx = providerStr ? takeBase + 1 : takeBase;
 
@@ -185,24 +204,25 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         if (state >= 1 && chronTxs[fundIdx]) await addAct('Funded', 'FUNDED', chronTxs[fundIdx].utime, budgetFormatted, clientStr, chronTxs[fundIdx].hash);
         if (providerStr && chronTxs[takeBase]) await addAct('Taken', 'FUNDED', chronTxs[takeBase].utime, null, providerStr, chronTxs[takeBase].hash);
         if (submittedAt && chronTxs[subIdx]) await addAct('Submitted', 'SUBMITTED', chronTxs[subIdx].utime, budgetFormatted, providerStr, chronTxs[subIdx].hash);
-        const lastTx = chronTxs[chronTxs.length - 1];
-        if (stateName === 'COMPLETED' && lastTx) await addAct('Approved', 'COMPLETED', lastTx.utime, `${budgetFormatted} → Provider`, evaluatorStr, lastTx.hash);
-        if (stateName === 'CANCELLED' && lastTx) await addAct('Cancelled', 'CANCELLED', lastTx.utime, `${budgetFormatted} → Client`, clientStr, lastTx.hash);
-        if (stateName === 'DISPUTED' && lastTx) await addAct('Rejected', 'DISPUTED', lastTx.utime, budgetFormatted, evaluatorStr, lastTx.hash);
+        const termIdx = submittedAt ? subIdx + 1 : takeBase + 1;
+        if (stateName === 'COMPLETED' && chronTxs[termIdx]) await addAct('Approved', 'COMPLETED', chronTxs[termIdx].utime, `${budgetFormatted} → Provider`, evaluatorStr, chronTxs[termIdx].hash);
+        if (stateName === 'DISPUTED' && chronTxs[termIdx]) await addAct('Rejected', 'DISPUTED', chronTxs[termIdx].utime, budgetFormatted, evaluatorStr, chronTxs[termIdx].hash);
+        if (stateName === 'CANCELLED') {
+            const lastTx = chronTxs[chronTxs.length - 1];
+            if (lastTx) await addAct('Cancelled', 'CANCELLED', lastTx.utime, `${budgetFormatted} → Client`, clientStr, lastTx.hash);
+        }
 
-        log(`${type.toUpperCase()} #${jobId} ${stateName}`);
     } catch (err: any) {
-        log(`Err ${type} #${jobId}: ${err.message}`);
+        log(`  indexJob ${type}#${jobId} err: ${err.message}`);
     }
 }
 
 // ─── Backfill ───
 
 async function backfill() {
+    const client = getClient();
     const sb = getSupabase();
     if (!sb) return;
-    log('Backfilling...');
-    const client = getClient();
 
     for (const { factory, type } of [
         { factory: FACTORY, type: 'ton' as const },
@@ -211,9 +231,8 @@ async function backfill() {
         try {
             const countResult = await client.runMethod(Address.parse(factory), 'get_next_job_id');
             const count = countResult.stack.readNumber();
-            log(`${type.toUpperCase()}: ${count} jobs`);
+            log(`Backfill ${type.toUpperCase()}: ${count} jobs`);
             for (let i = 0; i < count; i++) {
-                await new Promise(r => setTimeout(r, 500));
                 await indexJob(client, factory, i, type);
             }
             await sb.from('indexer_state').upsert({
@@ -221,183 +240,21 @@ async function backfill() {
                 updated_at: new Date().toISOString(),
             }, { onConflict: 'factory_address' });
         } catch (err: any) {
-            log(`Backfill err ${type}: ${err.message}`);
+            log(`Backfill ${type} err: ${err.message}`);
         }
     }
-    log('Backfill done.');
+    log('Backfill done');
 }
 
-// ─── SSE Streaming ───
+// ─── Polling (every 60s) ───
 
-let trackedAddresses: string[] = [FACTORY, JETTON_FACTORY];
-
-async function refreshTrackedAddresses() {
-    const sb = getSupabase();
-    if (!sb) return;
-    const { data } = await sb.from('jobs').select('address').in('state', [0, 1, 2]);
-    const jobAddrs = (data ?? []).map((j: any) => j.address);
-    trackedAddresses = [FACTORY, JETTON_FACTORY, ...jobAddrs];
-}
-
-function reconnectSSE() {
-    if (sseAbort) { sseAbort.abort(); sseAbort = null; }
-}
-
-async function connectSSE() {
-    const client = getClient();
-    const sb = getSupabase();
-    if (!sb) return;
-
-    let consecutiveFails = 0;
-    const MAX_SSE_FAILS = 5;
-
-    while (true) {
-        if (consecutiveFails >= MAX_SSE_FAILS) {
-            log(`SSE: ${consecutiveFails} consecutive failures — disabling SSE, using polling only`);
-            return; // Stop SSE entirely, rely on fallback poller
-        }
-        try {
-            await refreshTrackedAddresses();
-            log(`SSE connecting with ${trackedAddresses.length} addresses...`);
-
-            sseAbort = new AbortController();
-            const sseUrl = API_KEY ? `${SSE_URL}?api_key=${API_KEY}` : SSE_URL;
-            const res = await fetch(sseUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream',
-                    ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
-                },
-                body: JSON.stringify({
-                    addresses: trackedAddresses,
-                    types: ['transactions'],
-                    min_finality: 'pending',
-                }),
-                signal: sseAbort.signal,
-            });
-
-            if (!res.ok || !res.body) {
-                consecutiveFails++;
-                const wait = res.status === 429 ? 60000 : 5000;
-                log(`SSE failed: ${res.status} (attempt ${consecutiveFails}/${MAX_SSE_FAILS}) — retrying in ${wait / 1000}s`);
-                await new Promise(r => setTimeout(r, wait));
-                continue;
-            }
-
-            consecutiveFails = 0;
-            log('SSE connected!');
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
-
-                for (const line of lines) {
-                    if (line.startsWith(':') || !line.startsWith('data: ')) continue;
-                    try {
-                        const event = JSON.parse(line.slice(6));
-                        if (event.type !== 'transactions' || !event.transactions) continue;
-                        const finality = event.finality || 'finalized';
-
-                        for (const tx of event.transactions) {
-                            let account = tx.account;
-                            try { account = Address.parse(tx.account).toString(); } catch {}
-
-                            // Handle factory txs: any finality triggers quick-poll for new jobs
-                            if (account === FACTORY || account === JETTON_FACTORY) {
-                                if (finality === 'pending') {
-                                    log(`SSE: ${account === FACTORY ? 'TON' : 'USDT'} factory tx [pending] — quick-polling...`);
-                                    // Quick poll: check every 3s for 30s until new job appears
-                                    const type = account === FACTORY ? 'ton' : 'usdt';
-                                    (async () => {
-                                        for (let attempt = 0; attempt < 10; attempt++) {
-                                            await new Promise(r => setTimeout(r, 3000));
-                                            try {
-                                                const countResult = await client.runMethod(Address.parse(account), 'get_next_job_id');
-                                                const count = countResult.stack.readNumber();
-                                                const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', account).single();
-                                                const lastCount = state?.data?.last_job_count ?? 0;
-                                                if (count > lastCount) {
-                                                    log(`SSE quick-poll: ${type.toUpperCase()} ${count - lastCount} new job(s)!`);
-                                                    for (let i = lastCount; i < count; i++) {
-                                                        await indexJob(client, account, i, type);
-                                                    }
-                                                    await sb.from('indexer_state').upsert({
-                                                        factory_address: account, last_job_count: count,
-                                                        updated_at: new Date().toISOString(),
-                                                    }, { onConflict: 'factory_address' });
-                                                    reconnectSSE();
-                                                    return;
-                                                }
-                                            } catch {}
-                                        }
-                                    })().catch(() => {});
-                                }
-                            } else {
-                                // Job contract tx — any finality
-                                if (finality === 'pending') {
-                                    // On pending, start quick-poll for state change
-                                    const matchAddr = account;
-                                    const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address, state').eq('address', matchAddr).single();
-                                    if (job) {
-                                        log(`SSE: ${job.factory_type.toUpperCase()} #${job.job_id} tx [pending] — quick-polling...`);
-                                        (async () => {
-                                            for (let attempt = 0; attempt < 10; attempt++) {
-                                                await new Promise(r => setTimeout(r, 3000));
-                                                try {
-                                                    await indexJob(client, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
-                                                    // Check if state changed
-                                                    const { data: updated } = await sb.from('jobs').select('state').eq('address', matchAddr).single();
-                                                    if (updated && updated.state !== job.state) {
-                                                        log(`SSE quick-poll: ${job.factory_type.toUpperCase()} #${job.job_id} state changed ${job.state} → ${updated.state}`);
-                                                        return;
-                                                    }
-                                                } catch {}
-                                            }
-                                        })().catch(() => {});
-                                    }
-                                } else {
-                                    // confirmed/finalized — index immediately
-                                    let matchAddr = account;
-                                    try { matchAddr = Address.parse(tx.account).toString({ bounceable: true }); } catch {}
-                                    const { data: job } = await sb.from('jobs').select('job_id, factory_type, factory_address').eq('address', matchAddr).single();
-                                    if (job) {
-                                        await indexJob(client, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
-                                        log(`SSE: ${job.factory_type.toUpperCase()} #${job.job_id} updated [${finality}]`);
-                                    }
-                                }
-                            }
-                        }
-                    } catch {}
-                }
-            }
-        } catch (err: any) {
-            if (err.name === 'AbortError') {
-                log('SSE reconnecting (new addresses)...');
-            } else {
-                log(`SSE err: ${err.message}`);
-            }
-        }
-        await new Promise(r => setTimeout(r, 2000));
-    }
-}
-
-// ─── Fallback poller ───
-
-async function fallbackPoller() {
+async function poller() {
     const client = getClient();
     const sb = getSupabase();
     if (!sb) return;
 
     while (true) {
-        await new Promise(r => setTimeout(r, 60_000)); // Every 60s
+        await new Promise(r => setTimeout(r, 60_000));
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },
@@ -409,7 +266,7 @@ async function fallbackPoller() {
                 const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
                 const lastCount = state?.data?.last_job_count ?? 0;
                 if (count > lastCount) {
-                    log(`Fallback: ${type.toUpperCase()} ${count - lastCount} new job(s)`);
+                    log(`Poll: ${type.toUpperCase()} ${count - lastCount} new job(s)`);
                     for (let i = lastCount; i < count; i++) {
                         await indexJob(client, factory, i, type);
                     }
@@ -419,7 +276,7 @@ async function fallbackPoller() {
                     }, { onConflict: 'factory_address' });
                 }
 
-                // Re-index active jobs (state may have changed)
+                // Re-index active jobs only
                 const { data: activeJobs } = await sb.from('jobs')
                     .select('job_id, factory_address, factory_type')
                     .eq('factory_address', factory)
@@ -431,7 +288,7 @@ async function fallbackPoller() {
                 }
             }
         } catch (err: any) {
-            log(`Fallback err: ${err.message}`);
+            log(`Poll err: ${err.message}`);
         }
     }
 }
@@ -447,28 +304,23 @@ export async function startIndexer() {
     if (testErr) { log(`Supabase FAILED: ${testErr.message}`); return; }
     log('Supabase OK');
 
-    // Clean up old gateway URLs in Supabase
-    const oldGw = 'green-known-basilisk-878.mypinata.cloud';
-    const newGw = PINATA_GW.replace('https://', '').replace('/ipfs', '');
-    if (!newGw.includes(oldGw)) {
-        for (const col of ['description_ipfs_url', 'result_ipfs_url']) {
-            const { data: rows } = await sb.from('jobs').select('id').like(col, `%${oldGw}%`);
-            if (rows && rows.length > 0) {
-                log(`Cleaning ${rows.length} old gateway URLs in ${col}...`);
-                for (const row of rows) {
-                    const { data: full } = await sb.from('jobs').select(col).eq('id', row.id).single();
-                    if (full) {
-                        const oldUrl = (full as any)[col] as string;
-                        const newUrl = oldUrl?.replace(oldGw, newGw);
-                        if (newUrl && newUrl !== oldUrl) await sb.from('jobs').update({ [col]: newUrl }).eq('id', row.id);
-                    }
+    // Clean up old gateway URLs
+    for (const col of ['description_ipfs_url', 'result_ipfs_url']) {
+        const { data: rows } = await sb.from('jobs').select('id').like(col, '%green-known%');
+        if (rows && rows.length > 0) {
+            log(`Cleaning ${rows.length} old gateway URLs in ${col}...`);
+            for (const row of rows) {
+                const { data: full } = await sb.from('jobs').select(col).eq('id', row.id).single();
+                if (full) {
+                    const oldUrl = (full as any)[col] as string;
+                    const newUrl = oldUrl?.replace(/https:\/\/[^/]*mypinata\.cloud\/ipfs/g, IPFS_GW);
+                    if (newUrl && newUrl !== oldUrl) await sb.from('jobs').update({ [col]: newUrl }).eq('id', row.id);
                 }
             }
         }
     }
 
     await backfill();
-    connectSSE().catch(err => log(`SSE crashed: ${err.message}`));
-    fallbackPoller().catch(err => log(`Fallback crashed: ${err.message}`));
-    log('Indexer running — SSE + 60s fallback');
+    poller().catch(err => log(`Poller crashed: ${err.message}`));
+    log('Indexer running — polling every 60s');
 }
