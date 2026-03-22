@@ -49,6 +49,13 @@ await client.submitResult(jobAddress, "Voici la traduction...");
 // Evaluator approves
 await client.evaluateJob(jobAddress, true, "Good translation");
 
+// Submit with file attachment
+import { readFileSync } from "fs";
+await client.submitResult(jobAddress, "Design completed", {
+  buffer: readFileSync("design.png"),
+  filename: "design.png",
+});
+
 // Other operations
 await client.cancelJob(jobAddress);  // cancel after timeout
 await client.claimJob(jobAddress);   // auto-claim after eval timeout

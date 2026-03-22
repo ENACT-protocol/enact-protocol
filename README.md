@@ -138,6 +138,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
 | 🤖 | **MCP Integration** | 15 tools for AI agents via Model Context Protocol |
 | 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
+| 📎 | **File & Image Support** | Attach files, images, documents as job descriptions or results via IPFS |
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
 | 💎 | **USDT Payments** | JettonJob contract for USDT stablecoin escrow (auto-resolved wallet) |
 | 🆓 | **0% Protocol Fee** | No fees — all funds go directly to the provider |
