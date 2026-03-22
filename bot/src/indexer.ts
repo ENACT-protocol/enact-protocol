@@ -104,7 +104,7 @@ async function fetchTransactions(address: string): Promise<any[]> {
 
 // ─── Job Indexing ───
 
-async function indexJob(client: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt') {
+async function indexJob(client: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt', force = false) {
     const sb = getSupabase();
     if (!sb) return;
 
@@ -114,9 +114,11 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
         ]);
         const jobAddr = addrResult.stack.readAddress().toString();
 
-        // Skip terminal jobs already indexed
-        const { data: existing } = await sb.from('jobs').select('state').eq('address', jobAddr).single();
-        if (existing && [3, 4, 5].includes(existing.state)) return;
+        // Skip terminal jobs already indexed (unless force re-index)
+        if (!force) {
+            const { data: existing } = await sb.from('jobs').select('state').eq('address', jobAddr).single();
+            if (existing && [3, 4, 5].includes(existing.state)) return;
+        }
 
         const result = await client.runMethod(Address.parse(jobAddr), 'get_job_data');
         const jid = result.stack.readNumber();
@@ -224,6 +226,11 @@ async function backfill() {
     const sb = getSupabase();
     if (!sb) return;
 
+    // Check if we need force re-index (new columns added)
+    const { data: sample } = await sb.from('jobs').select('description_file_cid').limit(1);
+    const needsForce = sample !== null; // columns exist, force re-index to populate them
+    if (needsForce) log('Force re-indexing all jobs to populate file columns...');
+
     for (const { factory, type } of [
         { factory: FACTORY, type: 'ton' as const },
         { factory: JETTON_FACTORY, type: 'usdt' as const },
@@ -233,7 +240,7 @@ async function backfill() {
             const count = countResult.stack.readNumber();
             log(`Backfill ${type.toUpperCase()}: ${count} jobs`);
             for (let i = 0; i < count; i++) {
-                await indexJob(client, factory, i, type);
+                await indexJob(client, factory, i, type, needsForce);
             }
             await sb.from('indexer_state').upsert({
                 factory_address: factory, last_job_count: count,

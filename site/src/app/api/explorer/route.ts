@@ -5,7 +5,7 @@ import { EnactClient } from '@enact-protocol/sdk';
 const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const API_KEY = process.env.TONCENTER_API_KEY || '';
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+const PINATA_GW = 'https://ipfs.io/ipfs'; // Always use public gateway for reading
 const ZERO_HASH = '0'.repeat(64);
 
 interface CachedResponse { data: any; timestamp: number; }
