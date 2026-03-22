@@ -72,12 +72,12 @@ async function fetchFromSupabase() {
     const descContent: any = j.description_text
       ? { text: j.description_text, source: j.description_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.description_ipfs_url }
       : { text: null, source: 'hash' };
-    if (refs?.descFile) { descContent.file = refs.descFile; descContent.ipfsUrl = refs.descFile.ipfsUrl; }
+    if (refs?.descFile) { descContent.file = refs.descFile; }
 
     const resContent: any = j.result_text
       ? { text: j.result_text, source: j.result_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.result_ipfs_url }
       : { text: null, source: 'hash' };
-    if (refs?.resFile) { resContent.file = refs.resFile; resContent.ipfsUrl = refs.resFile.ipfsUrl; }
+    if (refs?.resFile) { resContent.file = refs.resFile; }
 
     return {
       jobId: j.job_id, address: j.address, type: j.factory_type,

@@ -293,26 +293,26 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       )}
 
       {/* Image preview */}
-      {isImage && content?.ipfsUrl && (
+      {isImage && file?.ipfsUrl && (
         <div className={text ? 'mt-3' : ''}>
-          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer">
-            <img src={content.ipfsUrl} alt={file!.filename}
+          <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer">
+            <img src={file.ipfsUrl} alt={file.filename}
               className="max-h-[200px] rounded-lg border border-[#222] cursor-pointer hover:opacity-80 transition-opacity" />
           </a>
           {showFilename && (
             <div className="flex items-center gap-2 mt-1.5 text-xs text-[#555]">
-              <span>{file!.filename}</span>
-              <span>{file!.mimeType}</span>
-              <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline cursor-pointer">View on IPFS</a>
+              <span>{file.filename}</span>
+              <span>{file.mimeType}</span>
+              <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline cursor-pointer">View on IPFS</a>
             </div>
           )}
         </div>
       )}
 
       {/* Non-image file */}
-      {isFile && content?.ipfsUrl && (
+      {isFile && file?.ipfsUrl && (
         <div className={text ? 'mt-3' : ''}>
-          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer"
+          <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-3 py-2 bg-[#151515] border border-[#222] rounded-lg text-xs text-[#ccc] hover:text-white transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <div>
