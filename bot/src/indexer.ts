@@ -254,7 +254,8 @@ async function connectSSE() {
             log(`SSE connecting with ${trackedAddresses.length} addresses...`);
 
             sseAbort = new AbortController();
-            const res = await fetch(SSE_URL, {
+            const sseUrl = API_KEY ? `${SSE_URL}?api_key=${API_KEY}` : SSE_URL;
+            const res = await fetch(sseUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
