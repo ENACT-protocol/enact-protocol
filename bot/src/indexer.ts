@@ -160,7 +160,8 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
 
         const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
 
-        const { error: jobErr } = await sb.from('jobs').upsert({
+        // Build upsert data — never overwrite existing content with null
+        const jobData: Record<string, any> = {
             job_id: jobId, factory_type: type, address: jobAddr, factory_address: factory,
             state, state_name: stateName,
             client: clientAddr.toString(uf), provider: providerAddr?.toString(uf) ?? null,
@@ -168,12 +169,20 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
             desc_hash: descHashHex, result_hash: resultHashHex,
             timeout, created_at: effectiveCreatedAt, eval_timeout: evalTimeout,
             submitted_at: submittedAt, result_type: resultType,
-            description_text: descContent.text, description_ipfs_url: descContent.ipfsUrl,
-            description_file_cid: descContent.fileCid, description_file_name: descContent.fileName,
-            result_text: resultContent.text, result_ipfs_url: resultContent.ipfsUrl,
-            result_file_cid: resultContent.fileCid, result_file_name: resultContent.fileName,
-            reason_text: reasonContent.text, updated_at: new Date().toISOString(),
-        }, { onConflict: 'address' });
+            updated_at: new Date().toISOString(),
+        };
+        // Only set content fields if we resolved something (don't overwrite with null)
+        if (descContent.text !== null) jobData.description_text = descContent.text;
+        if (descContent.ipfsUrl !== null) jobData.description_ipfs_url = descContent.ipfsUrl;
+        if (descContent.fileCid !== null) jobData.description_file_cid = descContent.fileCid;
+        if (descContent.fileName !== null) jobData.description_file_name = descContent.fileName;
+        if (resultContent.text !== null) jobData.result_text = resultContent.text;
+        if (resultContent.ipfsUrl !== null) jobData.result_ipfs_url = resultContent.ipfsUrl;
+        if (resultContent.fileCid !== null) jobData.result_file_cid = resultContent.fileCid;
+        if (resultContent.fileName !== null) jobData.result_file_name = resultContent.fileName;
+        if (reasonContent.text !== null) jobData.reason_text = reasonContent.text;
+
+        const { error: jobErr } = await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
         if (jobErr) log(`  DB ERR jobs: ${jobErr.message}`);
 
         for (const tx of txs) {
@@ -226,11 +235,6 @@ async function backfill() {
     const sb = getSupabase();
     if (!sb) return;
 
-    // Check if we need force re-index (new columns added)
-    const { data: sample } = await sb.from('jobs').select('description_file_cid').limit(1);
-    const needsForce = sample !== null; // columns exist, force re-index to populate them
-    if (needsForce) log('Force re-indexing all jobs to populate file columns...');
-
     for (const { factory, type } of [
         { factory: FACTORY, type: 'ton' as const },
         { factory: JETTON_FACTORY, type: 'usdt' as const },
@@ -240,7 +244,7 @@ async function backfill() {
             const count = countResult.stack.readNumber();
             log(`Backfill ${type.toUpperCase()}: ${count} jobs`);
             for (let i = 0; i < count; i++) {
-                await indexJob(client, factory, i, type, needsForce);
+                await indexJob(client, factory, i, type, true); // force to populate new columns
             }
             await sb.from('indexer_state').upsert({
                 factory_address: factory, last_job_count: count,
