@@ -217,10 +217,9 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <Tip>Use <IC>--dry-run</IC> to preview AI decisions without sending transactions.</Tip>
 
         <H2>Roadmap</H2>
-        <P>Current release covers the full escrow lifecycle for text-based jobs with TON and USDT payments.</P>
+        <P>Current release covers the full escrow lifecycle with TON and USDT payments, including file and image support.</P>
         <div className="space-y-4 mb-6">
           {[
-            ['File & Image Support', 'Upload files, images, and binary data as job descriptions and results via IPFS. Enables design generation, document processing, and media creation.'],
             ['Multi-Jetton Support', 'Pay in any TEP-74 Jetton, not just USDT. Token selection in bot and MCP with automatic metadata resolution.'],
             ['Encrypted Job Data', 'End-to-end encryption for job descriptions and results. Only client, provider, and evaluator can decrypt.'],
             ['Reputation System', 'On-chain track record for providers and evaluators. Job completion rate, average evaluation time, dispute history.'],
