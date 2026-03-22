@@ -269,30 +269,34 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
         keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) },
     }));
 
-    // Try v1 API first, fallback to uploading as base64 JSON
+    // Try v1 API first (old JWT keys), then v3 API (new JWT keys)
     let cid: string;
-    const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+    const v1Res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${jwt}` },
         body: formData,
     });
-    if (res.ok) {
-        const data = await res.json() as { IpfsHash: string };
+    if (v1Res.ok) {
+        const data = await v1Res.json() as { IpfsHash: string };
         cid = data.IpfsHash;
     } else {
-        // Fallback: upload file as base64 inside JSON
-        const b64 = buffer.toString('base64');
-        const jsonRes = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+        // v3 API for newer Pinata keys
+        const v3Form = new FormData();
+        v3Form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+        v3Form.append('name', `enact-file-${hash.slice(0, 8)}`);
+        v3Form.append('keyvalues', JSON.stringify({ descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) }));
+        const v3Res = await fetch('https://uploads.pinata.cloud/v3/files', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-            body: JSON.stringify({
-                pinataContent: { type: 'file_base64', data: b64, filename, mimeType, size: buffer.length },
-                pinataMetadata: { name: `enact-file-${hash.slice(0, 8)}`, keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) } },
-            }),
+            headers: { 'Authorization': `Bearer ${jwt}` },
+            body: v3Form,
         });
-        if (!jsonRes.ok) throw new Error(`File upload failed: ${jsonRes.status}`);
-        const jsonData = await jsonRes.json() as { IpfsHash: string };
-        cid = jsonData.IpfsHash;
+        if (!v3Res.ok) {
+            const errText = await v3Res.text().catch(() => '');
+            throw new Error(`File upload failed: v1=${v1Res.status} v3=${v3Res.status} ${errText.slice(0, 100)}`);
+        }
+        const v3Data = await v3Res.json() as { data?: { cid?: string }; IpfsHash?: string };
+        cid = v3Data.data?.cid || v3Data.IpfsHash || '';
+        if (!cid) throw new Error('No CID in upload response');
     }
     return { hash, hashBig: BigInt('0x' + hash), cid };
 }
