@@ -22,7 +22,7 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 
 
-export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string };
+export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number } };
 
 export type Job = {
   jobId: number; address: string; type: 'ton' | 'usdt'; state: number; stateName: string;
@@ -263,15 +263,46 @@ export function BudgetDisplay({ job }: { job: Job }) {
 
 export function ContentBlock({ content, hash }: { content?: ResolvedContent; hash: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const zeroHash = '0'.repeat(64);
   if (!hash || hash === zeroHash) return <span className="text-[#555]">—</span>;
+
   const text = content?.text;
   const isLong = !!text && text.length > 200;
+  const isImage = content?.file?.mimeType?.startsWith('image/');
+  const isFile = !!content?.file && !isImage;
+
   return (
     <div>
+      {/* Image preview */}
+      {isImage && content?.ipfsUrl && (
+        <div className="mb-2">
+          <img
+            src={content.ipfsUrl} alt={content.file!.filename}
+            className="max-h-[120px] rounded-lg border border-[#222] cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => setLightbox(true)}
+          />
+          {lightbox && (
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center cursor-pointer" onClick={() => setLightbox(false)}>
+              <img src={content.ipfsUrl} alt={content.file!.filename} className="max-w-[90vw] max-h-[90vh] rounded-lg" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* File badge */}
+      {isFile && content?.ipfsUrl && (
+        <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#151515] border border-[#222] rounded-lg text-xs text-[#ccc] hover:text-white transition-colors mb-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          {content.file!.filename} <span className="text-[#555]">({(content.file!.size / 1024).toFixed(1)} KB)</span>
+        </a>
+      )}
+
+      {/* Text content */}
       <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
-        {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : <span className="text-[#555] font-mono text-xs break-all">{hash}</span>}
+        {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : !isImage && !isFile ? <span className="text-[#555] font-mono text-xs break-all">{hash}</span> : null}
       </div>
+
       {(isLong || content?.ipfsUrl) && (
         <div className="flex items-center gap-1.5 mt-1">
           {isLong && (

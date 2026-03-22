@@ -101,7 +101,7 @@ async function fetchTxsForJob(address: string): Promise<any[]> {
   } catch { return []; }
 }
 
-async function resolveContent(hash: string): Promise<{ text: string | null; source: string; ipfsUrl?: string }> {
+async function resolveContent(hash: string): Promise<{ text: string | null; source: string; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number } }> {
   if (!hash || hash === ZERO_HASH) return { text: null, source: 'hash' };
   try {
     const clean = hash.replace(/0+$/, '');
@@ -116,10 +116,22 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
       const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` }, signal: AbortSignal.timeout(5000) });
       if (res.ok) {
-        const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
+        const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string; metadata?: { keyvalues?: Record<string, string> } }> };
         if (pins.rows?.length > 0) {
-          const cid = pins.rows[0].ipfs_pin_hash;
+          const pin = pins.rows[0];
+          const cid = pin.ipfs_pin_hash;
           const ipfsUrl = `${PINATA_GW}/${cid}`;
+          const kv = pin.metadata?.keyvalues;
+
+          // Check if it's a file upload
+          if (kv?.type === 'file') {
+            return {
+              text: null, source: 'ipfs', ipfsUrl,
+              file: { filename: kv.filename || 'file', mimeType: kv.mimeType || 'application/octet-stream', size: parseInt(kv.size || '0') },
+            };
+          }
+
+          // Regular JSON content
           try {
             const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
             if (cr.ok) {
