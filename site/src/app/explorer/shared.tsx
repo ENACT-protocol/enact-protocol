@@ -22,7 +22,7 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 
 
-export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number } };
+export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number; ipfsUrl?: string } };
 
 export type Job = {
   jobId: number; address: string; type: 'ton' | 'usdt'; state: number; stateName: string;
