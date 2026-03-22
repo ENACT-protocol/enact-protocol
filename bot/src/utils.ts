@@ -143,5 +143,5 @@ export function fmtUsdt(units: bigint | string): string {
 }
 
 export function explorerLink(addr: string): string {
-    return `https://tonscan.org/address/${addr}`;
+    return `https://enact.info/explorer/job/${addr}`;
 }

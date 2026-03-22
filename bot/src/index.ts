@@ -1715,8 +1715,8 @@ async function handleStatus(ctx: any, jobId: number) {
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>${descCid ? `\n${e('📎')} <a href="${PINATA_GW}/${descCid}">View on IPFS</a>` : ''}\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>${resCid ? `\n${e('📎')} <a href="${PINATA_GW}/${resCid}">View on IPFS</a>` : ''}\n` : '') +
             (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
             `\n` +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
@@ -2159,8 +2159,8 @@ async function handleJettonStatus(ctx: any, jobId: number) {
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>${descCid ? `\n${e('📎')} <a href="${PINATA_GW}/${descCid}">View on IPFS</a>` : ''}\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>${resCid ? `\n${e('📎')} <a href="${PINATA_GW}/${resCid}">View on IPFS</a>` : ''}\n` : '') +
             (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
             `\n` +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
@@ -2504,11 +2504,12 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         let descHash: bigint;
         let fileUrl = '';
         if (fileData) {
-            const uploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
-            descHash = uploaded.hashBig;
-            fileUrl = `${PINATA_GW}/${uploaded.cid}`;
-            // Also upload text description
-            await uploadToIPFS({ type: 'job_description', description, file: { cid: uploaded.cid, filename: fileData.filename }, createdAt: new Date().toISOString() });
+            // Upload file to IPFS first
+            const fileUploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
+            fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
+            // Store description JSON (with file reference) hash in contract — so explorer can resolve text + file
+            const descUploaded = await uploadToIPFS({ type: 'job_description', description, file: { cid: fileUploaded.cid, filename: fileData.filename, ipfsUrl: fileUrl }, createdAt: new Date().toISOString() });
+            descHash = descUploaded.hashBig;
         } else {
             const uploaded = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
             descHash = uploaded.hashBig;
@@ -2561,7 +2562,8 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
         await ctx.reply(
             `${e('✅')} <b>Job #${jobId} Created & Funded!</b>\n\n` +
-            `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` +
+            `${e('📄')} <b>Description:</b> ${escapeHtml(description)}\n` +
+            `${e('📎')} <b>File:</b> <a href="${fileUrl}">View on IPFS</a>\n` +
             `${ton(budgetTon)} locked in escrow.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
@@ -2594,9 +2596,11 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         const fileData = await downloadTgFile(ctx);
         if (!fileData) return ctx.reply(`${e('❌')} No file found`, { parse_mode: 'HTML' });
 
-        const uploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
-        const resultHash = uploaded.hashBig;
-        const fileUrl = `${PINATA_GW}/${uploaded.cid}`;
+        const fileUploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
+        const fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
+        // Store result JSON hash in contract so explorer can resolve text + file
+        const resultUploaded = await uploadToIPFS({ type: 'job_result', result: resultText, file: { cid: fileUploaded.cid, filename: fileData.filename, ipfsUrl: fileUrl }, submittedAt: new Date().toISOString() });
+        const resultHash = resultUploaded.hashBig;
 
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);

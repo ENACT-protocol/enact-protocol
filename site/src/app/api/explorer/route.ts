@@ -131,12 +131,21 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
             };
           }
 
-          // Regular JSON content
+          // Regular JSON content (may contain file reference)
           try {
             const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
             if (cr.ok) {
               const d = await cr.json() as Record<string, any>;
-              return { text: d.description ?? d.result ?? d.reason ?? JSON.stringify(d), source: 'ipfs', ipfsUrl };
+              const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
+              // Check if JSON contains a file reference
+              if (d.file && d.file.cid) {
+                const fileIpfsUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+                const ext = (d.file.filename || '').split('.').pop()?.toLowerCase() || '';
+                const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
+                const mimeType = imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
+                return { text, source: 'ipfs', ipfsUrl: fileIpfsUrl, file: { filename: d.file.filename || 'file', mimeType, size: 0 } };
+              }
+              return { text, source: 'ipfs', ipfsUrl };
             }
           } catch {}
           return { text: null, source: 'ipfs', ipfsUrl };
