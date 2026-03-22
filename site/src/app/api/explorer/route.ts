@@ -41,20 +41,60 @@ async function fetchFromSupabase() {
     txByJob.set(tx.job_address, arr);
   }
 
-  const transform = (j: any) => ({
-    jobId: j.job_id, address: j.address, type: j.factory_type,
-    state: j.state, stateName: j.state_name,
-    client: j.client, provider: j.provider, evaluator: j.evaluator,
-    budget: String(j.budget), budgetFormatted: j.budget_formatted,
-    descHash: j.desc_hash, resultHash: j.result_hash,
-    timeout: j.timeout, createdAt: j.created_at,
-    evalTimeout: j.eval_timeout, submittedAt: j.submitted_at,
-    resultType: j.result_type,
-    description: j.description_text ? { text: j.description_text, source: j.description_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.description_ipfs_url } : { text: null, source: 'hash' },
-    resultContent: j.result_text ? { text: j.result_text, source: j.result_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.result_ipfs_url } : { text: null, source: 'hash' },
-    reasonContent: j.reason_text ? { text: j.reason_text, source: 'hex' } : { text: null, source: 'hash' },
-    transactions: txByJob.get(j.address) ?? [],
+  // Resolve file references from IPFS JSON
+  async function resolveFileRef(ipfsUrl: string | null): Promise<{ filename: string; mimeType: string; size: number; ipfsUrl: string } | null> {
+    if (!ipfsUrl) return null;
+    try {
+      const res = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return null;
+      const d = await res.json();
+      if (d.file?.cid) {
+        const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+        return { filename: d.file.filename || 'file', mimeType: d.file.mimeType || 'application/octet-stream', size: d.file.size || 0, ipfsUrl: fUrl };
+      }
+    } catch {}
+    return null;
+  }
+
+  // Fetch file refs in parallel for all jobs that have IPFS URLs
+  const fileRefPromises = (jobs as any[]).map(async (j: any) => {
+    const [descFile, resFile] = await Promise.all([
+      j.description_ipfs_url ? resolveFileRef(j.description_ipfs_url) : null,
+      j.result_ipfs_url ? resolveFileRef(j.result_ipfs_url) : null,
+    ]);
+    return { jobAddr: j.address, descFile, resFile };
   });
+  const fileRefs = await Promise.all(fileRefPromises);
+  const fileRefMap = new Map(fileRefs.map(f => [f.jobAddr, f]));
+
+  const transform = (j: any) => {
+    const refs = fileRefMap.get(j.address);
+    const descContent: any = j.description_text
+      ? { text: j.description_text, source: j.description_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.description_ipfs_url }
+      : { text: null, source: 'hash' };
+    if (refs?.descFile) { descContent.file = refs.descFile; descContent.ipfsUrl = refs.descFile.ipfsUrl; }
+
+    const resContent: any = j.result_text
+      ? { text: j.result_text, source: j.result_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.result_ipfs_url }
+      : { text: null, source: 'hash' };
+    if (refs?.resFile) { resContent.file = refs.resFile; resContent.ipfsUrl = refs.resFile.ipfsUrl; }
+
+    return {
+      jobId: j.job_id, address: j.address, type: j.factory_type,
+      state: j.state, stateName: j.state_name,
+      client: j.client, provider: j.provider, evaluator: j.evaluator,
+      budget: String(j.budget), budgetFormatted: j.budget_formatted,
+      descHash: j.desc_hash, resultHash: j.result_hash,
+      timeout: j.timeout, createdAt: j.created_at,
+      evalTimeout: j.eval_timeout, submittedAt: j.submitted_at,
+      resultType: j.result_type,
+      description: descContent,
+      resultContent: resContent,
+      reasonContent: j.reason_text ? { text: j.reason_text, source: 'hex' } : { text: null, source: 'hash' },
+      hasFile: !!(refs?.descFile || refs?.resFile),
+      transactions: txByJob.get(j.address) ?? [],
+    };
+  };
 
   const tonJobs = jobs.filter((j: any) => j.factory_type === 'ton').map(transform);
   const jettonJobs = jobs.filter((j: any) => j.factory_type === 'usdt').map(transform);
