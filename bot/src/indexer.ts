@@ -267,7 +267,7 @@ async function poller() {
     if (!sb) return;
 
     while (true) {
-        await new Promise(r => setTimeout(r, 60_000));
+        await new Promise(r => setTimeout(r, 120_000)); // 120s to save rate limit
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },

@@ -2635,6 +2635,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
             { parse_mode: 'HTML', reply_markup: kb }
         );
     } catch (err: any) {
+        console.error('[CREATE+FILE ERROR]', err.response?.data || err.stack || err.message);
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
 });
