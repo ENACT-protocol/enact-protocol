@@ -131,6 +131,29 @@ export class EnactClient {
         return BigInt('0x' + hash);
     }
 
+    private async _uploadFileToIPFS(buffer: Buffer, filename: string): Promise<bigint> {
+        if (!this.pinataJwt) throw new Error('pinataJwt required for file uploads');
+        const hash = createHash('sha256').update(buffer).digest('hex');
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', pdf: 'application/pdf', txt: 'text/plain', zip: 'application/zip' };
+        const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+        const formData = new FormData();
+        formData.append('file', new Blob([buffer], { type: mimeType }), filename);
+        formData.append('pinataMetadata', JSON.stringify({
+            name: `enact-file-${hash.slice(0, 8)}`,
+            keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) },
+        }));
+
+        const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${this.pinataJwt}` },
+            body: formData,
+        });
+        if (!res.ok) throw new Error(`File upload failed: ${res.status}`);
+        return BigInt('0x' + hash);
+    }
+
     /** Get wallet address (requires mnemonic) */
     async getWalletAddress(): Promise<string> {
         const w = await this._ensureWallet();
@@ -237,11 +260,18 @@ export class EnactClient {
         await this._send(Address.parse(jobAddress), toNano('0.01'), body);
     }
 
-    /** Submit a result for a job. */
-    async submitResult(jobAddress: string, result: string): Promise<void> {
-        const resultHash = await this._uploadToIPFS({
-            type: 'job_result', result, submittedAt: new Date().toISOString(),
-        });
+    /** Submit a result for a job. Optionally attach a file. */
+    async submitResult(jobAddress: string, result: string, file?: { buffer: Buffer; filename: string }): Promise<void> {
+        let resultHash: bigint;
+        if (file && this.pinataJwt) {
+            resultHash = await this._uploadFileToIPFS(file.buffer, file.filename);
+            // Also upload text result with file reference
+            await this._uploadToIPFS({ type: 'job_result', result, submittedAt: new Date().toISOString() });
+        } else {
+            resultHash = await this._uploadToIPFS({
+                type: 'job_result', result, submittedAt: new Date().toISOString(),
+            });
+        }
         const body = beginCell()
             .storeUint(JobOp.submitResult, 32)
             .storeUint(resultHash, 256)

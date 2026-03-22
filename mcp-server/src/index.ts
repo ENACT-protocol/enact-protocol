@@ -94,6 +94,41 @@ async function uploadToIPFS(content: object): Promise<{ cid: string; hash: strin
     return { cid: data.IpfsHash, hash };
 }
 
+async function uploadFileToIPFS(filePath: string): Promise<{ cid: string; hash: string; filename: string; mimeType: string; size: number }> {
+    if (!config.pinataJwt) throw new Error('PINATA_JWT not set');
+    const fs = await import('fs');
+    const path = await import('path');
+    const fileBuffer = fs.readFileSync(filePath);
+    const hash = createHash('sha256').update(fileBuffer).digest('hex');
+    const filename = path.basename(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+        '.webp': 'image/webp', '.svg': 'image/svg+xml', '.pdf': 'application/pdf',
+        '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json',
+        '.zip': 'application/zip', '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
+    };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    const size = fileBuffer.length;
+
+    const formData = new FormData();
+    formData.append('file', new Blob([fileBuffer], { type: mimeType }), filename);
+    formData.append('pinataMetadata', JSON.stringify({
+        name: `enact-file-${hash.slice(0, 8)}`,
+        keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(size) },
+    }));
+
+    const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${config.pinataJwt}` },
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`Pinata file upload failed: ${res.status}`);
+    const data = await res.json() as { IpfsHash: string };
+    cidMap.set(hash, data.IpfsHash);
+    return { cid: data.IpfsHash, hash, filename, mimeType, size };
+}
+
 const IPFS_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 
 async function fetchFromIPFS(cid: string): Promise<any> {
@@ -131,6 +166,28 @@ async function resolveCID(hash: string): Promise<string | null> {
     return null;
 }
 
+/** Check Pinata metadata to see if a hash corresponds to a file upload */
+async function resolveFileMeta(hash: string): Promise<{ type: string; filename: string; mimeType: string; size: number } | null> {
+    if (!config.pinataJwt) return null;
+    try {
+        const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"},"type":{"value":"file","op":"eq"}}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${config.pinataJwt}` },
+            signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+            const pins = await res.json() as { rows: Array<{ metadata: { keyvalues: Record<string, string> } }> };
+            if (pins.rows?.length > 0) {
+                const kv = pins.rows[0].metadata?.keyvalues;
+                if (kv?.type === 'file') {
+                    return { type: 'file', filename: kv.filename || 'unknown', mimeType: kv.mimeType || 'application/octet-stream', size: parseInt(kv.size || '0') };
+                }
+            }
+        }
+    } catch {}
+    return null;
+}
+
 function createServer() {
     return new McpServer({
         name: 'enact-protocol',
@@ -149,14 +206,26 @@ server.tool(
         evaluator_address: z.string().describe('TON address of the evaluator'),
         budget_ton: z.string().describe('Budget in TON (e.g. "5"), or "0" for setBudget later'),
         description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
+        file_path: z.string().optional().describe('Optional: path to a file to attach to the job description'),
         timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h, range 1h–30d)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout for auto-claim (default 24h)'),
     },
-    async ({ evaluator_address, budget_ton, description, timeout_seconds, evaluation_timeout_seconds }) => {
+    async ({ evaluator_address, budget_ton, description, file_path, timeout_seconds, evaluation_timeout_seconds }) => {
         if (!config.factoryAddress) throw new Error('FACTORY_ADDRESS not set');
 
-        // Upload description to IPFS
-        const { cid, hash } = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
+        let cid: string, hash: string;
+        let fileInfo: any = null;
+        if (file_path) {
+            const f = await uploadFileToIPFS(file_path);
+            cid = f.cid; hash = f.hash;
+            fileInfo = { filename: f.filename, mimeType: f.mimeType, size: f.size, ipfsUrl: `${IPFS_GW}/${f.cid}` };
+            // Also upload description text separately for search
+            const descResult = await uploadToIPFS({ type: 'job_description', description, file: fileInfo, createdAt: new Date().toISOString() });
+            cidMap.set(descResult.hash, descResult.cid);
+        } else {
+            const result = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
+            cid = result.cid; hash = result.hash;
+        }
         cidMap.set(hash, cid);
 
         const body = beginCell()
@@ -169,7 +238,7 @@ server.tool(
             .endCell();
 
         const result = await sendTransaction(config.factoryAddress, toNano('0.03'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, description_hash: hash }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, description_hash: hash, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
 
@@ -203,14 +272,27 @@ server.tool(
 
 server.tool(
     'submit_result',
-    'Submit a result for a job you have taken. Result is uploaded to IPFS, hash stored on-chain.',
+    'Submit a result for a job you have taken. Result text or file is uploaded to IPFS, hash stored on-chain.',
     {
         job_address: z.string().describe('Job contract address'),
         result_text: z.string().describe('Full result text. Will be uploaded to IPFS.'),
+        file_path: z.string().optional().describe('Optional: path to a file to submit as result (image, document, etc.)'),
     },
-    async ({ job_address, result_text }) => {
-        // Upload result to IPFS
-        const { cid, hash } = await uploadToIPFS({ type: 'job_result', result: result_text, submittedAt: new Date().toISOString() });
+    async ({ job_address, result_text, file_path }) => {
+        let cid: string, hash: string;
+        let fileInfo: any = null;
+
+        if (file_path) {
+            const f = await uploadFileToIPFS(file_path);
+            cid = f.cid; hash = f.hash;
+            fileInfo = { filename: f.filename, mimeType: f.mimeType, size: f.size, ipfsUrl: `${IPFS_GW}/${f.cid}` };
+            // Also upload result text with file reference
+            const textResult = await uploadToIPFS({ type: 'job_result', result: result_text, file: fileInfo, submittedAt: new Date().toISOString() });
+            cidMap.set(textResult.hash, textResult.cid);
+        } else {
+            const uploaded = await uploadToIPFS({ type: 'job_result', result: result_text, submittedAt: new Date().toISOString() });
+            cid = uploaded.cid; hash = uploaded.hash;
+        }
         cidMap.set(hash, cid);
 
         const body = beginCell()
@@ -219,7 +301,7 @@ server.tool(
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
 
@@ -331,24 +413,35 @@ server.tool(
             const descHashHex = descHash.toString(16).padStart(64, '0');
             const resultHashHex = resultHash.toString(16).padStart(64, '0');
 
-            // Try to fetch description from IPFS (local cache → Pinata search)
+            // Resolve description (text or file)
             let description: string | null = null;
+            let descriptionFile: any = null;
             const descCid = await resolveCID(descHashHex);
             if (descCid) {
                 try {
+                    // Check Pinata metadata for file type
+                    const pinMeta = await resolveFileMeta(descHashHex);
+                    if (pinMeta) {
+                        descriptionFile = { ...pinMeta, ipfsUrl: `${IPFS_GW}/${descCid}` };
+                    }
                     const content = await fetchFromIPFS(descCid);
-                    description = content.description ?? JSON.stringify(content);
+                    description = content.description ?? (typeof content === 'string' ? content : JSON.stringify(content));
                 } catch { /* IPFS fetch failed */ }
             }
 
-            // Try to fetch result from IPFS
+            // Resolve result (text or file)
             let resultContent: string | null = null;
+            let resultFile: any = null;
             if (resultHash > 0n) {
                 const resCid = await resolveCID(resultHashHex);
                 if (resCid) {
                     try {
+                        const pinMeta = await resolveFileMeta(resultHashHex);
+                        if (pinMeta) {
+                            resultFile = { ...pinMeta, ipfsUrl: `${IPFS_GW}/${resCid}` };
+                        }
                         const content = await fetchFromIPFS(resCid);
-                        resultContent = content.result ?? JSON.stringify(content);
+                        resultContent = content.result ?? (typeof content === 'string' ? content : JSON.stringify(content));
                     } catch { /* IPFS fetch failed */ }
                 }
             }
@@ -363,8 +456,10 @@ server.tool(
                 budget: budget.toString(),
                 descriptionHash: descHashHex,
                 description,
+                ...(descriptionFile ? { descriptionFile } : {}),
                 resultHash: resultHashHex,
                 resultContent,
+                ...(resultFile ? { resultFile } : {}),
                 resultType: resultTypeNames[resultType] ?? `unknown(${resultType})`,
                 timeout,
                 createdAt,

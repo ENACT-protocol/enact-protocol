@@ -252,6 +252,33 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
     return { hash, hashBig: BigInt('0x' + hash) };
 }
 
+/** Upload file buffer to Pinata IPFS */
+async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: string; hashBig: bigint; cid: string }> {
+    const jwt = process.env.PINATA_JWT;
+    if (!jwt) throw new Error('PINATA_JWT not set — cannot upload files');
+    const { createHash } = await import('crypto');
+    const hash = createHash('sha256').update(buffer).digest('hex');
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf', txt: 'text/plain', json: 'application/json', zip: 'application/zip' };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer], { type: mimeType }), filename);
+    formData.append('pinataMetadata', JSON.stringify({
+        name: `enact-file-${hash.slice(0, 8)}`,
+        keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) },
+    }));
+
+    const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${jwt}` },
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`File upload failed: ${res.status}`);
+    const data = await res.json() as { IpfsHash: string };
+    return { hash, hashBig: BigInt('0x' + hash), cid: data.IpfsHash };
+}
+
 /** Decode hex-encoded text (sync, no IPFS) */
 function decodeHexOnly(hash: string): string | null {
     if (!hash || hash === '0'.repeat(64)) return null;
@@ -1204,7 +1231,8 @@ bot.command('submit', async (ctx) => {
     const args = ctx.message?.text?.split(' ').slice(1) ?? [];
     if (args.length < 2) {
         return ctx.reply(
-            `${e('❌')} <b>Invalid format</b>\n\nUsage:\n<code>/submit job_id result_text</code>`,
+            `${e('❌')} <b>Invalid format</b>\n\nUsage:\n<code>/submit job_id result_text</code>\n\n` +
+            `${e('📎')} <b>File support:</b> Reply to a photo/document with <code>/submit job_id</code> to submit a file as result.`,
             { parse_mode: 'HTML' }
         );
     }
@@ -1244,7 +1272,33 @@ bot.command('submit', async (ctx) => {
     }
 
     try {
-        const { hashBig: resultHash } = await uploadToIPFS({ type: 'job_result', result: resultText, submittedAt: new Date().toISOString() });
+        let resultHash: bigint;
+        let fileUrl: string | null = null;
+
+        // Check if reply contains a file (photo or document)
+        const replyMsg = ctx.message?.reply_to_message;
+        const photo = replyMsg?.photo;
+        const doc = replyMsg?.document;
+
+        if (photo || doc) {
+            const fileId = photo ? photo[photo.length - 1].file_id : doc!.file_id;
+            const fileName = doc?.file_name || 'photo.jpg';
+            const file = await ctx.api.getFile(fileId);
+            const fileUrl_ = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
+            const fileRes = await fetch(fileUrl_);
+            const buffer = Buffer.from(await fileRes.arrayBuffer());
+            const uploaded = await uploadFileToIPFS(buffer, fileName);
+            resultHash = uploaded.hashBig;
+            fileUrl = `${PINATA_GW}/${uploaded.cid}`;
+            // Also upload text description with file reference
+            if (resultText && resultText !== args[0]) {
+                await uploadToIPFS({ type: 'job_result', result: resultText, file: { cid: uploaded.cid, filename: fileName }, submittedAt: new Date().toISOString() });
+            }
+        } else {
+            const uploaded = await uploadToIPFS({ type: 'job_result', result: resultText, submittedAt: new Date().toISOString() });
+            resultHash = uploaded.hashBig;
+        }
+
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         const body = beginCell()
@@ -1281,6 +1335,7 @@ bot.command('submit', async (ctx) => {
         await ctx.reply(
             `${e('📨')} <b>Result Submitted!</b>\n\n` +
             `${e('🆔')} Job: #${jobId}\n` +
+            (fileUrl ? `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` : '') +
             `Awaiting evaluation from the evaluator.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
