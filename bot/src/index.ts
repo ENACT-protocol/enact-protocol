@@ -354,6 +354,24 @@ async function decodeDesc(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
     if (descCache.has(hash)) return descCache.get(hash)!;
     try {
+        // Try 0: Supabase (indexer already resolved content)
+        const sbUrl = process.env.SUPABASE_URL;
+        const sbKey = process.env.SUPABASE_SERVICE_KEY;
+        if (sbUrl && sbKey) {
+            const { createClient } = await import('@supabase/supabase-js');
+            const sb = createClient(sbUrl, sbKey);
+            const { data } = await sb.from('jobs').select('description_text, result_text').or(`desc_hash.eq.${hash},result_hash.eq.${hash}`).limit(1).single();
+            if (data) {
+                const text = data.description_text || data.result_text;
+                if (text) {
+                    const result = escapeHtml(text);
+                    descCache.set(hash, result);
+                    return result;
+                }
+            }
+        }
+    } catch {}
+    try {
         // Try 1: hex-encoded text (bot creates these)
         const clean = hash.replace(/0+$/, '');
         if (clean.length >= 2) {
