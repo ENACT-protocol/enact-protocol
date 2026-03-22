@@ -331,7 +331,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       {/* Copy hash + IPFS link */}
       <div className="flex items-center gap-1.5 mt-1.5">
         <span className="flex-1" />
-        {content?.ipfsUrl && !isImage && !isFile && (
+        {content?.ipfsUrl && (
           <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
             <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
           </a>
