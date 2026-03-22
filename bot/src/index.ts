@@ -338,7 +338,7 @@ async function decodeDesc(hash: string): Promise<string | null> {
         // Try 2: Pinata metadata search (MCP tags uploads with descHash)
         const jwt = process.env.PINATA_JWT;
         if (jwt) {
-            const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+            const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
             const res = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${jwt}` },
                 signal: AbortSignal.timeout(5000),
@@ -346,31 +346,32 @@ async function decodeDesc(hash: string): Promise<string | null> {
             if (res.ok) {
                 const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
                 if (pins.rows?.length > 0) {
-                    const pin = pins.rows[0] as any;
-                    const cid = pin.ipfs_pin_hash;
-                    const kv = pin.metadata?.keyvalues;
-                    // If it's a file upload, return filename as description
-                    if (kv?.type === 'file') {
-                        const result = `[File: ${escapeHtml(kv.filename || 'file')}]`;
+                    // Look through all results — prefer JSON (text) over file
+                    let filePin: any = null;
+                    for (const pin of pins.rows as any[]) {
+                        const kv = pin.metadata?.keyvalues;
+                        if (kv?.type === 'file') { filePin = pin; continue; }
+                        // Try to fetch JSON content
+                        try {
+                            const cid = pin.ipfs_pin_hash;
+                            const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
+                            if (ipfsRes.ok) {
+                                const data = await ipfsRes.json();
+                                const content = data.description ?? data.result ?? null;
+                                if (content) {
+                                    const result = escapeHtml(String(content).slice(0, 200));
+                                    descCache.set(hash, result);
+                                    return result;
+                                }
+                            }
+                        } catch { /* not JSON */ }
+                    }
+                    // Fallback: if only file found, show filename
+                    if (filePin) {
+                        const kv = filePin.metadata?.keyvalues;
+                        const result = `[File: ${escapeHtml(kv?.filename || 'file')}]`;
                         descCache.set(hash, result);
                         return result;
-                    }
-                    const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
-                    if (ipfsRes.ok) {
-                        try {
-                            const data = await ipfsRes.json();
-                            const content = data.description ?? data.result ?? null;
-                            if (content) {
-                                const result = escapeHtml(String(content).slice(0, 200));
-                                descCache.set(hash, result);
-                                return result;
-                            }
-                        } catch {
-                            // Not JSON — might be a binary file
-                            const result = `[File: ${cid.slice(0, 12)}...]`;
-                            descCache.set(hash, result);
-                            return result;
-                        }
                     }
                 }
             }

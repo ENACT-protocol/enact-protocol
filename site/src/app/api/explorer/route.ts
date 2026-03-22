@@ -113,47 +113,43 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
   if (process.env.PINATA_JWT) {
     try {
       if (!/^[0-9a-fA-F]{1,64}$/.test(hash)) return { text: null, source: 'hash' };
-      const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
+      const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` }, signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string; metadata?: { keyvalues?: Record<string, string> } }> };
         if (pins.rows?.length > 0) {
-          const pin = pins.rows[0];
-          const cid = pin.ipfs_pin_hash;
-          const ipfsUrl = `${PINATA_GW}/${cid}`;
-          const kv = pin.metadata?.keyvalues;
-
-          // Check if it's a file upload
-          if (kv?.type === 'file') {
-            return {
-              text: null, source: 'ipfs', ipfsUrl,
-              file: { filename: kv.filename || 'file', mimeType: kv.mimeType || 'application/octet-stream', size: parseInt(kv.size || '0') },
-            };
-          }
-
-          // Regular JSON content (may contain file reference)
-          try {
-            const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
-            if (cr.ok) {
-              const d = await cr.json() as Record<string, any>;
-              const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
-              // Check if JSON contains a file reference
-              if (d.file && d.file.cid) {
-                const fileIpfsUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
-                const ext = (d.file.filename || '').split('.').pop()?.toLowerCase() || '';
-                const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
-                const mimeType = imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
-                return { text, source: 'ipfs', ipfsUrl: fileIpfsUrl, file: { filename: d.file.filename || 'file', mimeType, size: 0 } };
-              }
-              return { text, source: 'ipfs', ipfsUrl };
+          let fileResult: any = null;
+          // Prefer JSON over file
+          for (const pin of pins.rows) {
+            const kv = pin.metadata?.keyvalues;
+            const cid = pin.ipfs_pin_hash;
+            const ipfsUrl = `${PINATA_GW}/${cid}`;
+            if (kv?.type === 'file') {
+              fileResult = { text: null, source: 'ipfs', ipfsUrl, file: { filename: kv.filename || 'file', mimeType: kv.mimeType || 'application/octet-stream', size: parseInt(kv.size || '0') } };
+              continue;
             }
-          } catch {}
-          return { text: null, source: 'ipfs', ipfsUrl };
+            try {
+              const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
+              if (cr.ok) {
+                const d = await cr.json() as Record<string, any>;
+                const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
+                if (d.file?.cid) {
+                  const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+                  const ext = (d.file.filename || '').split('.').pop()?.toLowerCase() || '';
+                  const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
+                  const mime = imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
+                  return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: mime, size: 0 } };
+                }
+                return { text, source: 'ipfs', ipfsUrl };
+              }
+            } catch {}
+          }
+          if (fileResult) return fileResult;
         }
       }
     } catch {}
   }
-  // Last resort: try searching Pinata without type filter for file uploads
+  // Last resort: try searching by name for file uploads
   if (process.env.PINATA_JWT) {
     try {
       const nameUrl = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[name]=enact-file-${hash.slice(0, 8)}`;
