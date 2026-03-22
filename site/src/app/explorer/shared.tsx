@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, Paperclip } from 'lucide-react';
 
 export const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
 export const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
@@ -31,6 +31,7 @@ export type Job = {
   descHash: string; resultHash: string; timeout: number; createdAt: number;
   evalTimeout: number; submittedAt: number; resultType?: number;
   description?: ResolvedContent; resultContent?: ResolvedContent; reasonContent?: ResolvedContent;
+  hasFile?: boolean;
   transactions?: Array<{ hash: string; fee: string; utime: number }>;
 };
 
@@ -193,6 +194,10 @@ export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: num
   return type === 'ton' ? <TonIcon size={size} /> : <UsdtIcon size={size} />;
 }
 
+export function FileClip() {
+  return <Paperclip size={14} className="inline-block text-[#555] align-middle" />;
+}
+
 export function AIBadge({ addr }: { addr?: string }) {
   return (
     <span className="inline-flex items-center gap-1">
@@ -263,62 +268,76 @@ export function BudgetDisplay({ job }: { job: Job }) {
 
 export function ContentBlock({ content, hash }: { content?: ResolvedContent; hash: string }) {
   const [expanded, setExpanded] = useState(false);
-  const [lightbox, setLightbox] = useState(false);
   const zeroHash = '0'.repeat(64);
   if (!hash || hash === zeroHash) return <span className="text-[#555]">—</span>;
 
   const text = content?.text;
   const isLong = !!text && text.length > 200;
-  const isImage = content?.file?.mimeType?.startsWith('image/');
-  const isFile = !!content?.file && !isImage;
+  const file = content?.file;
+  const isImage = file?.mimeType?.startsWith('image/');
+  const isFile = !!file && !isImage;
+  const showFilename = file?.filename && file.filename !== 'photo.jpg';
 
   return (
     <div>
+      {/* Text */}
+      {text && (
+        <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
+          <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span>
+        </div>
+      )}
+      {isLong && (
+        <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer mt-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      )}
+
       {/* Image preview */}
       {isImage && content?.ipfsUrl && (
-        <div className="mb-2">
-          <img
-            src={content.ipfsUrl} alt={content.file!.filename}
-            className="max-h-[120px] rounded-lg border border-[#222] cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => setLightbox(true)}
-          />
-          {lightbox && (
-            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center cursor-pointer" onClick={() => setLightbox(false)}>
-              <img src={content.ipfsUrl} alt={content.file!.filename} className="max-w-[90vw] max-h-[90vh] rounded-lg" />
+        <div className={text ? 'mt-3' : ''}>
+          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer">
+            <img src={content.ipfsUrl} alt={file!.filename}
+              className="max-h-[200px] rounded-lg border border-[#222] cursor-pointer hover:opacity-80 transition-opacity" />
+          </a>
+          {showFilename && (
+            <div className="flex items-center gap-2 mt-1.5 text-xs text-[#555]">
+              <span>{file!.filename}</span>
+              <span>{file!.mimeType}</span>
+              <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline cursor-pointer">View on IPFS</a>
             </div>
           )}
         </div>
       )}
 
-      {/* File badge */}
+      {/* Non-image file */}
       {isFile && content?.ipfsUrl && (
-        <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#151515] border border-[#222] rounded-lg text-xs text-[#ccc] hover:text-white transition-colors mb-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          {content.file!.filename} <span className="text-[#555]">({(content.file!.size / 1024).toFixed(1)} KB)</span>
-        </a>
-      )}
-
-      {/* Text content */}
-      <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
-        {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : !isImage && !isFile ? <span className="text-[#555] font-mono text-xs">Content hash: {hash.slice(0, 16)}... <CopyHash hash={hash} /></span> : null}
-      </div>
-
-      {(isLong || content?.ipfsUrl) && (
-        <div className="flex items-center gap-1.5 mt-1">
-          {isLong && (
-            <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-          )}
-          <span className="flex-1" />
-          {content?.ipfsUrl && (
-            <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
-              <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
-            </a>
-          )}
-          <CopyHash hash={hash} />
+        <div className={text ? 'mt-3' : ''}>
+          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-[#151515] border border-[#222] rounded-lg text-xs text-[#ccc] hover:text-white transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <div>
+              <div className="text-[#ccc]">{file!.filename}</div>
+              {file!.size > 0 && <div className="text-[#555]">{(file!.size / 1024).toFixed(1)} KB</div>}
+            </div>
+          </a>
         </div>
       )}
+
+      {/* No text, no file — show hash */}
+      {!text && !file && (
+        <span className="text-[#555] font-mono text-xs">Content hash: {hash.slice(0, 16)}... <CopyHash hash={hash} /></span>
+      )}
+
+      {/* Copy hash + IPFS link */}
+      <div className="flex items-center gap-1.5 mt-1.5">
+        <span className="flex-1" />
+        {content?.ipfsUrl && !isImage && !isFile && (
+          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
+            <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
+          </a>
+        )}
+        <CopyHash hash={hash} />
+      </div>
     </div>
   );
 }

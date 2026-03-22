@@ -7,7 +7,7 @@ import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
-  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge,
+  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge, FileClip,
   BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, timeAgo,
 } from './shared';
 import { ExplorerCharts } from './Charts';
@@ -239,7 +239,7 @@ export default function ExplorerPage() {
                       {jobsOnPage.map(job => (
                         <tr key={`${job.type}-${job.jobId}`} onClick={() => router.push(`/explorer/job/${job.address}`)}
                           className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#151515] transition-colors">
-                          <td className="px-3 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} /></span></td>
+                          <td className="px-3 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} />{job.hasFile && <FileClip />}</span></td>
                           <td className="px-3 py-2.5 hidden sm:table-cell"><span className="inline-flex items-center gap-1.5"><span className="font-mono text-xs text-[#888]">{truncAddr(job.address)}</span><TonscanLink addr={job.address} size={12} /></span></td>
                           <td className="px-3 py-2.5"><Badge status={job.stateName} /></td>
                           <td className="px-3 py-2.5 text-[#ccc]"><BudgetDisplay job={job} /></td>

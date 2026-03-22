@@ -135,10 +135,8 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
                 const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
                 if (d.file?.cid) {
                   const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
-                  const ext = (d.file.filename || '').split('.').pop()?.toLowerCase() || '';
-                  const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
-                  const mime = imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
-                  return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: mime, size: 0 } };
+                  const mime = d.file.mimeType || 'application/octet-stream';
+                  return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: mime, size: d.file.size || 0 } };
                 }
                 return { text, source: 'ipfs', ipfsUrl };
               }
@@ -212,6 +210,7 @@ async function fetchFromRPC() {
           description: desc,
           resultContent: result,
           reasonContent: { text: null, source: 'hash' },
+          hasFile: !!(desc.file || result.file),
           transactions: txs,
         };
 
