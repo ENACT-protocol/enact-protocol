@@ -153,6 +153,29 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
       }
     } catch {}
   }
+  // Last resort: try searching Pinata without type filter for file uploads
+  if (process.env.PINATA_JWT) {
+    try {
+      const nameUrl = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[name]=enact-file-${hash.slice(0, 8)}`;
+      const nameRes = await fetch(nameUrl, { headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` }, signal: AbortSignal.timeout(5000) });
+      if (nameRes.ok) {
+        const namePins = await nameRes.json() as { rows: Array<{ ipfs_pin_hash: string; metadata?: { keyvalues?: Record<string, string> } }> };
+        if (namePins.rows?.length > 0) {
+          const pin = namePins.rows[0];
+          const cid = pin.ipfs_pin_hash;
+          const ipfsUrl = `${PINATA_GW}/${cid}`;
+          const kv = pin.metadata?.keyvalues;
+          if (kv?.type === 'file') {
+            return {
+              text: null, source: 'ipfs', ipfsUrl,
+              file: { filename: kv.filename || 'file', mimeType: kv.mimeType || 'application/octet-stream', size: parseInt(kv.size || '0') },
+            };
+          }
+          return { text: null, source: 'ipfs', ipfsUrl };
+        }
+      }
+    } catch {}
+  }
   return { text: null, source: 'hash' };
 }
 

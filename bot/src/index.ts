@@ -346,13 +346,28 @@ async function decodeDesc(hash: string): Promise<string | null> {
             if (res.ok) {
                 const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
                 if (pins.rows?.length > 0) {
-                    const cid = pins.rows[0].ipfs_pin_hash;
+                    const pin = pins.rows[0] as any;
+                    const cid = pin.ipfs_pin_hash;
+                    const kv = pin.metadata?.keyvalues;
+                    // If it's a file upload, return filename as description
+                    if (kv?.type === 'file') {
+                        const result = `[File: ${escapeHtml(kv.filename || 'file')}]`;
+                        descCache.set(hash, result);
+                        return result;
+                    }
                     const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
                     if (ipfsRes.ok) {
-                        const data = await ipfsRes.json();
-                        const content = data.description ?? data.result ?? null;
-                        if (content) {
-                            const result = escapeHtml(String(content).slice(0, 200));
+                        try {
+                            const data = await ipfsRes.json();
+                            const content = data.description ?? data.result ?? null;
+                            if (content) {
+                                const result = escapeHtml(String(content).slice(0, 200));
+                                descCache.set(hash, result);
+                                return result;
+                            }
+                        } catch {
+                            // Not JSON — might be a binary file
+                            const result = `[File: ${cid.slice(0, 12)}...]`;
                             descCache.set(hash, result);
                             return result;
                         }
