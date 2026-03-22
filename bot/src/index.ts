@@ -263,7 +263,7 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
 
     const formData = new FormData();
-    formData.append('file', new Blob([buffer], { type: mimeType }), filename);
+    formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
     formData.append('pinataMetadata', JSON.stringify({
         name: `enact-file-${hash.slice(0, 8)}`,
         keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) },
