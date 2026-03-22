@@ -357,7 +357,6 @@ Use `--dry-run` to preview decisions without sending transactions.
 
 ## Roadmap
 
-- ~~File & image support via IPFS~~ **Done** — submit files/images as job results via MCP, Bot, or SDK
 - Multi-Jetton payments (any TEP-74 token)
 - Encrypted job data (E2E encryption for sensitive tasks)
 - On-chain reputation system
