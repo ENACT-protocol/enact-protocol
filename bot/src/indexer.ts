@@ -388,12 +388,13 @@ async function fallbackPoller() {
     if (!sb) return;
 
     while (true) {
-        await new Promise(r => setTimeout(r, 60_000)); // Every 60s as safety net
+        await new Promise(r => setTimeout(r, 15_000)); // Every 15s
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },
                 { factory: JETTON_FACTORY, type: 'usdt' as const },
             ]) {
+                // Check for new jobs
                 const countResult = await client.runMethod(Address.parse(factory), 'get_next_job_id');
                 const count = countResult.stack.readNumber();
                 const state = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
@@ -407,6 +408,17 @@ async function fallbackPoller() {
                         factory_address: factory, last_job_count: count,
                         updated_at: new Date().toISOString(),
                     }, { onConflict: 'factory_address' });
+                }
+
+                // Re-index active jobs (state may have changed)
+                const { data: activeJobs } = await sb.from('jobs')
+                    .select('job_id, factory_address, factory_type')
+                    .eq('factory_address', factory)
+                    .in('state_name', ['OPEN', 'FUNDED', 'SUBMITTED']);
+                if (activeJobs) {
+                    for (const aj of activeJobs) {
+                        await indexJob(client, aj.factory_address, aj.job_id, aj.factory_type as 'ton' | 'usdt');
+                    }
                 }
             }
         } catch (err: any) {
