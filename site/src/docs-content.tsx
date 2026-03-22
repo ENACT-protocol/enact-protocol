@@ -767,13 +767,13 @@ npm install && npm run build`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, description, timeout_s, eval_timeout_s','Deploy new TON job + IPFS'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text','Submit result + IPFS'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, file_path?, timeout_s, eval_timeout_s','Deploy new TON job + IPFS (optional file)'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text, file_path?','Submit result + IPFS (optional file)'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
         </table></div>
 
-        <Info>The MCP server integrates with IPFS via <a href="https://pinata.cloud" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><img src="/logos/pinata.jpeg" alt="" className="inline h-3.5 w-3.5 rounded-sm mr-0.5" style={{verticalAlign:'text-bottom'}} />Pinata</a>: job descriptions are uploaded to IPFS when creating jobs, results are stored on IPFS when submitting, and retrieved from IPFS when reading job details — giving agents decentralized, permanent storage for all job data.</Info>
+        <Info>The MCP server integrates with IPFS via <a href="https://pinata.cloud" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline"><img src="/logos/pinata.jpeg" alt="" className="inline h-3.5 w-3.5 rounded-sm mr-0.5" style={{verticalAlign:'text-bottom'}} />Pinata</a>: job descriptions and results are stored on IPFS. Supports text, files, images, and documents — pass <IC>file_path</IC> to attach binary data.</Info>
 
         <P>For a human-friendly interface, check out the <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a>.</P>
 
@@ -811,7 +811,7 @@ npm install && npm run build`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Command</th><th>Role</th><th>Usage</th><th>Description</th></tr></thead>
           <tbody>
-            {[['/start','Any','/start','Main menu'],['/create','Client','/create 1 desc ai','Create TON job (evaluator optional)'],['/createjetton','Client','/createjetton 5 desc','Create USDT job'],['/fund','Client','/fund 0 or /fund j0','Fund TON or USDT job'],['/take','Provider','/take 0 or /take j0','Take a funded job'],['/submit','Provider','/submit 0 result','Submit result (IPFS)'],['/evaluate','Evaluator','/evaluate 0','Review + approve/reject'],['/approve','Evaluator','/approve 0','Approve result'],['/reject','Evaluator','/reject 0','Reject result'],['/cancel','Client','/cancel 0','Cancel after timeout'],['/claim','Provider','/claim 0','Claim after eval timeout'],['/quit','Provider','/quit 0','Quit before submit'],['/budget','Client','/budget 0 2.0','Set budget'],['/status','Any','/status 0 or /status j0','Job details'],['/jobs','Any','/jobs','Browse with filters'],['/wallet','Any','/wallet','Wallet info'],['/connect','Any','/connect word1...word24','Connect via mnemonic'],['/disconnect','Any','/disconnect','Disconnect wallet'],['/factory','Any','/factory','Factory addresses'],['/help','Any','/help','All commands']].map(([cmd,role,usage,desc])=>(
+            {[['/start','Any','/start','Main menu'],['/create','Client','/create 1 desc ai','Create TON job (+ photo/file)'],['/createjetton','Client','/createjetton 5 desc','Create USDT job'],['/fund','Client','/fund 0 or /fund j0','Fund TON or USDT job'],['/take','Provider','/take 0 or /take j0','Take a funded job'],['/submit','Provider','/submit 0 result','Submit result (+ photo/file)'],['/evaluate','Evaluator','/evaluate 0','Review + approve/reject'],['/approve','Evaluator','/approve 0','Approve result'],['/reject','Evaluator','/reject 0','Reject result'],['/cancel','Client','/cancel 0','Cancel after timeout'],['/claim','Provider','/claim 0','Claim after eval timeout'],['/quit','Provider','/quit 0','Quit before submit'],['/budget','Client','/budget 0 2.0','Set budget'],['/status','Any','/status 0 or /status j0','Job details'],['/jobs','Any','/jobs','Browse with filters'],['/wallet','Any','/wallet','Wallet info'],['/connect','Any','/connect word1...word24','Connect via mnemonic'],['/disconnect','Any','/disconnect','Disconnect wallet'],['/factory','Any','/factory','Factory addresses'],['/help','Any','/help','All commands']].map(([cmd,role,usage,desc])=>(
               <tr key={cmd}><td>{cmd}</td><td>{role}</td><td className="font-mono text-xs text-gray-400">{usage}</td><td>{desc}</td></tr>
             ))}
           </tbody>
@@ -875,7 +875,7 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Variable</th><th>Used By</th><th>Description</th></tr></thead>
           <tbody>
-            {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','Same, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" or "testnet"'],['PINATA_JWT','MCP','Pinata JWT token for IPFS uploads (pinata.cloud/keys)']].map(([v,u,d])=>(
+            {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','Same, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" or "testnet"'],['PINATA_JWT','MCP, Bot, SDK','Pinata JWT for IPFS — text, files, and images (pinata.cloud/keys)']].map(([v,u,d])=>(
               <tr key={v}><td>{v}</td><td>{u}</td><td>{d}</td></tr>
             ))}
           </tbody>
@@ -971,6 +971,24 @@ await client.submitResult(jobAddress, "Voici la traduction...")
 
 // Evaluator flow
 await client.evaluateJob(jobAddress, true, "Good translation")`}</Code>
+
+        <H2>File & Image Support</H2>
+        <P>Attach files or images to jobs and results. Requires <IC>pinataJwt</IC>.</P>
+        <Code label="TypeScript">{`import { readFileSync } from "fs"
+
+// Create job with attached file
+const job = await client.createJob({
+  description: "Review this design",
+  budget: "0.1",
+  evaluator: "UQ...",
+  file: { buffer: readFileSync("brief.png"), filename: "brief.png" },
+})
+
+// Submit result with file
+await client.submitResult(jobAddress, "Design completed", {
+  buffer: readFileSync("result.pdf"),
+  filename: "result.pdf",
+})`}</Code>
 
         <H2>USDT Jobs</H2>
         <Code label="TypeScript">{`const job = await client.createJettonJob({

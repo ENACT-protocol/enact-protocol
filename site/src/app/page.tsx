@@ -301,6 +301,7 @@ export default function Home() {
                 ['USDT Payments','Pay in native TON or USDT. JettonJob contracts handle stablecoin escrow with auto-resolved wallets.'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. Full job lifecycle in 15 tools.'],
                 ['MCP Server','15 tools via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible LLM.'],
+                ['File & Image Support','Attach files, images, and documents to jobs via IPFS. Submit design deliverables, reports, or any binary data.'],
                 ['Budget & Quit','Negotiate price before funding. Provider can quit before submitting — job reopens.'],
               ].map(([t,d])=>(
                 <div key={t} className="pl-4 border-l-2 border-[var(--color-accent)]/30">
