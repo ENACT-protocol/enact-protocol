@@ -19,6 +19,13 @@ const MANIFEST_URL = 'https://www.enact.info/tonconnect-manifest.json';
 
 const bot = new Bot(BOT_TOKEN);
 bot.catch((err) => console.error('Bot error:', err.message ?? err));
+process.on('unhandledRejection', (err: any) => {
+    if (err?.error_code === 409) {
+        console.log('409 conflict — waiting for old instance to stop...');
+        return; // Don't crash on 409
+    }
+    console.error('Unhandled:', err?.message ?? err);
+});
 
 // ─── Persistent storage ───
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
@@ -2700,19 +2707,19 @@ async function main() {
     loadWallets();
     loadDescriptions();
     await loadCustomEmoji();
-    // Retry start with delay — previous Render instance may still be running
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // Wait for previous instance to stop, then start
+    for (let attempt = 0; attempt < 10; attempt++) {
         try {
             await bot.api.deleteWebhook({ drop_pending_updates: true });
-            bot.start({ onStart: () => console.log('ENACT Protocol bot started') });
+            await new Promise(r => setTimeout(r, 3000)); // Wait 3s for old instance to release
+            bot.start({
+                onStart: () => console.log('ENACT Protocol bot started'),
+                drop_pending_updates: true,
+            });
             break;
         } catch (err: any) {
-            if (err.error_code === 409 && attempt < 4) {
-                console.log(`Bot conflict (attempt ${attempt + 1}/5), waiting 10s...`);
-                await new Promise(r => setTimeout(r, 10000));
-            } else {
-                throw err;
-            }
+            console.log(`Bot start attempt ${attempt + 1}/10 failed: ${err.message?.slice(0, 80)}`);
+            await new Promise(r => setTimeout(r, 5000));
         }
     }
 

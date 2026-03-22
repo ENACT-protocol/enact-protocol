@@ -244,7 +244,9 @@ async function backfill() {
             const count = countResult.stack.readNumber();
             log(`Backfill ${type.toUpperCase()}: ${count} jobs`);
             for (let i = 0; i < count; i++) {
-                await indexJob(client, factory, i, type, true); // force to populate new columns
+                await indexJob(client, factory, i, type, true);
+                // Small delay to avoid rate limit
+                await new Promise(r => setTimeout(r, 500));
             }
             await sb.from('indexer_state').upsert({
                 factory_address: factory, last_job_count: count,
