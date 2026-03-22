@@ -452,14 +452,16 @@ export async function startIndexer() {
     const newGw = PINATA_GW.replace('https://', '').replace('/ipfs', '');
     if (!newGw.includes(oldGw)) {
         for (const col of ['description_ipfs_url', 'result_ipfs_url']) {
-            await sb.rpc('', {}).catch(() => {}); // noop
-            const { count } = await sb.from('jobs').select('id', { count: 'exact', head: true }).like(col, `%${oldGw}%`);
-            if (count && count > 0) {
-                log(`Cleaning ${count} old gateway URLs in ${col}...`);
-                const { data: rows } = await sb.from('jobs').select(`id, ${col}`).like(col, `%${oldGw}%`);
-                for (const row of (rows ?? [])) {
-                    const newUrl = (row as any)[col]?.replace(oldGw, newGw);
-                    if (newUrl) await sb.from('jobs').update({ [col]: newUrl }).eq('id', row.id);
+            const { data: rows } = await sb.from('jobs').select('id').like(col, `%${oldGw}%`);
+            if (rows && rows.length > 0) {
+                log(`Cleaning ${rows.length} old gateway URLs in ${col}...`);
+                for (const row of rows) {
+                    const { data: full } = await sb.from('jobs').select(col).eq('id', row.id).single();
+                    if (full) {
+                        const oldUrl = (full as any)[col] as string;
+                        const newUrl = oldUrl?.replace(oldGw, newGw);
+                        if (newUrl && newUrl !== oldUrl) await sb.from('jobs').update({ [col]: newUrl }).eq('id', row.id);
+                    }
                 }
             }
         }
