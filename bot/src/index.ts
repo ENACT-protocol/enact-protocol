@@ -2450,6 +2450,187 @@ function watchJobState(userId: number, chatId: number, jobId: number, jobAddress
     tcWatchers.set(userId, timer);
 }
 
+// ─── Photo/Document handlers for /create and /submit with file ───
+
+async function downloadTgFile(ctx: any): Promise<{ buffer: Buffer; filename: string } | null> {
+    const photo = ctx.message?.photo;
+    const doc = ctx.message?.document;
+    if (!photo && !doc) return null;
+    const fileId = photo ? photo[photo.length - 1].file_id : doc!.file_id;
+    const fileName = doc?.file_name || 'photo.jpg';
+    const file = await ctx.api.getFile(fileId);
+    const url = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
+    const res = await fetch(url);
+    return { buffer: Buffer.from(await res.arrayBuffer()), filename: fileName };
+}
+
+// Handle photo/document with /create caption
+bot.on(['message:photo', 'message:document'], async (ctx, next) => {
+    const caption = ctx.message?.caption ?? '';
+    if (!caption.startsWith('/create')) return next();
+
+    const args = caption.split(' ').slice(1);
+    if (args.length < 2) {
+        return ctx.reply(`${e('❌')} Usage: send photo with caption <code>/create 0.05 description</code>`, { parse_mode: 'HTML' });
+    }
+
+    const budgetTon = args[0];
+    if (isNaN(Number(budgetTon)) || Number(budgetTon) <= 0) {
+        return ctx.reply(`${e('❌')} Budget must be a positive number.`, { parse_mode: 'HTML' });
+    }
+
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
+
+    const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
+    let evaluatorStr = '';
+    let timeoutSec = 86400;
+    let descArgs = args.slice(1);
+    for (let pass = 0; pass < 3 && descArgs.length > 1; pass++) {
+        const last = descArgs[descArgs.length - 1];
+        if (last.toLowerCase() === 'ai' && !evaluatorStr) { evaluatorStr = AI_EVALUATOR; descArgs = descArgs.slice(0, -1); }
+        else if (/^\d+[mhd]$/i.test(last)) {
+            const num = parseInt(last); const unit = last.slice(-1).toLowerCase();
+            const secs = unit === 'd' ? num * 86400 : unit === 'h' ? num * 3600 : num * 60;
+            if (secs < 3600 || secs > 2592000) { await ctx.reply(`${e('❌')} Timeout out of range. Min: 60m, max: 30d.`, { parse_mode: 'HTML' }); return; }
+            timeoutSec = secs; descArgs = descArgs.slice(0, -1);
+        } else break;
+    }
+    const description = descArgs.join(' ');
+
+    try {
+        const fileData = await downloadTgFile(ctx);
+        let descHash: bigint;
+        let fileUrl = '';
+        if (fileData) {
+            const uploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
+            descHash = uploaded.hashBig;
+            fileUrl = `${PINATA_GW}/${uploaded.cid}`;
+            // Also upload text description
+            await uploadToIPFS({ type: 'job_description', description, file: { cid: uploaded.cid, filename: fileData.filename }, createdAt: new Date().toISOString() });
+        } else {
+            const uploaded = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
+            descHash = uploaded.hashBig;
+        }
+
+        const client = await createClient();
+        if (mode === 'tonconnect') {
+            const addr = userTcAddresses.get(userId)!;
+            const evaluatorAddr = evaluatorStr ? Address.parse(evaluatorStr) : Address.parse(addr);
+            const createBody = beginCell()
+                .storeUint(FactoryOpcodes.createJob, 32)
+                .storeAddress(evaluatorAddr)
+                .storeCoins(toNano(budgetTon))
+                .storeUint(descHash, 256)
+                .storeUint(timeoutSec, 32)
+                .storeUint(timeoutSec, 32)
+                .endCell();
+            const link = tonTransferLink(FACTORY_ADDRESS, toNano('0.03'), createBody);
+            const kb = new InlineKeyboard().url('👛 Create in Tonkeeper', link).row().text('🏠 Menu', 'menu_main');
+            await ctx.reply(
+                `${e('💎')} <b>Create Job with File</b>\n\n` +
+                `${e('📎')} File attached` +
+                (fileUrl ? `: <a href="${fileUrl}">View</a>` : '') + '\n' +
+                `Open Tonkeeper to create.`,
+                { parse_mode: 'HTML', reply_markup: kb }
+            );
+            return;
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Creating job with file...`, { parse_mode: 'HTML' });
+        const mnemonicEvaluator = evaluatorStr ? Address.parse(evaluatorStr) : w.wallet.address;
+        const createBody = beginCell()
+            .storeUint(FactoryOpcodes.createJob, 32)
+            .storeAddress(mnemonicEvaluator)
+            .storeCoins(toNano(budgetTon))
+            .storeUint(descHash, 256)
+            .storeUint(timeoutSec, 32)
+            .storeUint(timeoutSec, 32)
+            .endCell();
+        await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
+        await new Promise(r => setTimeout(r, 10000));
+        const jobCount = await getFactoryJobCount(client, FACTORY_ADDRESS);
+        const jobId = jobCount - 1;
+        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
+        await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
+        saveDescription(jobId, description);
+        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
+        await ctx.reply(
+            `${e('✅')} <b>Job #${jobId} Created & Funded!</b>\n\n` +
+            `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` +
+            `${ton(budgetTon)} locked in escrow.`,
+            { parse_mode: 'HTML', reply_markup: kb }
+        );
+    } catch (err: any) {
+        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+    }
+});
+
+// Handle photo/document with /submit caption
+bot.on(['message:photo', 'message:document'], async (ctx, next) => {
+    const caption = ctx.message?.caption ?? '';
+    if (!caption.startsWith('/submit')) return next();
+
+    const args = caption.split(' ').slice(1);
+    if (args.length < 1) {
+        return ctx.reply(`${e('❌')} Usage: send photo with caption <code>/submit job_id</code>`, { parse_mode: 'HTML' });
+    }
+
+    const userId = getUserId(ctx);
+    const mode = walletMode(userId);
+    if (!mode) { await requireWallet(ctx); return; }
+
+    const parsed = parseJobArg(args[0]);
+    if (!parsed) return ctx.reply(`${e('❌')} Invalid job ID`, { parse_mode: 'HTML' });
+    const jobId = parsed.id;
+    const factory = parsed.jetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS;
+    const resultText = args.slice(1).join(' ') || 'File submission';
+
+    try {
+        const fileData = await downloadTgFile(ctx);
+        if (!fileData) return ctx.reply(`${e('❌')} No file found`, { parse_mode: 'HTML' });
+
+        const uploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
+        const resultHash = uploaded.hashBig;
+        const fileUrl = `${PINATA_GW}/${uploaded.cid}`;
+
+        const client = await createClient();
+        const jobAddr = await getJobAddress(client, factory, jobId);
+        const body = beginCell()
+            .storeUint(JobOpcodes.submitResult, 32)
+            .storeUint(resultHash, 256)
+            .storeUint(2, 8)
+            .endCell();
+
+        const statusCb = parsed.jetton ? `jstatus_${jobId}` : `status_${jobId}`;
+        if (mode === 'tonconnect') {
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const kb = new InlineKeyboard().url('👛 Submit in Tonkeeper', link).row().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
+            await ctx.reply(`${e('📨')} <b>Submit File for Job #${jobId}</b>\n\n${e('📎')} <a href="${fileUrl}">View file</a>\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
+            return;
+        }
+
+        const w = await requireWallet(ctx);
+        if (!w) return;
+        await ctx.reply(`${e('⏳')} Submitting file...`, { parse_mode: 'HTML' });
+        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
+        await ctx.reply(
+            `${e('📨')} <b>File Submitted!</b>\n\n` +
+            `${e('🆔')} Job: #${jobId}\n` +
+            `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` +
+            `Awaiting evaluation.`,
+            { parse_mode: 'HTML', reply_markup: kb }
+        );
+    } catch (err: any) {
+        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+    }
+});
+
 // ─── Start ───
 async function main() {
     loadWallets();

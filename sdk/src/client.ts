@@ -46,6 +46,7 @@ export interface CreateJobParams {
     evaluator: string;
     timeout?: number;
     evalTimeout?: number;
+    file?: { buffer: Buffer; filename: string };
 }
 
 interface WalletState {
@@ -226,9 +227,15 @@ export class EnactClient {
     async createJob(params: CreateJobParams): Promise<string> {
         const countBefore = await this.getJobCount();
 
-        const descHash = await this._uploadToIPFS({
-            type: 'job_description', description: params.description, createdAt: new Date().toISOString(),
-        });
+        let descHash: bigint;
+        if (params.file && this.pinataJwt) {
+            descHash = await this._uploadFileToIPFS(params.file.buffer, params.file.filename);
+            await this._uploadToIPFS({ type: 'job_description', description: params.description, createdAt: new Date().toISOString() });
+        } else {
+            descHash = await this._uploadToIPFS({
+                type: 'job_description', description: params.description, createdAt: new Date().toISOString(),
+            });
+        }
 
         const body = beginCell()
             .storeUint(FactoryOp.createJob, 32)
