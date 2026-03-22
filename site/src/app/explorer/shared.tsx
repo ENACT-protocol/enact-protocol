@@ -300,7 +300,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
 
       {/* Text content */}
       <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
-        {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : !isImage && !isFile ? <span className="text-[#555] font-mono text-xs break-all">{hash}</span> : null}
+        {text ? <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span> : !isImage && !isFile ? <span className="text-[#555] font-mono text-xs">Content hash: {hash.slice(0, 16)}... <CopyHash hash={hash} /></span> : null}
       </div>
 
       {(isLong || content?.ipfsUrl) && (
