@@ -269,14 +269,32 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
         keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) },
     }));
 
+    // Try v1 API first, fallback to uploading as base64 JSON
+    let cid: string;
     const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${jwt}` },
         body: formData,
     });
-    if (!res.ok) throw new Error(`File upload failed: ${res.status}`);
-    const data = await res.json() as { IpfsHash: string };
-    return { hash, hashBig: BigInt('0x' + hash), cid: data.IpfsHash };
+    if (res.ok) {
+        const data = await res.json() as { IpfsHash: string };
+        cid = data.IpfsHash;
+    } else {
+        // Fallback: upload file as base64 inside JSON
+        const b64 = buffer.toString('base64');
+        const jsonRes = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+            body: JSON.stringify({
+                pinataContent: { type: 'file_base64', data: b64, filename, mimeType, size: buffer.length },
+                pinataMetadata: { name: `enact-file-${hash.slice(0, 8)}`, keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) } },
+            }),
+        });
+        if (!jsonRes.ok) throw new Error(`File upload failed: ${jsonRes.status}`);
+        const jsonData = await jsonRes.json() as { IpfsHash: string };
+        cid = jsonData.IpfsHash;
+    }
+    return { hash, hashBig: BigInt('0x' + hash), cid };
 }
 
 /** Resolve file reference from IPFS JSON (if any) */
