@@ -279,6 +279,20 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
     return { hash, hashBig: BigInt('0x' + hash), cid: data.IpfsHash };
 }
 
+/** Resolve file reference from IPFS JSON (if any) */
+async function resolveFileFromCID(cid: string | null): Promise<{ url: string; filename: string } | null> {
+    if (!cid) return null;
+    try {
+        const res = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.file?.cid) {
+            return { url: data.file.ipfsUrl || `${PINATA_GW}/${data.file.cid}`, filename: data.file.filename || 'file' };
+        }
+    } catch {}
+    return null;
+}
+
 /** Decode hex-encoded text (sync, no IPFS) */
 function decodeHexOnly(hash: string): string | null {
     if (!hash || hash === '0'.repeat(64)) return null;
@@ -1711,12 +1725,16 @@ async function handleStatus(ctx: any, jobId: number) {
         const reasonText = (s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? decodeHexOnly(s.reasonHash) : null;
         const descCid = desc ? await findCID(s.descHash) : null;
         const resCid = resultText ? await findCID(s.resultHash) : null;
+        const descFile = await resolveFileFromCID(descCid);
+        const resFile = await resolveFileFromCID(resCid);
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>${descCid ? `\n${e('📎')} <a href="${PINATA_GW}/${descCid}">View on IPFS</a>` : ''}\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>${resCid ? `\n${e('📎')} <a href="${PINATA_GW}/${resCid}">View on IPFS</a>` : ''}\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (descFile ? `${e('📎')} <b>File:</b> <a href="${descFile.url}">${escapeHtml(descFile.filename)}</a>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (resFile ? `${e('📎')} <b>File:</b> <a href="${resFile.url}">${escapeHtml(resFile.filename)}</a>\n` : '') +
             (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
             `\n` +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
@@ -2155,12 +2173,16 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         const reasonText = (s.stateName === 'COMPLETED' || s.stateName === 'DISPUTED') ? decodeHexOnly(s.reasonHash) : null;
         const descCid = desc ? await findCID(s.descHash) : null;
         const resCid = resultText ? await findCID(s.resultHash) : null;
+        const descFile = await resolveFileFromCID(descCid);
+        const resFile = await resolveFileFromCID(resCid);
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}</blockquote>${descCid ? `\n${e('📎')} <a href="${PINATA_GW}/${descCid}">View on IPFS</a>` : ''}\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}</blockquote>${resCid ? `\n${e('📎')} <a href="${PINATA_GW}/${resCid}">View on IPFS</a>` : ''}\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (descFile ? `${e('📎')} <b>File:</b> <a href="${descFile.url}">${escapeHtml(descFile.filename)}</a>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (resFile ? `${e('📎')} <b>File:</b> <a href="${resFile.url}">${escapeHtml(resFile.filename)}</a>\n` : '') +
             (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
             `\n` +
             `${eid(EID.forClients, '👤')} Client: <code>${s.client}</code>\n` +
