@@ -1035,16 +1035,23 @@ bot.command('create', async (ctx) => {
             .storeUint(timeoutSec, 32)
             .endCell();
 
+        const countBefore = await getFactoryJobCount(client, FACTORY_ADDRESS);
         await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
         await new Promise(r => setTimeout(r, 10000));
 
-        const jobCount = await getFactoryJobCount(client, FACTORY_ADDRESS);
-        const jobId = jobCount - 1;
+        // Find the new job by checking count increased
+        let jobId = countBefore; // expected new job ID
+        for (let retry = 0; retry < 5; retry++) {
+            const countAfter = await getFactoryJobCount(client, FACTORY_ADDRESS);
+            if (countAfter > countBefore) { jobId = countAfter - 1; break; }
+            await new Promise(r => setTimeout(r, 3000));
+        }
         const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
 
-        // Step 2: Auto-fund
+        // Step 2: Auto-fund with retry
         let funded = false;
         try {
+            await new Promise(r => setTimeout(r, 2000)); // Brief pause before fund
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
             await new Promise(r => setTimeout(r, 10000));
