@@ -344,17 +344,17 @@ async function findCID(hash: string): Promise<string | null> {
         if (sbUrl && sbKey) {
             const { createClient: sc } = await import('@supabase/supabase-js');
             const sb = sc(sbUrl, sbKey);
-            const { data } = await sb.from('jobs')
-                .select('description_ipfs_url, result_ipfs_url')
-                .or(`desc_hash.eq.${hash},result_hash.eq.${hash}`)
-                .limit(1).single();
-            if (data) {
-                const url = data.description_ipfs_url || data.result_ipfs_url;
-                if (url) {
-                    // Extract CID from URL
-                    const cid = url.split('/ipfs/')[1];
-                    if (cid) return cid;
-                }
+            // Check desc_hash first
+            const { data: d1 } = await sb.from('jobs').select('description_ipfs_url').eq('desc_hash', hash).limit(1).single();
+            if (d1?.description_ipfs_url) {
+                const cid = d1.description_ipfs_url.split('/ipfs/')[1];
+                if (cid) return cid;
+            }
+            // Then result_hash
+            const { data: d2 } = await sb.from('jobs').select('result_ipfs_url').eq('result_hash', hash).limit(1).single();
+            if (d2?.result_ipfs_url) {
+                const cid = d2.result_ipfs_url.split('/ipfs/')[1];
+                if (cid) return cid;
             }
         }
     } catch {}
@@ -382,14 +382,19 @@ async function decodeDesc(hash: string): Promise<string | null> {
         if (sbUrl && sbKey) {
             const { createClient } = await import('@supabase/supabase-js');
             const sb = createClient(sbUrl, sbKey);
-            const { data } = await sb.from('jobs').select('description_text, result_text').or(`desc_hash.eq.${hash},result_hash.eq.${hash}`).limit(1).single();
-            if (data) {
-                const text = data.description_text || data.result_text;
-                if (text) {
-                    const result = escapeHtml(text);
-                    descCache.set(hash, result);
-                    return result;
-                }
+            // Check desc_hash first
+            const { data: descMatch } = await sb.from('jobs').select('description_text').eq('desc_hash', hash).limit(1).single();
+            if (descMatch?.description_text) {
+                const result = escapeHtml(descMatch.description_text);
+                descCache.set(hash, result);
+                return result;
+            }
+            // Then result_hash
+            const { data: resMatch } = await sb.from('jobs').select('result_text').eq('result_hash', hash).limit(1).single();
+            if (resMatch?.result_text) {
+                const result = escapeHtml(resMatch.result_text);
+                descCache.set(hash, result);
+                return result;
             }
         }
     } catch {}
@@ -1736,10 +1741,10 @@ async function handleJobs(ctx: any, page: number, filter: string) {
             jobs = results.filter(Boolean) as JobEntry[];
         }
 
-        const totalForPages = needsFilter ? jobs.length : total;
+        const totalForPages = activeOnly ? jobs.length : allIds.length;
         const totalPages = Math.ceil(totalForPages / PAGE_SIZE) || 1;
         const safePage = Math.min(page, totalPages - 1);
-        const pageJobs = needsFilter ? jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) : jobs;
+        const pageJobs = activeOnly ? jobs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) : jobs;
 
         const parts = [];
         if (activeOnly) parts.push('active');
