@@ -342,7 +342,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 15_000; // Poll every 15s
+const POLL_INTERVAL = 10_000; // Poll every 10s
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);

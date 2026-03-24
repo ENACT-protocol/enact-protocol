@@ -113,15 +113,18 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
     if (!sb) return;
 
     try {
+        const t0 = Date.now();
         const addrResult = await c.runMethod(Address.parse(factory), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
         const jobAddr = addrResult.stack.readAddress().toString();
+        log(`  [RPC] getJobAddress +${Date.now()-t0}ms`);
 
         if (!force) {
             const { data: existing } = await sb.from('jobs').select('state, description_text').eq('address', jobAddr).single();
-            if (existing && [3, 4, 5].includes(existing.state)) return; // Skip terminal
+            if (existing && [3, 4, 5].includes(existing.state)) return;
         }
 
         const result = await c.runMethod(Address.parse(jobAddr), 'get_job_data');
+        log(`  [RPC] getJobData +${Date.now()-t0}ms`);
         const jid = result.stack.readNumber();
         const clientAddr = result.stack.readAddress();
         const providerAddr = result.stack.readAddressOpt();
@@ -149,12 +152,16 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const needDesc = !existingContent?.description_text && descHashHex !== ZERO_HASH;
         const needResult = !existingContent?.result_text && resultHashHex !== ZERO_HASH;
 
+        const ipfsT0 = Date.now();
         const [descContent, resultContent] = await Promise.all([
             needDesc ? resolveContent(descHashHex) : Promise.resolve({ text: existingContent?.description_text, ipfsUrl: null, fileCid: null, fileName: null }),
             needResult ? resolveContent(resultHashHex) : Promise.resolve({ text: existingContent?.result_text, ipfsUrl: null, fileCid: null, fileName: null }),
         ]);
+        if (needDesc || needResult) log(`  [IPFS] Resolve +${Date.now()-ipfsT0}ms (desc=${needDesc} res=${needResult})`);
 
+        const txT0 = Date.now();
         const rawTxs = await fetchTransactions(jobAddr);
+        log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${rawTxs.length} txs)`);
         const txs = rawTxs.map((tx: any) => ({
             hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
             fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
@@ -184,6 +191,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         if (resultContent.fileName !== null) jobData.result_file_name = resultContent.fileName;
 
         await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
+        log(`  [DB] Upserted job +${Date.now()-t0}ms`);
 
         // Transactions
         for (const tx of txs) {
@@ -317,37 +325,41 @@ function connectWebSocket() {
                 for (const tx of data.transactions) {
                     const account = tx.account;
                     if (!account) continue;
+                    const t0 = Date.now();
+                    log(`[WS] Event received: account=${account.slice(0, 16)}... t=${t0}`);
 
-                    // Is it a factory tx? → check for new jobs
                     const rawFactory = Address.parse(FACTORY).toRawString();
                     const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString();
 
                     if (account === rawFactory || account === rawJettonFactory) {
                         const type = account === rawFactory ? 'ton' : 'usdt';
                         const factory = account === rawFactory ? FACTORY : JETTON_FACTORY;
-                        log(`WS: ${type.toUpperCase()} factory tx — checking for new jobs`);
+                        log(`[WS] Factory tx (${type}) — checking new jobs t=${Date.now()} (+${Date.now()-t0}ms)`);
                         try {
                             const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
+                            log(`[WS] RPC get_next_job_id done t=${Date.now()} (+${Date.now()-t0}ms)`);
                             const count = countResult.stack.readNumber();
                             const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
                             const lastCount = state?.last_job_count ?? 0;
                             if (count > lastCount) {
                                 for (let i = lastCount; i < count; i++) {
+                                    log(`[IDX] indexJob start ${type}#${i} t=${Date.now()} (+${Date.now()-t0}ms)`);
                                     await indexJob(c, factory, i, type);
+                                    log(`[IDX] indexJob done ${type}#${i} t=${Date.now()} (+${Date.now()-t0}ms)`);
                                 }
                                 await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
-                                // Update subscription with new addresses
                                 await refreshTrackedAddresses();
                                 ws.send(JSON.stringify({ operation: 'subscribe', id: 'enact-idx-update', addresses: trackedAddresses, types: ['transactions'], min_finality: 'finalized' }));
-                                log(`WS: resubscribed with ${trackedAddresses.length} addresses`);
+                                log(`[WS] Resubscribed ${trackedAddresses.length} addrs t=${Date.now()} (+${Date.now()-t0}ms)`);
                             }
-                        } catch (err: any) { log(`WS factory check err: ${err.message}`); }
+                        } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
                     } else {
-                        // Job contract tx → re-index that job
-                        const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', Address.parse(account).toString()).single();
+                        const friendlyAddr = Address.parse(account).toString();
+                        const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', friendlyAddr).single();
                         if (job) {
-                            log(`WS: ${job.factory_type.toUpperCase()} #${job.job_id} tx — re-indexing`);
+                            log(`[IDX] Re-index ${job.factory_type}#${job.job_id} start t=${Date.now()} (+${Date.now()-t0}ms)`);
                             await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
+                            log(`[DB] Done ${job.factory_type}#${job.job_id} t=${Date.now()} (+${Date.now()-t0}ms)`);
                         }
                     }
                 }
