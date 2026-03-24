@@ -345,11 +345,17 @@ function connectWebSocket() {
                         const factory = accountLower === rawFactory ? FACTORY : JETTON_FACTORY;
                         log(`[WS] Factory tx (${type}) — checking new jobs t=${Date.now()} (+${Date.now()-t0}ms)`);
                         try {
-                            const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
-                            log(`[WS] RPC get_next_job_id done t=${Date.now()} (+${Date.now()-t0}ms)`);
-                            const count = countResult.stack.readNumber();
                             const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
                             const lastCount = state?.last_job_count ?? 0;
+                            // Retry up to 5 times — factory may not have incremented yet
+                            let count = lastCount;
+                            for (let r = 0; r < 5; r++) {
+                                const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
+                                count = countResult.stack.readNumber();
+                                if (count > lastCount) break;
+                                log(`[WS] Count unchanged (${count}), retrying in 3s... (+${Date.now()-t0}ms)`);
+                                await sleep(3000);
+                            }
                             if (count > lastCount) {
                                 for (let i = lastCount; i < count; i++) {
                                     log(`[IDX] indexJob start ${type}#${i} t=${Date.now()} (+${Date.now()-t0}ms)`);

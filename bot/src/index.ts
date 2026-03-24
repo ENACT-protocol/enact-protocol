@@ -1035,22 +1035,24 @@ bot.command('create', async (ctx) => {
             .storeUint(timeoutSec, 32)
             .endCell();
 
-        // Use RPC directly for count (Supabase cache may be stale during create)
+        // Get count BEFORE create — our job ID will be this number
         const countBeforeResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_next_job_id');
-        const countBefore = countBeforeResult.stack.readNumber();
+        const jobId = countBeforeResult.stack.readNumber(); // Our job gets this ID
         await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
-        await new Promise(r => setTimeout(r, 10000));
 
-        // Find the new job — use RPC directly (not Supabase cache which may be stale)
-        let jobId = countBefore;
-        for (let retry = 0; retry < 5; retry++) {
-            const countResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_next_job_id');
-            const countAfter = countResult.stack.readNumber();
-            if (countAfter > countBefore) { jobId = countAfter - 1; break; }
+        // Wait for factory to process and deploy our job contract
+        let jobAddr: any = null;
+        for (let retry = 0; retry < 10; retry++) {
             await new Promise(r => setTimeout(r, 3000));
+            try {
+                const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
+                jobAddr = addrResult.stack.readAddress();
+                // Verify job exists by reading its data
+                await client.runMethod(Address.parse(jobAddr.toString()), 'get_job_data');
+                break;
+            } catch { /* job not deployed yet */ }
         }
-        const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
-        const jobAddr = addrResult.stack.readAddress();
+        if (!jobAddr) throw new Error('Job creation not confirmed after 30s');
 
         // Step 2: Auto-fund with retry
         let funded = false;
@@ -2688,11 +2690,23 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
             .storeUint(timeoutSec, 32)
             .storeUint(timeoutSec, 32)
             .endCell();
+        // Get ID before create — our job will get this ID
+        const preCount = await client.runMethod(Address.parse(factoryAddr), 'get_next_job_id');
+        const jobId = preCount.stack.readNumber();
         await sendTx(client, w, Address.parse(factoryAddr), createGas, createBody);
-        await new Promise(r => setTimeout(r, 10000));
-        const jobCount = await getFactoryJobCount(client, factoryAddr);
-        const jobId = jobCount - 1;
-        const jobAddr = await getJobAddress(client, factoryAddr, jobId);
+
+        // Wait for job to deploy
+        let jobAddr: any = null;
+        for (let retry = 0; retry < 10; retry++) {
+            await new Promise(r => setTimeout(r, 3000));
+            try {
+                const addrR = await client.runMethod(Address.parse(factoryAddr), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
+                jobAddr = addrR.stack.readAddress();
+                await client.runMethod(Address.parse(jobAddr.toString()), 'get_job_data');
+                break;
+            } catch {}
+        }
+        if (!jobAddr) throw new Error('Job creation not confirmed');
         if (!isJetton) {
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
