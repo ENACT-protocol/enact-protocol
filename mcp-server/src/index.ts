@@ -387,9 +387,36 @@ server.tool(
         job_address: z.string().describe('Job contract address'),
     },
     async ({ job_address }) => {
-        const addr = Address.parse(job_address);
         const stateNames = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 
+        // Try Supabase first (0 RPS)
+        try {
+            const sbUrl = process.env.SUPABASE_URL;
+            const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+            if (sbUrl && sbKey) {
+                const { createClient: sc } = await import('@supabase/supabase-js');
+                const sb = sc(sbUrl, sbKey);
+                const { data: j } = await sb.from('jobs').select('*').eq('address', job_address).single();
+                if (j) {
+                    const data: any = {
+                        jobId: j.job_id, state: j.state_name, stateCode: j.state,
+                        client: j.client, provider: j.provider, evaluator: j.evaluator,
+                        budget: String(j.budget), descriptionHash: j.desc_hash,
+                        description: j.description_text,
+                        ...(j.description_file_cid ? { descriptionFile: { type: 'file', filename: j.description_file_name, ipfsUrl: `${IPFS_GW}/${j.description_file_cid}` } } : {}),
+                        resultHash: j.result_hash, resultContent: j.result_text,
+                        ...(j.result_file_cid ? { resultFile: { type: 'file', filename: j.result_file_name, ipfsUrl: `${IPFS_GW}/${j.result_file_cid}` } } : {}),
+                        resultType: ['hash', 'ton_storage', 'ipfs'][j.result_type] ?? 'unknown',
+                        timeout: j.timeout, createdAt: j.created_at, evaluationTimeout: j.eval_timeout,
+                        submittedAt: j.submitted_at, reason: j.reason_text || '0',
+                    };
+                    return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+                }
+            }
+        } catch {}
+
+        // Fallback to RPC
+        const addr = Address.parse(job_address);
         try {
             const result = await client.runMethod(addr, 'get_job_data');
             const jobId = result.stack.readNumber();
@@ -482,31 +509,40 @@ server.tool(
         count: z.number().default(10).describe('Number of jobs to list'),
     },
     async ({ factory_address, from_id, count }) => {
-        const addr = factory_address
-            ? Address.parse(factory_address)
-            : config.factoryAddress;
-        if (!addr) throw new Error('No factory address provided');
+        const factoryAddr = factory_address || config.factoryAddress?.toString() || '';
 
+        // Try Supabase first
+        try {
+            const sbUrl = process.env.SUPABASE_URL;
+            const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+            if (sbUrl && sbKey) {
+                const { createClient: sc } = await import('@supabase/supabase-js');
+                const sb = sc(sbUrl, sbKey);
+                const { data: jobs } = await sb.from('jobs')
+                    .select('job_id, address')
+                    .eq('factory_address', factoryAddr)
+                    .gte('job_id', from_id)
+                    .lt('job_id', from_id + count)
+                    .order('job_id', { ascending: true });
+                const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factoryAddr).single();
+                if (jobs) {
+                    return { content: [{ type: 'text' as const, text: JSON.stringify({ totalJobs: state?.last_job_count ?? jobs.length, jobs: jobs.map((j: any) => ({ jobId: j.job_id, address: j.address })) }, null, 2) }] };
+                }
+            }
+        } catch {}
+
+        // Fallback to RPC
+        const addr = factoryAddr ? Address.parse(factoryAddr) : config.factoryAddress;
+        if (!addr) throw new Error('No factory address');
         const nextIdResult = await client.runMethod(addr, 'get_next_job_id');
         const nextId = nextIdResult.stack.readNumber();
-
         const jobs: any[] = [];
         const end = Math.min(from_id + count, nextId);
-
         for (let i = from_id; i < end; i++) {
-            const addrResult = await client.runMethod(addr, 'get_job_address', [
-                { type: 'int', value: BigInt(i) },
-            ]);
-            const jobAddr = addrResult.stack.readAddress();
-            jobs.push({ jobId: i, address: jobAddr.toString() });
+            const addrResult = await client.runMethod(addr, 'get_job_address', [{ type: 'int', value: BigInt(i) }]);
+            jobs.push({ jobId: i, address: addrResult.stack.readAddress().toString() });
         }
-
-        return {
-            content: [{
-                type: 'text' as const,
-                text: JSON.stringify({ totalJobs: nextId, jobs }, null, 2),
-            }],
-        };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ totalJobs: nextId, jobs }, null, 2) }] };
     }
 );
 

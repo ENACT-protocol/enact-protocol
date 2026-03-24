@@ -76,10 +76,41 @@ export async function sendTx(
     return seqno;
 }
 
+// ─── Supabase singleton ───
+let _supabase: any = null;
+async function getSb() {
+    if (_supabase) return _supabase;
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
+    if (!url || !key) return null;
+    const { createClient: sc } = await import('@supabase/supabase-js');
+    _supabase = sc(url, key);
+    return _supabase;
+}
+
+// ─── Read from Supabase first, RPC fallback ───
+
 export async function getJobStatus(client: TonClient, jobAddress: string) {
+    // Try Supabase first (0 RPS)
+    try {
+        const sb = await getSb();
+        if (sb) {
+            const { data } = await sb.from('jobs').select('*').eq('address', jobAddress).single();
+            if (data) {
+                return {
+                    jobId: data.job_id, state: data.state, stateName: data.state_name,
+                    client: data.client, provider: data.provider ?? 'none', evaluator: data.evaluator,
+                    budget: BigInt(data.budget), descHash: data.desc_hash, resultHash: data.result_hash,
+                    timeout: data.timeout, createdAt: data.created_at, evalTimeout: data.eval_timeout,
+                    submittedAt: data.submitted_at, resultType: data.result_type,
+                    reason: '0', reasonHash: '0'.repeat(64),
+                };
+            }
+        }
+    } catch {}
+    // Fallback to RPC
     const addr = Address.parse(jobAddress);
     const result = await withRetry(() => client.runMethod(addr, 'get_job_data'));
-
     const jobId = result.stack.readNumber();
     const clientAddr = result.stack.readAddress();
     const providerAddr = result.stack.readAddressOpt();
@@ -94,29 +125,43 @@ export async function getJobStatus(client: TonClient, jobAddress: string) {
     const resultType = result.stack.readNumber();
     const reason = result.stack.readBigNumber();
     const state = result.stack.readNumber();
-
     const uf = { bounceable: false };
     return {
         jobId, state, stateName: getStateName(state),
-        client: clientAddr.toString(uf),
-        provider: providerAddr?.toString(uf) ?? 'none',
-        evaluator: evaluatorAddr.toString(uf),
-        budget,
+        client: clientAddr.toString(uf), provider: providerAddr?.toString(uf) ?? 'none',
+        evaluator: evaluatorAddr.toString(uf), budget,
         descHash: descHash.toString(16).padStart(64, '0'),
         resultHash: resultHash.toString(16).padStart(64, '0'),
         timeout, createdAt, evalTimeout, submittedAt, resultType,
-        reason: reason.toString(),
-        reasonHash: reason.toString(16).padStart(64, '0'),
+        reason: reason.toString(), reasonHash: reason.toString(16).padStart(64, '0'),
     };
 }
 
 export async function getFactoryJobCount(client: TonClient, factoryAddress: string) {
+    // Try Supabase first
+    try {
+        const sb = await getSb();
+        if (sb) {
+            const { data } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factoryAddress).single();
+            if (data?.last_job_count != null) return data.last_job_count;
+        }
+    } catch {}
+    // Fallback to RPC
     const addr = Address.parse(factoryAddress);
     const result = await withRetry(() => client.runMethod(addr, 'get_next_job_id'));
     return result.stack.readNumber();
 }
 
 export async function getJobAddress(client: TonClient, factoryAddress: string, jobId: number) {
+    // Try Supabase first
+    try {
+        const sb = await getSb();
+        if (sb) {
+            const { data } = await sb.from('jobs').select('address').eq('factory_address', factoryAddress).eq('job_id', jobId).single();
+            if (data?.address) return Address.parse(data.address);
+        }
+    } catch {}
+    // Fallback to RPC
     const addr = Address.parse(factoryAddress);
     const result = await withRetry(() => client.runMethod(addr, 'get_job_address', [
         { type: 'int', value: BigInt(jobId) },
