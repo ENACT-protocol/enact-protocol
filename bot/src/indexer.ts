@@ -114,9 +114,17 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
 
     try {
         const t0 = Date.now();
-        const addrResult = await c.runMethod(Address.parse(factory), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
-        const jobAddr = addrResult.stack.readAddress().toString();
-        log(`  [RPC] getJobAddress +${Date.now()-t0}ms`);
+        // Try Supabase first for address (saves 1 RPC)
+        let jobAddr: string;
+        const { data: cached } = await sb.from('jobs').select('address').eq('factory_address', factory).eq('job_id', jobId).single();
+        if (cached?.address) {
+            jobAddr = cached.address;
+            log(`  [CACHE] getJobAddress +${Date.now()-t0}ms`);
+        } else {
+            const addrResult = await c.runMethod(Address.parse(factory), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
+            jobAddr = addrResult.stack.readAddress().toString();
+            log(`  [RPC] getJobAddress +${Date.now()-t0}ms`);
+        }
 
         if (!force) {
             const { data: existing } = await sb.from('jobs').select('state, description_text').eq('address', jobAddr).single();

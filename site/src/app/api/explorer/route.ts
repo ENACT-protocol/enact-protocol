@@ -10,7 +10,7 @@ const ZERO_HASH = '0'.repeat(64);
 
 interface CachedResponse { data: any; timestamp: number; }
 let responseCache: CachedResponse | null = null;
-const RESPONSE_TTL = 5_000; // 5s cache — Supabase reads are fast
+const RESPONSE_TTL = 1_000; // 1s cache — Supabase reads are fast
 const BUILD_VERSION = 'v2'; // Bump to invalidate terminalCache on redeploy
 
 // ─── Supabase Read ───
