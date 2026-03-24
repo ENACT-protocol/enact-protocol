@@ -2098,25 +2098,28 @@ async function handleCancel(ctx: any, jobId: number, factory = FACTORY_ADDRESS) 
             );
         }
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
+        const isJetton = factory === JETTON_FACTORY_ADDRESS;
+        const gas = toNano(isJetton ? '0.06' : '0.01');
+        const statusCb = isJetton ? `jstatus_${jobId}` : `status_${jobId}`;
 
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), gas, body);
             const kb = new InlineKeyboard()
                 .url('👛 Cancel in Tonkeeper', link).row()
-                .text('🔭 Status', `status_${jobId}`)
+                .text('🔭 Status', statusCb)
                 .text('🏠 Menu', 'menu_main');
             await ctx.reply(`${e('🚫')} <b>Cancel Job #${jobId}</b>\n\nTimeout expired. Open Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
-            watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 5); // 5=CANCELLED
+            watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 5);
             return;
         }
 
         const w = await requireWallet(ctx);
         if (!w) return;
         await ctx.reply(`${e('⏳')} Cancelling job #${jobId}...\n${e('⚠️')} Only works after the job's timeout has passed.`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await sendTx(client, w, jobAddr, gas, body);
 
-        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
-        await ctx.reply(`${e('🚫')} <b>Job #${jobId} Cancelled</b>\n\nFunds refunded to the client.`, { parse_mode: 'HTML', reply_markup: kb });
+        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('🚫')} <b>Job ${isJetton ? 'J#' : '#'}${jobId} Cancelled</b>\n\nFunds refunded to the client.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
@@ -2147,25 +2150,28 @@ async function handleClaim(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         }
 
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
+        const isJetton = factory === JETTON_FACTORY_ADDRESS;
+        const gas = toNano(isJetton ? '0.06' : '0.01');
+        const statusCb = isJetton ? `jstatus_${jobId}` : `status_${jobId}`;
 
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), gas, body);
             const kb = new InlineKeyboard()
                 .url('👛 Claim in Tonkeeper', link).row()
-                .text('🔭 Status', `status_${jobId}`)
+                .text('🔭 Status', statusCb)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('⏰')} <b>Claim Job #${jobId}</b>\n\nEval timeout expired. Open Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('⏰')} <b>Claim Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nEval timeout expired. Open Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
             watchJobState(userId, ctx.chat!.id, jobId, jobAddr.toString(), 3);
             return;
         }
 
         const w = await requireWallet(ctx);
         if (!w) return;
-        await ctx.reply(`${e('⏳')} Claiming funds for #${jobId}...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await ctx.reply(`${e('⏳')} Claiming funds for ${isJetton ? 'J#' : '#'}${jobId}...`, { parse_mode: 'HTML' });
+        await sendTx(client, w, jobAddr, gas, body);
 
-        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
-        await ctx.reply(`${e('⏰')} <b>Job #${jobId} Claimed!</b>\n\nEvaluator timed out — funds sent to the provider.`, { parse_mode: 'HTML', reply_markup: kb });
+        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('⏰')} <b>Job ${isJetton ? 'J#' : '#'}${jobId} Claimed!</b>\n\nEvaluator timed out — funds sent to the provider.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
@@ -2180,24 +2186,27 @@ async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
+        const isJetton = factory === JETTON_FACTORY_ADDRESS;
+        const gas = toNano(isJetton ? '0.06' : '0.01');
+        const statusCb = isJetton ? `jstatus_${jobId}` : `status_${jobId}`;
 
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), gas, body);
             const kb = new InlineKeyboard()
                 .url('👛 Approve in Tonkeeper', link).row()
-                .text('🔭 Status', `status_${jobId}`)
+                .text('🔭 Status', statusCb)
                 .text('🏠 Menu', 'menu_main');
-            await ctx.reply(`${e('🚪')} <b>Quit Job #${jobId}</b>\n\nOpen Tonkeeper to approve. Auto-detecting...`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
             return;
         }
 
         const w = await requireWallet(ctx);
         if (!w) return;
-        await ctx.reply(`${e('⏳')} Quitting job #${jobId}...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await ctx.reply(`${e('⏳')} Quitting job ${isJetton ? 'J#' : '#'}${jobId}...`, { parse_mode: 'HTML' });
+        await sendTx(client, w, jobAddr, gas, body);
 
-        const kb = new InlineKeyboard().text('🔭 Status', `status_${jobId}`).text('🏠 Menu', 'menu_main');
-        await ctx.reply(`${e('🚪')} <b>Quit Job #${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
+        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
+        await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
