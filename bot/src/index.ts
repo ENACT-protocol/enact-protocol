@@ -1035,18 +1035,22 @@ bot.command('create', async (ctx) => {
             .storeUint(timeoutSec, 32)
             .endCell();
 
-        const countBefore = await getFactoryJobCount(client, FACTORY_ADDRESS);
+        // Use RPC directly for count (Supabase cache may be stale during create)
+        const countBeforeResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_next_job_id');
+        const countBefore = countBeforeResult.stack.readNumber();
         await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
         await new Promise(r => setTimeout(r, 10000));
 
-        // Find the new job by checking count increased
-        let jobId = countBefore; // expected new job ID
+        // Find the new job — use RPC directly (not Supabase cache which may be stale)
+        let jobId = countBefore;
         for (let retry = 0; retry < 5; retry++) {
-            const countAfter = await getFactoryJobCount(client, FACTORY_ADDRESS);
+            const countResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_next_job_id');
+            const countAfter = countResult.stack.readNumber();
             if (countAfter > countBefore) { jobId = countAfter - 1; break; }
             await new Promise(r => setTimeout(r, 3000));
         }
-        const jobAddr = await getJobAddress(client, FACTORY_ADDRESS, jobId);
+        const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
+        const jobAddr = addrResult.stack.readAddress();
 
         // Step 2: Auto-fund with retry
         let funded = false;

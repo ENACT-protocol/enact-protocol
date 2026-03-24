@@ -336,12 +336,13 @@ function connectWebSocket() {
                     const t0 = Date.now();
                     log(`[WS] Event received: account=${account.slice(0, 16)}... t=${t0}`);
 
-                    const rawFactory = Address.parse(FACTORY).toRawString();
-                    const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString();
+                    const accountLower = account.toLowerCase();
+                    const rawFactory = Address.parse(FACTORY).toRawString().toLowerCase();
+                    const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString().toLowerCase();
 
-                    if (account === rawFactory || account === rawJettonFactory) {
-                        const type = account === rawFactory ? 'ton' : 'usdt';
-                        const factory = account === rawFactory ? FACTORY : JETTON_FACTORY;
+                    if (accountLower === rawFactory || accountLower === rawJettonFactory) {
+                        const type = accountLower === rawFactory ? 'ton' : 'usdt';
+                        const factory = accountLower === rawFactory ? FACTORY : JETTON_FACTORY;
                         log(`[WS] Factory tx (${type}) — checking new jobs t=${Date.now()} (+${Date.now()-t0}ms)`);
                         try {
                             const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
@@ -362,7 +363,8 @@ function connectWebSocket() {
                             }
                         } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
                     } else {
-                        const friendlyAddr = Address.parse(account).toString();
+                        let friendlyAddr: string;
+                        try { friendlyAddr = Address.parse(account).toString(); } catch { continue; }
                         const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', friendlyAddr).single();
                         if (job) {
                             log(`[IDX] Re-index ${job.factory_type}#${job.job_id} start t=${Date.now()} (+${Date.now()-t0}ms)`);
