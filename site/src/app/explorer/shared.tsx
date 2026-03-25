@@ -388,7 +388,11 @@ export function useExplorerData() {
 
     // Supabase Realtime: instant updates when indexer writes to DB
     let channel: any = null;
-    let realtimeConnected = false;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchData(), 500); // 500ms debounce
+    };
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (supabaseUrl && supabaseKey) {
@@ -397,27 +401,20 @@ export function useExplorerData() {
         channel = sb.channel('explorer-live')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
             console.log('[REALTIME] jobs change:', payload.eventType, payload.new?.job_id ?? '');
-            fetchData();
+            debouncedFetch();
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
             console.log('[REALTIME] new activity:', payload.new?.event ?? '');
-            fetchData();
-          })
-          .on('system', {} as any, (status: any) => {
-            console.log('[REALTIME] system:', status);
+            debouncedFetch();
           })
           .subscribe((status: string) => {
             console.log('[REALTIME] subscribe status:', status);
             if (status === 'SUBSCRIBED') {
-              realtimeConnected = true;
-              // Switch to slow polling when realtime is connected
               clearInterval(i);
-              i = setInterval(fetchData, 60_000); // 60s fallback
+              i = setInterval(fetchData, 60_000); // 60s fallback when RT connected
             }
           });
-      }).catch((err) => {
-        console.error('[REALTIME] Failed to connect:', err);
-      });
+      }).catch(() => {});
     }
 
     return () => {
