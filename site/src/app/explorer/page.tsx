@@ -32,10 +32,10 @@ export default function ExplorerPage() {
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
   const allActivity = useMemo(() => {
     const events = buildActivity(allJobs, data?.activity);
-    // Add pending activity events at the top for instant feedback
+    // Add pending activity events for instant feedback
     for (const job of allJobs) {
       if (job.pendingState) {
-        events.unshift({
+        events.push({
           jobId: job.jobId, type: job.type, address: job.address,
           event: job.pendingState, status: job.stateName,
           time: Math.floor(Date.now() / 1000), amount: '—', from: '',
@@ -43,7 +43,8 @@ export default function ExplorerPage() {
         });
       }
     }
-    return events;
+    // Final sort: newest first (pending events have current timestamp → always on top)
+    return events.sort((a, b) => b.time - a.time);
   }, [allJobs, data?.activity]);
 
   const filteredJobs = useMemo(() => {
@@ -58,7 +59,7 @@ export default function ExplorerPage() {
     }
     return [...jobs].sort((a, b) => {
       let cmp = 0;
-      if (sortBy === 'id') cmp = a.jobId - b.jobId || (a.type === 'ton' ? -1 : 1);
+      if (sortBy === 'id') cmp = (a.createdAt || 0) - (b.createdAt || 0);
       else if (sortBy === 'status') cmp = a.state - b.state;
       else if (sortBy === 'budget') cmp = Number(BigInt(a.budget) - BigInt(b.budget));
       return sortDir === 'desc' ? -cmp : cmp;
