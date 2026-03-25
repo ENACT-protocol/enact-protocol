@@ -10,15 +10,18 @@ export const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj'
 export const STATUS_STYLES: Record<string, string> = {
   OPEN: 'border-[#FACC15] text-[#FACC15] bg-[#FACC1520]',
   FUNDED: 'border-[#60A5FA] text-[#60A5FA] bg-[#60A5FA20]',
+  TAKEN: 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F620]',
   SUBMITTED: 'border-[#A78BFA] text-[#A78BFA] bg-[#A78BFA20]',
   COMPLETED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
   CANCELLED: 'border-[#6B7280] text-[#6B7280] bg-[#6B728020]',
   DISPUTED: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
+  QUIT: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
+  CLAIMED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  OPEN: '#FACC15', FUNDED: '#60A5FA', TAKEN: '#38BDF8', SUBMITTED: '#A78BFA',
-  COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
+  OPEN: '#FACC15', FUNDED: '#60A5FA', TAKEN: '#3B82F6', SUBMITTED: '#A78BFA',
+  COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444', QUIT: '#EF4444', CLAIMED: '#4ADE80',
 };
 
 
@@ -366,18 +369,20 @@ export function useExplorerData() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
             const row = payload.new;
             console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
-            // Apply pending_state instantly from payload (no API round-trip)
-            if (row?.address && row?.pending_state !== undefined) {
+            if (row?.address && row?.pending_state) {
+              // Pending state set (Processing.../Confirming...) — apply instantly, skip API re-fetch
               setData(prev => {
                 if (!prev) return prev;
                 const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
                 return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
               });
+            } else {
+              // pending_state cleared or state changed — full re-fetch
+              debouncedFetch();
             }
-            debouncedFetch();
           })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_events' }, (payload: any) => {
-            console.log('[REALTIME] activity:', payload.eventType, payload.new?.event ?? '');
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
+            console.log('[REALTIME] new activity:', payload.new?.event ?? '');
             debouncedFetch();
           })
           .subscribe((status: string) => {

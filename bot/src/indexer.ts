@@ -188,7 +188,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const reasonHashHex = reason.toString(16).padStart(64, '0');
 
         // Only resolve IPFS if text is not already in Supabase
-        const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, reason_text').eq('address', jobAddr).single();
+        const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, reason_text, state, provider, submitted_at').eq('address', jobAddr).single();
         const needDesc = !existingContent?.description_text && descHashHex !== ZERO_HASH;
         const needResult = !existingContent?.result_text && resultHashHex !== ZERO_HASH;
         const needReason = !existingContent?.reason_text && reasonHashHex !== ZERO_HASH && state >= 3;
@@ -240,7 +240,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             await sb.from('transactions').upsert({ job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee, utime: tx.utime }, { onConflict: 'tx_hash' });
         }
 
-        // Activity events — rebuild from opcodes (replaces fragile index-based mapping)
+        // Activity events — rebuild from opcodes only if state/provider/submit changed
+        const stateChanged = force || !existingContent || existingContent.state !== state
+            || existingContent.provider !== providerStr || existingContent.submitted_at !== submittedAt;
+        if (!stateChanged) { log(`  [SKIP] Activity unchanged for ${type}#${jobId}`); return; }
         await sb.from('activity_events').delete().eq('job_address', jobAddr);
         const chronTxs = [...txs].reverse(); // oldest first
         for (const tx of chronTxs) {
@@ -263,7 +266,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 case OP.SET_BUDGET:
                     continue;
                 case OP.TAKE:
-                    event = 'Taken'; evStatus = 'FUNDED';
+                    event = 'Taken'; evStatus = 'TAKEN';
                     break;
                 case OP.SUBMIT:
                     event = 'Submitted'; evStatus = 'SUBMITTED'; amount = budgetFormatted;
@@ -282,10 +285,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                     event = 'Cancelled'; evStatus = 'CANCELLED'; amount = `${budgetFormatted} → Client`; from = clientStr;
                     break;
                 case OP.CLAIM:
-                    event = 'Claimed'; evStatus = 'COMPLETED'; amount = `${budgetFormatted} → Provider`;
+                    event = 'Claimed'; evStatus = 'CLAIMED'; amount = `${budgetFormatted} → Provider`;
                     break;
                 case OP.QUIT:
-                    event = 'Quit'; evStatus = 'FUNDED';
+                    event = 'Quit'; evStatus = 'QUIT';
                     break;
                 default:
                     continue;
