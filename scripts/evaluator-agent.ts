@@ -238,13 +238,13 @@ Submitted result: ${result}`;
                             const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
                             const parsed = JSON.parse(jsonStr);
                             approved = !!parsed.approved;
-                            reason = String(parsed.reason || '').slice(0, 60);
+                            reason = String(parsed.reason || '');
                         } catch (err: any) {
                             log(`⚠️ Gemini parse error: ${err.message} — skipping`);
                             continue;
                         }
 
-                        log(`${approved ? '✅' : '❌'} Decision: ${approved ? 'APPROVED' : 'REJECTED'} — "${reason}"`);
+                        log(`${approved ? '✅' : '❌'} Decision: ${approved ? 'APPROVED' : 'REJECTED'} — "${reason.slice(0, 80)}"`);
 
                         if (DRY_RUN) {
                             log(`🔒 DRY RUN — not sending transaction`);
@@ -254,7 +254,35 @@ Submitted result: ${result}`;
 
                         // Send evaluate transaction
                         try {
-                            const reasonHash = BigInt('0x' + Buffer.from(reason).toString('hex').padEnd(64, '0').slice(0, 64));
+                            let reasonHash: bigint;
+                            const reasonBytes = Buffer.from(reason);
+                            if (reasonBytes.length <= 32) {
+                                // Short reason — store directly on-chain
+                                reasonHash = BigInt('0x' + reasonBytes.toString('hex').padEnd(64, '0').slice(0, 64));
+                            } else if (PINATA_JWT) {
+                                // Long reason — upload to IPFS, store hash
+                                const { createHash } = await import('crypto');
+                                const json = JSON.stringify({ type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString() });
+                                const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
+                                const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${PINATA_JWT}` },
+                                    body: JSON.stringify({
+                                        pinataContent: { type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString() },
+                                        pinataMetadata: { name: `enact-reason-${hash.slice(0, 8)}`, keyvalues: { descHash: hash } },
+                                    }),
+                                });
+                                if (res.ok) {
+                                    log(`📌 Reason uploaded to IPFS (${reason.length} chars)`);
+                                    reasonHash = BigInt('0x' + hash);
+                                } else {
+                                    // Fallback: truncate
+                                    reasonHash = BigInt('0x' + reasonBytes.toString('hex').padEnd(64, '0').slice(0, 64));
+                                }
+                            } else {
+                                // No IPFS — truncate
+                                reasonHash = BigInt('0x' + reasonBytes.toString('hex').padEnd(64, '0').slice(0, 64));
+                            }
                             const body = beginCell()
                                 .storeUint(0x00000004, 32) // evaluate opcode
                                 .storeUint(approved ? 1 : 0, 8)

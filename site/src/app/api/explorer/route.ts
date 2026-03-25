@@ -73,6 +73,7 @@ async function fetchFromSupabase() {
       resultContent: resContent,
       reasonContent: j.reason_text ? { text: j.reason_text, source: 'hex' } : { text: null, source: 'hash' },
       hasFile: !!(j.description_file_cid || j.result_file_cid),
+      pendingState: j.pending_state || null,
       transactions: txByJob.get(j.address) ?? [],
     };
   };

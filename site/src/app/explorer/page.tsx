@@ -241,7 +241,7 @@ export default function ExplorerPage() {
                           className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#151515] transition-colors">
                           <td className="px-3 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} />{job.hasFile && <FileClip />}</span></td>
                           <td className="px-3 py-2.5 hidden sm:table-cell"><span className="inline-flex items-center gap-1.5"><span className="font-mono text-xs text-[#888]">{truncAddr(job.address)}</span><TonscanLink addr={job.address} size={12} /></span></td>
-                          <td className="px-3 py-2.5"><Badge status={job.stateName} /></td>
+                          <td className="px-3 py-2.5"><Badge status={job.stateName} pending={job.pendingState} /></td>
                           <td className="px-3 py-2.5 text-[#ccc]"><BudgetDisplay job={job} /></td>
                           <td className="px-3 py-2.5 hidden md:table-cell"><ClickAddr addr={job.client} truncate /></td>
                           <td className="px-3 py-2.5 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</td>

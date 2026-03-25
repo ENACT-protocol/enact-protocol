@@ -32,6 +32,7 @@ export type Job = {
   evalTimeout: number; submittedAt: number; resultType?: number;
   description?: ResolvedContent; resultContent?: ResolvedContent; reasonContent?: ResolvedContent;
   hasFile?: boolean;
+  pendingState?: string | null;
   transactions?: Array<{ hash: string; fee: string; utime: number }>;
 };
 
@@ -174,8 +175,13 @@ export function Shimmer({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-[#1a1a1a] rounded ${className ?? ''}`} />;
 }
 
-export function Badge({ status }: { status: string }) {
-  return <span className={`text-xs px-2 py-0.5 rounded border font-mono explorer-badge ${STATUS_STYLES[status] ?? 'border-[#555] text-[#888]'}`}>{status}</span>;
+export function Badge({ status, pending }: { status: string; pending?: string | null }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`text-xs px-2 py-0.5 rounded border font-mono explorer-badge ${STATUS_STYLES[status] ?? 'border-[#555] text-[#888]'}`}>{status}</span>
+      {pending && <span className="text-xs px-2 py-0.5 rounded bg-[#F59E0B20] border border-[#F59E0B] text-[#F59E0B] font-mono animate-pulse">{pending}</span>}
+    </span>
+  );
 }
 
 export function TonIcon({ size = 16 }: { size?: number }) {

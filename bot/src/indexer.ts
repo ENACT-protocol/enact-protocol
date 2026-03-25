@@ -154,18 +154,21 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const budgetFormatted = type === 'usdt' ? `${(budgetNum / 1e6).toFixed(2)} USDT` : `${(budgetNum / 1e9).toFixed(2)} TON`;
         const descHashHex = descHash.toString(16).padStart(64, '0');
         const resultHashHex = resultHash.toString(16).padStart(64, '0');
+        const reasonHashHex = reason.toString(16).padStart(64, '0');
 
         // Only resolve IPFS if text is not already in Supabase
-        const { data: existingContent } = await sb.from('jobs').select('description_text, result_text').eq('address', jobAddr).single();
+        const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, reason_text').eq('address', jobAddr).single();
         const needDesc = !existingContent?.description_text && descHashHex !== ZERO_HASH;
         const needResult = !existingContent?.result_text && resultHashHex !== ZERO_HASH;
+        const needReason = !existingContent?.reason_text && reasonHashHex !== ZERO_HASH && state >= 3;
 
         const ipfsT0 = Date.now();
-        const [descContent, resultContent] = await Promise.all([
+        const [descContent, resultContent, reasonContent] = await Promise.all([
             needDesc ? resolveContent(descHashHex) : Promise.resolve({ text: existingContent?.description_text, ipfsUrl: null, fileCid: null, fileName: null }),
             needResult ? resolveContent(resultHashHex) : Promise.resolve({ text: existingContent?.result_text, ipfsUrl: null, fileCid: null, fileName: null }),
+            needReason ? resolveContent(reasonHashHex) : Promise.resolve({ text: existingContent?.reason_text, ipfsUrl: null, fileCid: null, fileName: null }),
         ]);
-        if (needDesc || needResult) log(`  [IPFS] Resolve +${Date.now()-ipfsT0}ms (desc=${needDesc} res=${needResult})`);
+        if (needDesc || needResult || needReason) log(`  [IPFS] Resolve +${Date.now()-ipfsT0}ms (desc=${needDesc} res=${needResult} reason=${needReason})`);
 
         const txT0 = Date.now();
         const rawTxs = await fetchTransactions(jobAddr);
@@ -197,6 +200,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         if (resultContent.ipfsUrl !== null) jobData.result_ipfs_url = resultContent.ipfsUrl;
         if (resultContent.fileCid !== null) jobData.result_file_cid = resultContent.fileCid;
         if (resultContent.fileName !== null) jobData.result_file_name = resultContent.fileName;
+        if (reasonContent.text !== null) jobData.reason_text = reasonContent.text;
 
         await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
         log(`  [DB] Upserted job +${Date.now()-t0}ms`);
@@ -318,9 +322,9 @@ function connectWebSocket() {
             operation: 'subscribe', id: 'enact-idx',
             addresses: trackedAddresses,
             types: ['transactions'],
-            min_finality: 'finalized',
+            min_finality: 'pending',
         }));
-        log(`WS subscribed to ${trackedAddresses.length} addresses (finalized only)`);
+        log(`WS subscribed to ${trackedAddresses.length} addresses (pending→finalized)`);
     });
 
     ws.on('message', async (raw: Buffer) => {
@@ -329,12 +333,39 @@ function connectWebSocket() {
             if (data.id) return; // subscription confirmation
             if (data.error) { log(`WS error: ${JSON.stringify(data.error)}`); return; }
 
-            if (data.type === 'transactions' && data.finality === 'finalized' && data.transactions) {
+            if (data.type === 'transactions' && data.transactions) {
+                const finality = data.finality || 'unknown';
                 for (const tx of data.transactions) {
                     const account = tx.account;
                     if (!account) continue;
+
+                    // Handle pending/confirmed: write pending_state to Supabase
+                    if (finality === 'pending' || finality === 'confirmed') {
+                        try {
+                            const friendlyAddr = Address.parse(account).toString();
+                            const { data: job } = await sb.from('jobs').select('job_id, factory_type').eq('address', friendlyAddr).single();
+                            if (job) {
+                                const badge = finality === 'pending' ? 'Processing...' : 'Confirming...';
+                                await sb.from('jobs').update({ pending_state: badge }).eq('address', friendlyAddr);
+                                log(`[WS] ${finality}: ${job.factory_type}#${job.job_id} → ${badge}`);
+                            }
+                        } catch {}
+                        continue; // Don't process further for non-finalized
+                    }
+
+                    // trace_invalidated — clear pending state
+                    if (finality === 'trace_invalidated') {
+                        try {
+                            const friendlyAddr = Address.parse(account).toString();
+                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
+                            log(`[WS] trace_invalidated for ${account.slice(0, 16)}`);
+                        } catch {}
+                        continue;
+                    }
+
+                    // finalized — full processing
                     const t0 = Date.now();
-                    log(`[WS] Event received: account=${account.slice(0, 16)}... t=${t0}`);
+                    log(`[WS] Event received (${finality}): account=${account.slice(0, 16)}... t=${t0}`);
 
                     const accountLower = account.toLowerCase();
                     const rawFactory = Address.parse(FACTORY).toRawString().toLowerCase();
@@ -347,14 +378,14 @@ function connectWebSocket() {
                         try {
                             const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
                             const lastCount = state?.last_job_count ?? 0;
-                            // Retry up to 5 times — factory may not have incremented yet
+                            // Retry — factory needs time to deploy job contract
                             let count = lastCount;
-                            for (let r = 0; r < 5; r++) {
+                            for (let r = 0; r < 10; r++) {
                                 const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
                                 count = countResult.stack.readNumber();
                                 if (count > lastCount) break;
-                                log(`[WS] Count unchanged (${count}), retrying in 3s... (+${Date.now()-t0}ms)`);
-                                await sleep(3000);
+                                log(`[WS] Count unchanged (${count}), retry ${r+1}/10 in 1s... (+${Date.now()-t0}ms)`);
+                                await sleep(1000);
                             }
                             if (count > lastCount) {
                                 for (let i = lastCount; i < count; i++) {
@@ -364,7 +395,7 @@ function connectWebSocket() {
                                 }
                                 await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
                                 await refreshTrackedAddresses();
-                                ws.send(JSON.stringify({ operation: 'subscribe', id: 'enact-idx-update', addresses: trackedAddresses, types: ['transactions'], min_finality: 'finalized' }));
+                                ws.send(JSON.stringify({ operation: 'subscribe', id: 'enact-idx-update', addresses: trackedAddresses, types: ['transactions'], min_finality: 'pending' }));
                                 log(`[WS] Resubscribed ${trackedAddresses.length} addrs t=${Date.now()} (+${Date.now()-t0}ms)`);
                             }
                         } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
@@ -375,6 +406,8 @@ function connectWebSocket() {
                         if (job) {
                             log(`[IDX] Re-index ${job.factory_type}#${job.job_id} start t=${Date.now()} (+${Date.now()-t0}ms)`);
                             await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
+                            // Clear pending_state on finalized
+                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
                             log(`[DB] Done ${job.factory_type}#${job.job_id} t=${Date.now()} (+${Date.now()-t0}ms)`);
                         }
                     }
