@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/Header';
@@ -30,9 +30,16 @@ export default function ExplorerPage() {
   const [addrFilter, setAddrFilter] = useState('');
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
+  // Freeze activity list while user is browsing pages > 0 to keep pagination stable
+  const activityRef = useRef<ReturnType<typeof buildActivity>>([]);
   const allActivity = useMemo(() => {
-    return buildActivity(allJobs, data?.activity);
-  }, [allJobs, data?.activity]);
+    const fresh = buildActivity(allJobs, data?.activity);
+    const browsing = actPage > 0 || txPage > 0;
+    if (!browsing || activityRef.current.length === 0) {
+      activityRef.current = fresh;
+    }
+    return activityRef.current;
+  }, [allJobs, data?.activity, actPage, txPage]);
 
   const filteredJobs = useMemo(() => {
     let jobs = allJobs;
