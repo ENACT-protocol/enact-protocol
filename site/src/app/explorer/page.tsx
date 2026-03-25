@@ -31,20 +31,7 @@ export default function ExplorerPage() {
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
   const allActivity = useMemo(() => {
-    const events = buildActivity(allJobs, data?.activity);
-    // Add pending activity events for instant feedback
-    for (const job of allJobs) {
-      if (job.pendingState) {
-        events.push({
-          jobId: job.jobId, type: job.type, address: job.address,
-          event: job.pendingState, status: job.stateName,
-          time: Math.floor(Date.now() / 1000), amount: '—', from: '',
-          txStatus: 'pending',
-        });
-      }
-    }
-    // Final sort: newest first (pending events have current timestamp → always on top)
-    return events.sort((a, b) => b.time - a.time);
+    return buildActivity(allJobs, data?.activity);
   }, [allJobs, data?.activity]);
 
   const filteredJobs = useMemo(() => {
