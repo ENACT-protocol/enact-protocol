@@ -8,7 +8,7 @@ import Footer from '../../../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
   Badge, Shimmer, TypeIcon, ClickAddr, Row, TonscanLink,
-  BudgetDisplay, truncAddr, fmtDateShort, timeAgo, STATUS_COLORS, AIBadge,
+  BudgetDisplay, truncAddr, fmtDateShort, timeAgo, STATUS_COLORS, EVENT_DOT_COLORS, AIBadge,
 } from '../../shared';
 import { FactoryCharts } from '../../Charts';
 
@@ -107,7 +107,7 @@ export default function FactoryPage() {
                         <tr key={`act-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                           className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
-                          <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
+                          <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555' }} className="mr-1.5">●</span>{ev.event}</td>
                           <td className="px-3 py-2 hidden xl:table-cell">{ev.txHash ? <a href={`https://tonscan.org/tx/${ev.txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#888] hover:text-white cursor-pointer">{truncAddr(ev.txHash)}</a> : <span className="text-[#555]">—</span>}</td>
                           <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>

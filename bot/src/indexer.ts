@@ -266,7 +266,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 case OP.SET_BUDGET:
                     continue;
                 case OP.TAKE:
-                    event = 'Taken'; evStatus = 'TAKEN';
+                    event = 'Taken'; evStatus = 'FUNDED';
                     break;
                 case OP.SUBMIT:
                     event = 'Submitted'; evStatus = 'SUBMITTED'; amount = budgetFormatted;
@@ -285,10 +285,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                     event = 'Cancelled'; evStatus = 'CANCELLED'; amount = `${budgetFormatted} → Client`; from = clientStr;
                     break;
                 case OP.CLAIM:
-                    event = 'Claimed'; evStatus = 'CLAIMED'; amount = `${budgetFormatted} → Provider`;
+                    event = 'Claimed'; evStatus = 'COMPLETED'; amount = `${budgetFormatted} → Provider`;
                     break;
                 case OP.QUIT:
-                    event = 'Quit'; evStatus = 'QUIT';
+                    event = 'Quit'; evStatus = 'FUNDED';
                     break;
                 default:
                     continue;

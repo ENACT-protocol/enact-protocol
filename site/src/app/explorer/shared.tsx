@@ -10,18 +10,22 @@ export const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj'
 export const STATUS_STYLES: Record<string, string> = {
   OPEN: 'border-[#FACC15] text-[#FACC15] bg-[#FACC1520]',
   FUNDED: 'border-[#60A5FA] text-[#60A5FA] bg-[#60A5FA20]',
-  TAKEN: 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F620]',
   SUBMITTED: 'border-[#A78BFA] text-[#A78BFA] bg-[#A78BFA20]',
   COMPLETED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
   CANCELLED: 'border-[#6B7280] text-[#6B7280] bg-[#6B728020]',
   DISPUTED: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
-  QUIT: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
-  CLAIMED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  OPEN: '#FACC15', FUNDED: '#60A5FA', TAKEN: '#3B82F6', SUBMITTED: '#A78BFA',
-  COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444', QUIT: '#EF4444', CLAIMED: '#4ADE80',
+  OPEN: '#FACC15', FUNDED: '#60A5FA', SUBMITTED: '#A78BFA',
+  COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
+};
+
+// Dot color by event name (independent of contract status)
+export const EVENT_DOT_COLORS: Record<string, string> = {
+  Created: '#FACC15', Funded: '#60A5FA', Taken: '#3B82F6', Quit: '#EF4444',
+  Submitted: '#A78BFA', Approved: '#4ADE80', Rejected: '#EF4444',
+  Cancelled: '#6B7280', Claimed: '#4ADE80',
 };
 
 
@@ -334,7 +338,16 @@ export function useExplorerData() {
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
       if (version !== requestVersionRef.current) return;
-      setData(json);
+      // Preserve locally-applied pendingState if API hasn't caught up yet
+      setData(prev => {
+        if (!prev) return json;
+        const merge = (apiJobs: Job[]) => apiJobs.map(j => {
+          if (j.pendingState) return j; // API already has it
+          const local = [...prev.tonJobs, ...prev.jettonJobs].find(l => l.address === j.address);
+          return local?.pendingState ? { ...j, pendingState: local.pendingState } : j;
+        });
+        return { ...json, tonJobs: merge(json.tonJobs), jettonJobs: merge(json.jettonJobs) };
+      });
       setError(null);
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -369,17 +382,16 @@ export function useExplorerData() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
             const row = payload.new;
             console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
-            if (row?.address && row?.pending_state) {
-              // Pending state set (Processing.../Confirming...) — apply instantly, skip API re-fetch
+            // Apply pending_state instantly to local state
+            if (row?.address) {
               setData(prev => {
                 if (!prev) return prev;
-                const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
+                const ps = row.pending_state || null;
+                const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: ps } : j;
                 return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
               });
-            } else {
-              // pending_state cleared or state changed — full re-fetch
-              debouncedFetch();
             }
+            debouncedFetch();
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
             console.log('[REALTIME] new activity:', payload.new?.event ?? '');

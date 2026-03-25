@@ -8,9 +8,6 @@ const API_KEY = process.env.TONCENTER_API_KEY || '';
 const PINATA_GW = 'https://ipfs.io/ipfs'; // Always use public gateway for reading
 const ZERO_HASH = '0'.repeat(64);
 
-interface CachedResponse { data: any; timestamp: number; }
-let responseCache: CachedResponse | null = null;
-const RESPONSE_TTL = 1_000; // 1s cache — Supabase reads are fast
 const BUILD_VERSION = 'v2'; // Bump to invalidate terminalCache on redeploy
 
 // ─── Supabase Read ───
@@ -291,12 +288,6 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    if (responseCache && Date.now() - responseCache.timestamp < RESPONSE_TTL) {
-      return NextResponse.json(responseCache.data, {
-        headers: { 'Cache-Control': 'no-store, max-age=0' },
-      });
-    }
-
     let data;
     try {
       data = await fetchFromSupabase();
@@ -304,7 +295,6 @@ export async function GET() {
       data = await fetchFromRPC();
     }
 
-    responseCache = { data, timestamp: Date.now() };
     return NextResponse.json(data, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });

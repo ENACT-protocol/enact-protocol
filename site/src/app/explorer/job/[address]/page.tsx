@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
-  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS, EVENT_DOT_COLORS,
   Badge, Shimmer, TypeIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge, CopyHash,
   BudgetDisplay, fmtDate, fmtTimeout,
 } from '../../shared';
@@ -149,7 +149,7 @@ export default function JobPage() {
                   <div className="space-y-3">
                     {jobActivity.map((ev, i) => {
                       const isAI = job.evaluator === AI_EVALUATOR;
-                      const color = STATUS_COLORS[ev.status] || '#555';
+                      const color = EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555';
                       switch (ev.event) {
                         case 'Created':
                           return <TxCard key={i} color={color} label="Created" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>

@@ -8,7 +8,7 @@ import Footer from '../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
   Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge, FileClip,
-  BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, timeAgo,
+  BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, EVENT_DOT_COLORS, timeAgo,
 } from './shared';
 import { ExplorerCharts } from './Charts';
 
@@ -30,7 +30,21 @@ export default function ExplorerPage() {
   const [addrFilter, setAddrFilter] = useState('');
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
-  const allActivity = useMemo(() => buildActivity(allJobs, data?.activity), [allJobs, data?.activity]);
+  const allActivity = useMemo(() => {
+    const events = buildActivity(allJobs, data?.activity);
+    // Add pending activity events at the top for instant feedback
+    for (const job of allJobs) {
+      if (job.pendingState) {
+        events.unshift({
+          jobId: job.jobId, type: job.type, address: job.address,
+          event: job.pendingState, status: job.stateName,
+          time: Math.floor(Date.now() / 1000), amount: '', from: '',
+          txStatus: 'pending',
+        });
+      }
+    }
+    return events;
+  }, [allJobs, data?.activity]);
 
   const filteredJobs = useMemo(() => {
     let jobs = allJobs;
@@ -159,7 +173,7 @@ export default function ExplorerPage() {
                       <tr key={`act-${ev.address}-${ev.event}-${ev.time}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                         className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors explorer-row">
                         <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
-                        <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
+                        <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: ev.txStatus === 'pending' ? '#F59E0B' : (EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555') }} className={`mr-1.5${ev.txStatus === 'pending' ? ' animate-pulse' : ''}`}>●</span>{ev.event}</td>
                         <td className="px-3 py-2 hidden xl:table-cell">{ev.txHash ? <a href={`https://tonscan.org/tx/${ev.txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#888] hover:text-white cursor-pointer">{truncAddr(ev.txHash)}</a> : <span className="text-[#555]">—</span>}</td>
                         <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
@@ -208,7 +222,7 @@ export default function ExplorerPage() {
                       {txOnPage.map((ev, i) => (
                         <tr key={`tx-${txPage}-${i}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                           className="border-b border-[#1a1a1a] last:border-0 cursor-pointer hover:bg-[#151515] transition-colors">
-                          <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: STATUS_COLORS[ev.status] }} className="mr-1.5">●</span>{ev.event}</td>
+                          <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: ev.txStatus === 'pending' ? '#F59E0B' : (EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555') }} className={`mr-1.5${ev.txStatus === 'pending' ? ' animate-pulse' : ''}`}>●</span>{ev.event}</td>
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                           <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
