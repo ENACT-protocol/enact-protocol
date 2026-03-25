@@ -284,6 +284,9 @@ async function backfill() {
 
 let wsReconnectDelay = 1000;
 let trackedAddresses: string[] = [];
+// Track finalized accounts to skip stale pending/confirmed events
+const finalizedRecently = new Set<string>();
+setInterval(() => finalizedRecently.clear(), 300_000); // Clear every 5 min
 
 async function refreshTrackedAddresses() {
     const sb = getSupabase();
@@ -341,6 +344,7 @@ function connectWebSocket() {
 
                     // Handle pending/confirmed: write pending_state to Supabase
                     if (finality === 'pending' || finality === 'confirmed') {
+                        if (finalizedRecently.has(account)) continue; // Skip stale events
                         try {
                             const friendlyAddr = Address.parse(account).toString();
                             const { data: job } = await sb.from('jobs').select('job_id, factory_type').eq('address', friendlyAddr).single();
@@ -350,7 +354,7 @@ function connectWebSocket() {
                                 log(`[WS] ${finality}: ${job.factory_type}#${job.job_id} → ${badge}`);
                             }
                         } catch {}
-                        continue; // Don't process further for non-finalized
+                        continue;
                     }
 
                     // trace_invalidated — clear pending state
@@ -364,6 +368,7 @@ function connectWebSocket() {
                     }
 
                     // finalized — full processing
+                    finalizedRecently.add(account);
                     const t0 = Date.now();
                     log(`[WS] Event received (${finality}): account=${account.slice(0, 16)}... t=${t0}`);
 

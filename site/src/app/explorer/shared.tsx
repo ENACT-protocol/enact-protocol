@@ -380,7 +380,7 @@ export function useExplorerData() {
 
   useEffect(() => {
     fetchData();
-    const i = setInterval(fetchData, POLL_INTERVAL);
+    let i: ReturnType<typeof setInterval> = setInterval(fetchData, POLL_INTERVAL);
     const onVisibility = () => {
       if (document.visibilityState === 'visible') { setError(null); fetchData(); }
     };
@@ -388,16 +388,36 @@ export function useExplorerData() {
 
     // Supabase Realtime: instant updates when indexer writes to DB
     let channel: any = null;
+    let realtimeConnected = false;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (supabaseUrl && supabaseKey) {
       import('@supabase/supabase-js').then(({ createClient }) => {
         const sb = createClient(supabaseUrl, supabaseKey);
         channel = sb.channel('explorer-live')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => fetchData())
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, () => fetchData())
-          .subscribe();
-      }).catch(() => {});
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
+            console.log('[REALTIME] jobs change:', payload.eventType, payload.new?.job_id ?? '');
+            fetchData();
+          })
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
+            console.log('[REALTIME] new activity:', payload.new?.event ?? '');
+            fetchData();
+          })
+          .on('system', {} as any, (status: any) => {
+            console.log('[REALTIME] system:', status);
+          })
+          .subscribe((status: string) => {
+            console.log('[REALTIME] subscribe status:', status);
+            if (status === 'SUBSCRIBED') {
+              realtimeConnected = true;
+              // Switch to slow polling when realtime is connected
+              clearInterval(i);
+              i = setInterval(fetchData, 60_000); // 60s fallback
+            }
+          });
+      }).catch((err) => {
+        console.error('[REALTIME] Failed to connect:', err);
+      });
     }
 
     return () => {
