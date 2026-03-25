@@ -38,7 +38,7 @@ export default function ExplorerPage() {
         events.unshift({
           jobId: job.jobId, type: job.type, address: job.address,
           event: job.pendingState, status: job.stateName,
-          time: Math.floor(Date.now() / 1000), amount: '', from: '',
+          time: Math.floor(Date.now() / 1000), amount: '—', from: '',
           txStatus: 'pending',
         });
       }
@@ -177,7 +177,7 @@ export default function ExplorerPage() {
                         <td className="px-3 py-2 hidden xl:table-cell">{ev.txHash ? <a href={`https://tonscan.org/tx/${ev.txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#888] hover:text-white cursor-pointer">{truncAddr(ev.txHash)}</a> : <span className="text-[#555]">—</span>}</td>
                         <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
-                        <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
+                        <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount || '—'}</td>
                         <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                       </tr>
                     ))}
@@ -225,7 +225,7 @@ export default function ExplorerPage() {
                           <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: ev.txStatus === 'pending' ? '#F59E0B' : (EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555') }} className={`mr-1.5${ev.txStatus === 'pending' ? ' animate-pulse' : ''}`}>●</span>{ev.event}</td>
                           <td className="px-3 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                           <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
-                          <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount}</td>
+                          <td className="px-3 py-2 text-[#ccc] hidden sm:table-cell whitespace-nowrap">{ev.amount || '—'}</td>
                           <td className="px-3 py-2 text-[#555] text-xs whitespace-nowrap">{timeAgo(ev.time)}</td>
                         </tr>
                       ))}

@@ -338,15 +338,19 @@ export function useExplorerData() {
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
       if (version !== requestVersionRef.current) return;
-      // Preserve locally-applied pendingState if API hasn't caught up yet
+      // Merge: preserve pendingState + don't replace activity if indexer mid-rebuild
       setData(prev => {
         if (!prev) return json;
         const merge = (apiJobs: Job[]) => apiJobs.map(j => {
-          if (j.pendingState) return j; // API already has it
+          if (j.pendingState) return j;
           const local = [...prev.tonJobs, ...prev.jettonJobs].find(l => l.address === j.address);
           return local?.pendingState ? { ...j, pendingState: local.pendingState } : j;
         });
-        return { ...json, tonJobs: merge(json.tonJobs), jettonJobs: merge(json.jettonJobs) };
+        // Keep old activity if API returned fewer events (indexer mid delete+rebuild)
+        const prevAct = prev.activity?.length ?? 0;
+        const newAct = json.activity?.length ?? 0;
+        const activity = newAct >= prevAct ? json.activity : prev.activity;
+        return { ...json, activity, tonJobs: merge(json.tonJobs), jettonJobs: merge(json.jettonJobs) };
       });
       setError(null);
     } catch (e: unknown) {

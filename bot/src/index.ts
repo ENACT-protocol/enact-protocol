@@ -2214,7 +2214,16 @@ async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
         await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
-        await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
+        const msg = err.message || '';
+        if (msg.includes('500') || msg.includes('504') || msg.includes('timeout')) {
+            const isJetton = factory === JETTON_FACTORY_ADDRESS;
+            const kb = new InlineKeyboard()
+                .text('🔭 Status', `${isJetton ? 'j' : ''}status_${jobId}`)
+                .text('🏠 Menu', 'menu_main');
+            await ctx.reply(`${e('⚠️')} Transaction sent but RPC returned error. Check job status to verify.`, { parse_mode: 'HTML', reply_markup: kb });
+        } else {
+            await ctx.reply(`${e('❌')} Error: ${msg}`, { parse_mode: 'HTML' });
+        }
     }
 }
 
