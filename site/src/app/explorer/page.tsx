@@ -30,7 +30,7 @@ export default function ExplorerPage() {
   const [addrFilter, setAddrFilter] = useState('');
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
-  const allActivity = useMemo(() => buildActivity(allJobs), [allJobs]);
+  const allActivity = useMemo(() => buildActivity(allJobs, data?.activity), [allJobs, data?.activity]);
 
   const filteredJobs = useMemo(() => {
     let jobs = allJobs;

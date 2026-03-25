@@ -35,7 +35,7 @@ export default function FactoryPage() {
     return { open: c('OPEN'), funded: c('FUNDED'), submitted: c('SUBMITTED'), completed: c('COMPLETED'), disputed: c('DISPUTED'), cancelled: c('CANCELLED'), volume };
   }, [info]);
 
-  const activity = useMemo(() => info ? buildActivity(info.jobs) : [], [info]);
+  const activity = useMemo(() => info ? buildActivity(info.jobs, data?.activity?.filter(a => a.type === info.type)) : [], [info, data?.activity]);
   const actOnPage = activity.slice(actPage * ACT_PAGE, (actPage + 1) * ACT_PAGE);
   const actTotalPages = Math.ceil(activity.length / ACT_PAGE) || 1;
 

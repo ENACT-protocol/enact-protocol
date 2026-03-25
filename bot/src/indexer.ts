@@ -6,7 +6,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { TonClient } from '@ton/ton';
-import { Address } from '@ton/core';
+import { Address, Cell } from '@ton/core';
 import WebSocket from 'ws';
 
 const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
@@ -86,9 +86,15 @@ async function resolveContent(hash: string): Promise<{ text: string | null; ipfs
     return { text: null, ipfsUrl: null, fileCid: null, fileName: null };
 }
 
-// ─── Transaction Fetching (with retry + backoff) ───
+// ─── Opcodes ───
 
-async function fetchTransactions(address: string): Promise<any[]> {
+const OP = { FUND: 1, TAKE: 2, SUBMIT: 3, EVALUATE: 4, CANCEL: 5, INIT_JOB: 6, CLAIM: 7, QUIT: 8, SET_BUDGET: 9, SET_JETTON_WALLET: 0x0A, JETTON_NOTIFY: 0x7362d09c };
+
+interface ParsedTx { hash: string; fee: string; utime: number; opcode: number | null; from: string | null; approved?: boolean; }
+
+// ─── Transaction Fetching (with retry + backoff + opcode parsing) ───
+
+async function fetchTransactions(address: string): Promise<ParsedTx[]> {
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
             const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(address)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
@@ -96,7 +102,32 @@ async function fetchTransactions(address: string): Promise<any[]> {
             if (res.status === 429) { await sleep(2000 * (attempt + 1)); continue; }
             if (!res.ok) return [];
             const data = await res.json() as { ok: boolean; result?: any[] };
-            return data.ok ? (data.result ?? []) : [];
+            if (!data.ok) return [];
+            return (data.result ?? []).map((tx: any) => {
+                let opcode: number | null = null;
+                let approved: boolean | undefined;
+                try {
+                    const body = tx.in_msg?.msg_data?.body;
+                    if (body) {
+                        const cell = Cell.fromBoc(Buffer.from(body, 'base64'))[0];
+                        const slice = cell.beginParse();
+                        if (slice.remainingBits >= 32) {
+                            opcode = slice.loadUint(32);
+                            if (opcode === OP.EVALUATE && slice.remainingBits >= 8) {
+                                approved = slice.loadUint(8) === 1;
+                            }
+                        }
+                    }
+                } catch {}
+                return {
+                    hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
+                    fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
+                    utime: tx.utime || 0,
+                    opcode,
+                    from: tx.in_msg?.source || null,
+                    approved,
+                };
+            });
         } catch {
             if (attempt < 2) await sleep(1000 * (attempt + 1));
         }
@@ -171,22 +202,20 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         if (needDesc || needResult || needReason) log(`  [IPFS] Resolve +${Date.now()-ipfsT0}ms (desc=${needDesc} res=${needResult} reason=${needReason})`);
 
         const txT0 = Date.now();
-        const rawTxs = await fetchTransactions(jobAddr);
-        log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${rawTxs.length} txs)`);
-        const txs = rawTxs.map((tx: any) => ({
-            hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
-            fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
-            utime: tx.utime || 0,
-        }));
+        const txs = await fetchTransactions(jobAddr);
+        log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${txs.length} txs)`);
 
         const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
+        const clientStr = clientAddr.toString(uf);
+        const providerStr = providerAddr?.toString(uf) ?? null;
+        const evaluatorStr = evaluatorAddr.toString(uf);
 
         // Build upsert — never overwrite content with null
         const jobData: Record<string, any> = {
             job_id: jobId, factory_type: type, address: jobAddr, factory_address: factory,
             state, state_name: stateName,
-            client: clientAddr.toString(uf), provider: providerAddr?.toString(uf) ?? null,
-            evaluator: evaluatorAddr.toString(uf), budget: budgetNum, budget_formatted: budgetFormatted,
+            client: clientStr, provider: providerStr,
+            evaluator: evaluatorStr, budget: budgetNum, budget_formatted: budgetFormatted,
             desc_hash: descHashHex, result_hash: resultHashHex,
             timeout, created_at: effectiveCreatedAt, eval_timeout: evalTimeout,
             submitted_at: submittedAt, result_type: resultType,
@@ -205,37 +234,65 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
         log(`  [DB] Upserted job +${Date.now()-t0}ms`);
 
-        // Transactions
+        // Transactions table
         for (const tx of txs) {
             if (!tx.hash) continue;
             await sb.from('transactions').upsert({ job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee, utime: tx.utime }, { onConflict: 'tx_hash' });
         }
 
-        // Activity events (simplified — only add if not exists)
-        const chronTxs = [...txs].reverse();
-        const clientStr = clientAddr.toString(uf);
-        const providerStr = providerAddr?.toString(uf) ?? null;
-        const evaluatorStr = evaluatorAddr.toString(uf);
-        const isUsdt = type === 'usdt';
-        const addAct = async (event: string, status: string, time: number, amount: string | null, from: string | null, txHash: string | null) => {
-            const { data: ex } = await sb.from('activity_events').select('id').eq('job_address', jobAddr).eq('event', event).limit(1);
-            if (ex && ex.length > 0) return;
-            await sb.from('activity_events').insert({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status, time, amount, from_address: from, tx_hash: txHash });
-        };
+        // Activity events — rebuild from opcodes (replaces fragile index-based mapping)
+        await sb.from('activity_events').delete().eq('job_address', jobAddr);
+        const chronTxs = [...txs].reverse(); // oldest first
+        for (const tx of chronTxs) {
+            if (!tx.opcode) continue;
+            let event: string | null = null;
+            let evStatus = '';
+            let amount: string | null = null;
+            let from: string | null = null;
+            try { from = tx.from ? Address.parse(tx.from).toString(uf) : null; } catch { from = tx.from; }
 
-        if (effectiveCreatedAt && chronTxs[0]) await addAct('Created', 'OPEN', chronTxs[0].utime || effectiveCreatedAt, budgetFormatted, clientStr, chronTxs[0].hash);
-        const fundIdx = isUsdt ? 2 : 1;
-        if (state >= 1 && chronTxs[fundIdx]) await addAct('Funded', 'FUNDED', chronTxs[fundIdx].utime, budgetFormatted, clientStr, chronTxs[fundIdx].hash);
-        const takeBase = isUsdt ? 3 : 2;
-        if (providerStr && chronTxs[takeBase]) await addAct('Taken', 'FUNDED', chronTxs[takeBase].utime, null, providerStr, chronTxs[takeBase].hash);
-        const subIdx = providerStr ? takeBase + 1 : takeBase;
-        if (submittedAt && chronTxs[subIdx]) await addAct('Submitted', 'SUBMITTED', chronTxs[subIdx].utime, budgetFormatted, providerStr, chronTxs[subIdx].hash);
-        const termIdx = submittedAt ? subIdx + 1 : takeBase + 1;
-        if (stateName === 'COMPLETED' && chronTxs[termIdx]) await addAct('Approved', 'COMPLETED', chronTxs[termIdx].utime, `${budgetFormatted} → Provider`, evaluatorStr, chronTxs[termIdx].hash);
-        if (stateName === 'DISPUTED' && chronTxs[termIdx]) await addAct('Rejected', 'DISPUTED', chronTxs[termIdx].utime, budgetFormatted, evaluatorStr, chronTxs[termIdx].hash);
-        if (stateName === 'CANCELLED') {
-            const lastTx = chronTxs[chronTxs.length - 1];
-            if (lastTx) await addAct('Cancelled', 'CANCELLED', lastTx.utime, `${budgetFormatted} → Client`, clientStr, lastTx.hash);
+            switch (tx.opcode) {
+                case OP.INIT_JOB:
+                    event = 'Created'; evStatus = 'OPEN'; amount = budgetFormatted; from = clientStr;
+                    break;
+                case OP.FUND:
+                case OP.JETTON_NOTIFY:
+                    event = 'Funded'; evStatus = 'FUNDED'; amount = budgetFormatted; from = clientStr;
+                    break;
+                case OP.SET_JETTON_WALLET:
+                case OP.SET_BUDGET:
+                    continue;
+                case OP.TAKE:
+                    event = 'Taken'; evStatus = 'FUNDED';
+                    break;
+                case OP.SUBMIT:
+                    event = 'Submitted'; evStatus = 'SUBMITTED'; amount = budgetFormatted;
+                    break;
+                case OP.EVALUATE: {
+                    const isApproved = tx.approved !== undefined ? tx.approved : (state === 3);
+                    if (isApproved) {
+                        event = 'Approved'; evStatus = 'COMPLETED'; amount = `${budgetFormatted} → Provider`;
+                    } else {
+                        event = 'Rejected'; evStatus = 'DISPUTED'; amount = budgetFormatted;
+                    }
+                    from = evaluatorStr;
+                    break;
+                }
+                case OP.CANCEL:
+                    event = 'Cancelled'; evStatus = 'CANCELLED'; amount = `${budgetFormatted} → Client`; from = clientStr;
+                    break;
+                case OP.CLAIM:
+                    event = 'Claimed'; evStatus = 'COMPLETED'; amount = `${budgetFormatted} → Provider`;
+                    break;
+                case OP.QUIT:
+                    event = 'Quit'; evStatus = 'FUNDED';
+                    break;
+                default:
+                    continue;
+            }
+            if (event) {
+                await sb.from('activity_events').insert({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
+            }
         }
     } catch (err: any) {
         log(`  indexJob ${type}#${jobId} err: ${err.message}`);

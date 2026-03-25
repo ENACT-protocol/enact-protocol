@@ -81,8 +81,15 @@ async function fetchFromSupabase() {
   const tonJobs = jobs.filter((j: any) => j.factory_type === 'ton').map(transform);
   const jettonJobs = jobs.filter((j: any) => j.factory_type === 'usdt').map(transform);
 
+  const activityEvents = (activity ?? []).map((e: any) => ({
+    jobId: e.job_id, type: e.factory_type, address: e.job_address,
+    event: e.event, status: e.status, time: e.time,
+    amount: e.amount, from: e.from_address, txHash: e.tx_hash,
+  }));
+
   return {
     tonJobs, jettonJobs,
+    activity: activityEvents,
     factories: {
       ton: { address: FACTORY, jobCount: tonJobs.length },
       jetton: { address: JETTON_FACTORY, jobCount: jettonJobs.length },

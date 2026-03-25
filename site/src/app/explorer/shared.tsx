@@ -38,6 +38,7 @@ export type Job = {
 
 export type ExplorerData = {
   tonJobs: Job[]; jettonJobs: Job[];
+  activity?: ActivityEvent[];
   factories: { ton: { address: string; jobCount: number }; jetton: { address: string; jobCount: number } };
   lastUpdated: number;
 };
@@ -100,71 +101,34 @@ export function txCount(j: Job): number {
   return n;
 }
 
-export function buildActivity(jobs: Job[]): ActivityEvent[] {
+export function buildActivity(jobs: Job[], apiActivity?: ActivityEvent[]): ActivityEvent[] {
+  // Use server-side opcode-parsed activity events if available
+  if (apiActivity && apiActivity.length > 0) {
+    return [...apiActivity].sort((a, b) => b.time - a.time);
+  }
+  // Fallback: build from job data (RPC mode only)
   const events: ActivityEvent[] = [];
   for (const j of jobs) {
     const bf = j.budgetFormatted;
-    // Txs from API: newest-first → reverse to oldest-first (chronological)
-    // TON:  [0]=initJob [1]=fund [2]=take [3]=submit [4]=evaluate
-    // USDT: [0]=initJob [1]=setWallet [2]=fund [3]=take [4]=submit [5]=evaluate
-    // But take+submit can be combined in older jobs, so detect from tx count
     const txs = [...(j.transactions ?? [])].reverse();
-    const isUsdt = j.type === 'usdt';
-    const baseOffset = isUsdt ? 3 : 2; // take starts here
-    const hasSeparateTake = j.provider && j.provider !== 'none';
-    const submitOffset = hasSeparateTake ? baseOffset + 1 : baseOffset;
-    const terminalOffset = j.submittedAt ? submitOffset + 1 : baseOffset + 1;
-    const txIdx = {
-      created: 0,
-      setWallet: isUsdt ? 1 : -1,
-      funded: isUsdt ? 2 : 1,
-      taken: baseOffset,
-      submitted: submitOffset,
-      terminal: terminalOffset,
-    };
-    const txAt = (idx: number) => idx >= 0 && idx < txs.length ? txs[idx] : null;
-    const mk = (event: string, status: string, time: number, amount: string, from: string, idx: number): ActivityEvent => {
-      return { jobId: j.jobId, type: j.type, address: j.address, event, status, time, amount, from, txHash: txAt(idx)?.hash };
-    };
-
-    // Always use initJob tx utime for Created (contract createdAt changes at fund time)
-    const initTxTime = txs[0]?.utime || 0;
-    const createTime = initTxTime || j.createdAt || 0;
-    if (createTime) events.push(mk('Created', 'OPEN', createTime, bf, j.client, txIdx.created));
+    const createTime = txs[0]?.utime || j.createdAt || 0;
+    if (createTime) events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Created', status: 'OPEN', time: createTime, amount: bf, from: j.client });
     if (j.state >= 1) {
-      // Fund time: use fund tx utime, fallback to createdAt from contract
-      const fundTxTime = txAt(txIdx.funded)?.utime || j.createdAt || createTime + 1;
-      events.push(mk('Funded', 'FUNDED', fundTxTime, bf, j.client, txIdx.funded));
+      const fundTime = txs[1]?.utime || j.createdAt || createTime + 1;
+      events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Funded', status: 'FUNDED', time: fundTime, amount: bf, from: j.client });
     }
-    // Taken: when provider is assigned (even before submit)
     if (j.provider && j.provider !== 'none') {
-      const takeTime = txAt(txIdx.taken)?.utime || j.createdAt + 2 || 0;
-      if (takeTime) events.push(mk('Taken', 'FUNDED', takeTime, '—', j.provider, txIdx.taken));
+      events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Taken', status: 'FUNDED', time: j.createdAt + 2, amount: '—', from: j.provider });
     }
-    // Submit only if actually submitted
     if (j.submittedAt) {
-      const submitTime = txAt(txIdx.submitted)?.utime || j.submittedAt || 0;
-      if (submitTime) events.push(mk('Submitted', 'SUBMITTED', submitTime, bf, j.provider ?? '', txIdx.submitted));
+      events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Submitted', status: 'SUBMITTED', time: j.submittedAt, amount: bf, from: j.provider ?? '' });
     }
-    if (j.stateName === 'COMPLETED') {
-      const evalTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);
-      if (evalTime) {
-        events.push(mk('Approved', 'COMPLETED', evalTime, `${bf} → Provider`, j.evaluator, txIdx.terminal));
-      }
-    }
+    if (j.stateName === 'COMPLETED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Approved', status: 'COMPLETED', time: j.submittedAt + 1, amount: `${bf} → Provider`, from: j.evaluator });
     if (j.stateName === 'CANCELLED') {
-      // Cancel tx is the last tx in the list. Find it by looking at the actual last tx.
-      const lastTxIdx = txs.length - 1;
-      const cancelTx = lastTxIdx >= 0 ? txs[lastTxIdx] : null;
-      const cancelTime = cancelTx?.utime || j.createdAt + j.timeout;
-      events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: cancelTime, amount: `${bf} → Client`, from: j.client, txHash: cancelTx?.hash });
+      const last = txs[txs.length - 1];
+      events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Cancelled', status: 'CANCELLED', time: last?.utime || j.createdAt + j.timeout, amount: `${bf} → Client`, from: j.client, txHash: last?.hash });
     }
-    if (j.stateName === 'DISPUTED') {
-      const disputeTime = txAt(txIdx.terminal)?.utime || (j.submittedAt ? j.submittedAt + 1 : 0);
-      if (disputeTime) {
-        events.push(mk('Rejected', 'DISPUTED', disputeTime, bf, j.evaluator, txIdx.terminal));
-      }
-    }
+    if (j.stateName === 'DISPUTED') events.push({ jobId: j.jobId, type: j.type, address: j.address, event: 'Rejected', status: 'DISPUTED', time: j.submittedAt + 1, amount: bf, from: j.evaluator });
   }
   return events.sort((a, b) => b.time - a.time);
 }
@@ -400,11 +364,20 @@ export function useExplorerData() {
         const sb = createClient(supabaseUrl, supabaseKey);
         channel = sb.channel('explorer-live')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
-            console.log('[REALTIME] jobs change:', payload.eventType, payload.new?.job_id ?? '');
+            const row = payload.new;
+            console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
+            // Apply pending_state instantly from payload (no API round-trip)
+            if (row?.address && row?.pending_state !== undefined) {
+              setData(prev => {
+                if (!prev) return prev;
+                const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
+                return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
+              });
+            }
             debouncedFetch();
           })
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
-            console.log('[REALTIME] new activity:', payload.new?.event ?? '');
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_events' }, (payload: any) => {
+            console.log('[REALTIME] activity:', payload.eventType, payload.new?.event ?? '');
             debouncedFetch();
           })
           .subscribe((status: string) => {
