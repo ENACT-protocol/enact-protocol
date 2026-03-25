@@ -338,20 +338,7 @@ export function useExplorerData() {
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
       if (version !== requestVersionRef.current) return;
-      // Merge: preserve pendingState + don't replace activity if indexer mid-rebuild
-      setData(prev => {
-        if (!prev) return json;
-        const merge = (apiJobs: Job[]) => apiJobs.map(j => {
-          if (j.pendingState) return j;
-          const local = [...prev.tonJobs, ...prev.jettonJobs].find(l => l.address === j.address);
-          return local?.pendingState ? { ...j, pendingState: local.pendingState } : j;
-        });
-        // Keep old activity if API returned fewer events (indexer mid delete+rebuild)
-        const prevAct = prev.activity?.length ?? 0;
-        const newAct = json.activity?.length ?? 0;
-        const activity = newAct >= prevAct ? json.activity : prev.activity;
-        return { ...json, activity, tonJobs: merge(json.tonJobs), jettonJobs: merge(json.jettonJobs) };
-      });
+      setData(json);
       setError(null);
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -386,20 +373,17 @@ export function useExplorerData() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
             const row = payload.new;
             console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
-            // Apply pending_state instantly to local state
-            if (row?.address) {
+            if (row?.address && row?.pending_state) {
+              // Pending state — apply locally, no fetch (activity hasn't changed)
               setData(prev => {
                 if (!prev) return prev;
-                const ps = row.pending_state || null;
-                const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: ps } : j;
+                const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
                 return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
               });
+            } else {
+              // State actually changed (pending cleared / job updated) — fetch once
+              debouncedFetch();
             }
-            debouncedFetch();
-          })
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
-            console.log('[REALTIME] new activity:', payload.new?.event ?? '');
-            debouncedFetch();
           })
           .subscribe((status: string) => {
             console.log('[REALTIME] subscribe status:', status);
