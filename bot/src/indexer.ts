@@ -341,10 +341,11 @@ function connectWebSocket() {
                 for (const tx of data.transactions) {
                     const account = tx.account;
                     if (!account) continue;
+                    const acctLower = account.toLowerCase();
 
                     // Handle pending/confirmed: write pending_state to Supabase
                     if (finality === 'pending' || finality === 'confirmed') {
-                        if (finalizedRecently.has(account)) continue; // Skip stale events
+                        if (finalizedRecently.has(acctLower)) continue; // Skip stale events
                         try {
                             const friendlyAddr = Address.parse(account).toString();
                             const { data: job } = await sb.from('jobs').select('job_id, factory_type').eq('address', friendlyAddr).single();
@@ -368,17 +369,16 @@ function connectWebSocket() {
                     }
 
                     // finalized — full processing
-                    finalizedRecently.add(account);
+                    finalizedRecently.add(acctLower);
                     const t0 = Date.now();
                     log(`[WS] Event received (${finality}): account=${account.slice(0, 16)}... t=${t0}`);
 
-                    const accountLower = account.toLowerCase();
                     const rawFactory = Address.parse(FACTORY).toRawString().toLowerCase();
                     const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString().toLowerCase();
 
-                    if (accountLower === rawFactory || accountLower === rawJettonFactory) {
-                        const type = accountLower === rawFactory ? 'ton' : 'usdt';
-                        const factory = accountLower === rawFactory ? FACTORY : JETTON_FACTORY;
+                    if (acctLower === rawFactory || acctLower === rawJettonFactory) {
+                        const type = acctLower === rawFactory ? 'ton' : 'usdt';
+                        const factory = acctLower === rawFactory ? FACTORY : JETTON_FACTORY;
                         log(`[WS] Factory tx (${type}) — checking new jobs t=${Date.now()} (+${Date.now()-t0}ms)`);
                         try {
                             const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
