@@ -373,17 +373,20 @@ export function useExplorerData() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
             const row = payload.new;
             console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
+            // Only apply pending_state locally — never fetch on jobs UPDATE
+            // (poller updates fire every 120s and destabilize pagination)
             if (row?.address && row?.pending_state) {
-              // Pending state — apply locally, no fetch (activity hasn't changed)
               setData(prev => {
                 if (!prev) return prev;
                 const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
                 return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
               });
-            } else {
-              // State actually changed (pending cleared / job updated) — fetch once
-              debouncedFetch();
             }
+          })
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
+            // Only fetch on real state changes (new activity = indexer finished re-indexing)
+            console.log('[REALTIME] new activity:', payload.new?.event ?? '');
+            debouncedFetch();
           })
           .subscribe((status: string) => {
             console.log('[REALTIME] subscribe status:', status);
