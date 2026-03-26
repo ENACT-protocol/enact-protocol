@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/Header';
@@ -31,16 +31,15 @@ export default function ExplorerPage() {
 
   const allJobs = useMemo(() => data ? [...data.tonJobs, ...data.jettonJobs] : [], [data]);
 
-  // Activity snapshot: only updates when user is on page 0 (prevents pagination shifting)
-  const freshActivity = useMemo(() => buildActivity(allJobs, data?.activity), [allJobs, data?.activity]);
-  const [stableActivity, setStableActivity] = useState<ReturnType<typeof buildActivity>>([]);
-  useEffect(() => {
-    if (freshActivity.length === 0) return;
-    if (actPage === 0 && txPage === 0) {
-      setStableActivity(freshActivity);
-    }
-  }, [freshActivity, actPage, txPage]);
-  const allActivity = stableActivity.length > 0 ? stableActivity : freshActivity;
+  // Activity: one fixed snapshot, updated only on page 0
+  const activitySnap = useRef<ReturnType<typeof buildActivity>>([]);
+  const fresh = buildActivity(allJobs, data?.activity);
+  if (fresh.length > 0 && actPage === 0 && txPage === 0) {
+    activitySnap.current = fresh;
+  } else if (activitySnap.current.length === 0 && fresh.length > 0) {
+    activitySnap.current = fresh; // initial load
+  }
+  const allActivity = activitySnap.current;
 
   const filteredJobs = useMemo(() => {
     let jobs = allJobs;
