@@ -244,7 +244,9 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const stateChanged = force || !existingContent || existingContent.state !== state
             || existingContent.provider !== providerStr || existingContent.submitted_at !== submittedAt;
         if (!stateChanged) { log(`  [SKIP] Activity unchanged for ${type}#${jobId}`); return; }
-        await sb.from('activity_events').delete().eq('job_address', jobAddr);
+
+        // Build all events first, then delete+insert in one batch (prevents race condition dupes)
+        const newEvents: Array<Record<string, any>> = [];
         const chronTxs = [...txs].reverse(); // oldest first
         for (const tx of chronTxs) {
             if (!tx.opcode) continue;
@@ -294,9 +296,12 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                     continue;
             }
             if (event) {
-                await sb.from('activity_events').insert({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
+                newEvents.push({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
             }
         }
+        // Atomic: delete then batch insert (minimizes race window)
+        await sb.from('activity_events').delete().eq('job_address', jobAddr);
+        if (newEvents.length > 0) await sb.from('activity_events').insert(newEvents);
     } catch (err: any) {
         log(`  indexJob ${type}#${jobId} err: ${err.message}`);
     }

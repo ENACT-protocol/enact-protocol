@@ -111,7 +111,15 @@ export function txCount(j: Job): number {
 export function buildActivity(jobs: Job[], apiActivity?: ActivityEvent[]): ActivityEvent[] {
   // Use server-side opcode-parsed activity events if available
   if (apiActivity && apiActivity.length > 0) {
-    return [...apiActivity].sort((a, b) => b.time - a.time);
+    // Deduplicate by address+event+time (indexer race condition can create dupes)
+    const seen = new Set<string>();
+    const deduped = apiActivity.filter(e => {
+      const k = `${e.address}-${e.event}-${e.time}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    return deduped.sort((a, b) => b.time - a.time);
   }
   // Fallback: build from job data (RPC mode only)
   const events: ActivityEvent[] = [];
