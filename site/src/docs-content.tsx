@@ -883,6 +883,7 @@ npm install && npm run build`}</Code>
 teleton start`}</Code>
         <H3>Environment Variables</H3>
         <Code label=".env">{`ENACT_FACTORY_ADDRESS=EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX
+ENACT_JETTON_FACTORY_ADDRESS=EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj
 WALLET_MNEMONIC=word1 word2 ... word24
 TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
@@ -917,7 +918,7 @@ TONCENTER_API_KEY=your_key`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Variable</th><th>Used By</th><th>Description</th></tr></thead>
           <tbody>
-            {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','Same, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" or "testnet"'],['PINATA_JWT','MCP, Bot, SDK','Pinata JWT for IPFS — text, files, and images (pinata.cloud/keys)']].map(([v,u,d])=>(
+            {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','TON JobFactory, for Teleton plugin'],['ENACT_JETTON_FACTORY_ADDRESS','Teleton','USDT JettonJobFactory, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" or "testnet"'],['PINATA_JWT','MCP, Bot, SDK','Pinata JWT for IPFS — text, files, and images (pinata.cloud/keys)']].map(([v,u,d])=>(
               <tr key={v}><td>{v}</td><td>{u}</td><td>{d}</td></tr>
             ))}
           </tbody>

@@ -278,7 +278,13 @@ export default function AskAI() {
                             li({ children }) { return <li>{children}</li>; },
                             ol({ children }) { return <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>; },
                             ul({ children }) { return <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>; },
-                            a({ href, children }) { return <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline">{children}</a>; },
+                            a({ href, children }) {
+                              const isInternal = href?.startsWith('/');
+                              if (isInternal) {
+                                return <Link href={href} className="text-[#0098EA] hover:underline">{children}</Link>;
+                              }
+                              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline">{children}</a>;
+                            },
                           }}
                         />
                         {msg.typing && <span className="inline-block w-[2px] h-[13px] bg-[#0098EA] ml-0.5 animate-pulse align-middle" />}

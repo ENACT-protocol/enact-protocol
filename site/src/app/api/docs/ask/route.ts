@@ -13,7 +13,7 @@ const docs: { slug: string; title: string; content: string }[] = [
   { slug: 'sdk-jetton', title: 'JettonJob Wrapper', content: 'TypeScript wrapper for JettonJob. Similar to Job wrapper but handles Jetton transfers. sendFund() uses jetton transfer instead of TON transfer.' },
   { slug: 'mcp-server', title: 'MCP Server', content: 'MCP Server connects AI agents (Claude, Codex, Cursor) to ENACT. 15 tools for full job lifecycle. URL: https://mcp.enact.info/mcp. Install in Cursor: add to .cursor/mcp.json. Install in Claude Code: claude mcp add enact-protocol https://mcp.enact.info/mcp. Tools: create_job, fund_job, take_job, submit_result, evaluate_job, get_job_status, list_jobs, etc.' },
   { slug: 'telegram-bot', title: 'Telegram Bot', content: 'Telegram bot @EnactProtocolBot. Two modes: /client and /provider. Client can create jobs, fund, view status. Provider can browse available jobs, take, submit results. Uses TonConnect for wallet connection.' },
-  { slug: 'teleton', title: 'Teleton Plugin', content: 'Teleton is a separate framework/platform. ENACT has a Teleton Plugin that connects ENACT Protocol to the Teleton ecosystem. It wraps ENACT SDK methods for use within Teleton bots and agents. Configure with ENACT_FACTORY_ADDRESS env variable. Teleton is NOT TON — it is a different product.' },
+  { slug: 'teleton', title: 'Teleton Plugin', content: 'Teleton is a separate framework/platform. ENACT has a Teleton Plugin that connects ENACT Protocol to the Teleton ecosystem. It wraps ENACT SDK methods for use within Teleton bots and agents. Configure with ENACT_FACTORY_ADDRESS (TON JobFactory) and ENACT_JETTON_FACTORY_ADDRESS (USDT JettonJobFactory) env variables. Teleton is NOT TON — it is a different product.' },
   { slug: 'env-vars', title: 'Environment Variables', content: 'FACTORY_ADDRESS: JobFactory contract. WALLET_MNEMONIC: 24-word TON wallet. TON_ENDPOINT: TonCenter API. TONCENTER_API_KEY: API key. BOT_TOKEN: Telegram bot. NETWORK: mainnet/testnet. PINATA_JWT: IPFS uploads. GROQ_API_KEY: AI evaluator.' },
   { slug: 'mainnet', title: 'Mainnet Deployments', content: 'JobFactory: EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX. JettonJobFactory: EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj. AI Evaluator: UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu. Explorer: https://enact.info/explorer' },
   { slug: 'npm-sdk', title: 'NPM SDK', content: 'Package: @enact-protocol/sdk on npm. Install: npm install @enact-protocol/sdk. Main class: EnactClient. Constructor options: apiKey, mnemonic, network, pinataJwt. Methods: listJobs(), listJettonJobs(), getJobStatus(address), createJob(), fundJob(), etc.' },
@@ -76,6 +76,8 @@ ENACT Protocol — Escrow Network for Agentic Commerce on TON. On-chain escrow p
 
 ## Rules
 - Be concise, technical. No greetings. Start with answer.
+- Vary your responses! Don't always start with "Install SDK". For general questions ("hi", "where to start", "what is this"), give a brief overview and suggest paths (SDK, MCP, Bot) WITHOUT code.
+- Only show code when the user asks about integration, coding, or specific API usage.
 - Always close code blocks (\`\`\` pairs).
 - Use \`\`\`typescript or \`\`\`bash. Max 5 lines per block.
 - Use proper sequential numbering: 1. 2. 3. not 1. 1. 1.
