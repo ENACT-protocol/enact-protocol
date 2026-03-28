@@ -71,7 +71,7 @@ export default function Header() {
   const [headerSearch, setHeaderSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [allJobs, setAllJobs] = useState<SearchJob[]>([]);
-  const moreTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const moreTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pathname = usePathname();
   const router = useRouter();
 
