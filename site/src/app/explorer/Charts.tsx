@@ -53,7 +53,7 @@ export function ExplorerCharts() {
   useEffect(() => {
     fetch('/api/explorer/stats').then(r => r.json()).then(d => { if (Array.isArray(d)) setStats(d); }).catch(() => {}).finally(() => setLoading(false));
   }, []);
-  if (loading) return <div className="h-[250px] bg-[#ffffff05] border border-[#ffffff0f] rounded-xl animate-pulse" />;
+  if (loading) return <div className="h-[250px] bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl animate-pulse" />;
   if (!stats.length) return null;
   return <ChartPair data={buildChartData(stats)} showBoth />;
 }
@@ -142,7 +142,7 @@ function ChartPair({ data, showBoth }: { data: ReturnType<typeof buildChartData>
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl relative h-[250px] overflow-hidden">
+    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl relative h-[250px] overflow-hidden">
       <div className="absolute top-0 left-0 z-10 text-[#52525B] text-[10px] font-mono uppercase tracking-wider bg-[rgba(5,5,8,0.8)] px-3 py-1.5 rounded-br-lg">{title}</div>
       {children}
     </div>

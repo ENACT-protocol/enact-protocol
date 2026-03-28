@@ -32,7 +32,7 @@ function SearchResultRow({ job: j, onSelect }: { job: SearchJob; onSelect: (addr
   };
   return (
     <div onMouseDown={() => onSelect(j.address)}
-      className="w-full text-left px-3 py-2.5 hover:bg-[#ffffff08] rounded-md transition-colors cursor-pointer flex items-center justify-between gap-2">
+      className="w-full text-left px-3 py-2.5 hover:bg-[rgba(255,255,255,0.03)] rounded-md transition-colors cursor-pointer flex items-center justify-between gap-2">
       <span className="flex items-center gap-1.5 min-w-0">
         <span className="inline-flex items-center gap-1 shrink-0"><span className="text-white font-medium text-[12px]">#{j.jobId}</span> <TonUsdtIcon type={j.type} /></span>
         <span className={`font-mono text-[10px] shrink-0 cursor-pointer transition-colors ${copied ? 'text-[#22C55E]' : 'text-white hover:text-[#A1A1AA]'}`}
@@ -40,13 +40,13 @@ function SearchResultRow({ job: j, onSelect }: { job: SearchJob; onSelect: (addr
         <a href={`https://tonscan.org/address/${j.address}`} target="_blank" rel="noopener noreferrer"
           onMouseDown={e => e.stopPropagation()} className="text-[#52525B] hover:text-white transition-colors shrink-0"><TonscanSvg /></a>
         <span className="w-1" />
-        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono shrink-0 bg-[#ffffff0a] ${
-          j.stateName === 'COMPLETED' ? 'border-[#22C55E33] text-[#22C55E]' :
-          j.stateName === 'FUNDED' ? 'border-[#3B82F633] text-[#60A5FA]' :
-          j.stateName === 'OPEN' ? 'border-[#FACC1533] text-[#FACC15]' :
-          j.stateName === 'DISPUTED' ? 'border-[#EF444433] text-[#EF4444]' :
-          j.stateName === 'CANCELLED' ? 'border-[#6B728033] text-[#6B7280]' :
-          'border-[#A78BFA33] text-[#A78BFA]'
+        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono shrink-0 bg-[rgba(255,255,255,0.04)] ${
+          j.stateName === 'COMPLETED' ? 'border-[rgba(34,197,94,0.2)] text-[#22C55E]' :
+          j.stateName === 'FUNDED' ? 'border-[rgba(59,130,246,0.2)] text-[#60A5FA]' :
+          j.stateName === 'OPEN' ? 'border-[rgba(250,204,21,0.2)] text-[#FACC15]' :
+          j.stateName === 'DISPUTED' ? 'border-[rgba(239,68,68,0.2)] text-[#EF4444]' :
+          j.stateName === 'CANCELLED' ? 'border-[rgba(107,114,128,0.2)] text-[#6B7280]' :
+          'border-[rgba(167,139,250,0.2)] text-[#A78BFA]'
         }`}>{j.stateName}</span>
       </span>
       <span className="flex items-center gap-1 shrink-0">
@@ -146,7 +146,7 @@ export default function Header() {
   );
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-50 glass-panel border-b border-[#ffffff0f]">
+    <nav className="fixed top-0 left-0 w-full z-50 glass-panel border-b border-[rgba(255,255,255,0.06)]">
       <div className="max-w-[1440px] mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
         <div className="flex items-center gap-5">
           <Link href="/" className="flex items-center gap-0.5 shrink-0">
@@ -164,12 +164,12 @@ export default function Header() {
                 More <ChevronDown />
               </button>
               {moreOpen && (
-                <div className="absolute top-full left-0 mt-3 w-[180px] rounded-[10px] border border-[#ffffff14] bg-[#0A0A0F] p-1.5 shadow-xl shadow-black/40"
+                <div className="absolute top-full left-0 mt-3 w-[180px] rounded-[10px] border border-[rgba(255,255,255,0.08)] bg-[#0A0A0F] p-1.5 shadow-xl shadow-black/40"
                   style={{ animation: 'dropdown-enter 0.25s ease-out' }}>
-                  <a href="/#mechanism" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[#ffffff08] rounded-md transition-colors">Protocol</a>
-                  <a href="/#specification" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[#ffffff08] rounded-md transition-colors">Specification</a>
-                  <a href="/#architecture" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[#ffffff08] rounded-md transition-colors">Architecture</a>
-                  <a href="/#ecosystem" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[#ffffff08] rounded-md transition-colors">Ecosystem</a>
+                  <a href="/#mechanism" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.03)] rounded-md transition-colors">Protocol</a>
+                  <a href="/#specification" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.03)] rounded-md transition-colors">Specification</a>
+                  <a href="/#architecture" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.03)] rounded-md transition-colors">Architecture</a>
+                  <a href="/#ecosystem" className="block px-3.5 py-2 text-[13px] text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.03)] rounded-md transition-colors">Ecosystem</a>
                 </div>
               )}
             </div>
@@ -183,9 +183,9 @@ export default function Header() {
               onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
               onKeyDown={e => { if (e.key === 'Enter' && searchResults.length > 0) handleSearchSelect(searchResults[0].address); }}
               placeholder="Search by address or job ID..."
-              className="w-[240px] bg-[#ffffff08] border border-[#ffffff0f] border-subtle px-3.5 py-[7px] text-[12px] text-white placeholder-[#52525B] font-mono focus:outline-none focus:border-[#0098EA] transition-colors" />
+              className="w-[240px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] border-subtle px-3.5 py-[7px] text-[12px] text-white placeholder-[#52525B] font-mono focus:outline-none focus:border-[#0098EA] transition-colors" />
             {searchFocused && headerSearch.trim() && (
-              <div className="absolute top-full left-0 w-[380px] mt-1.5 rounded-lg border border-[#ffffff14] bg-[#0A0A0F] p-1.5 shadow-xl shadow-black/40 z-50 max-h-[280px] overflow-y-auto"
+              <div className="absolute top-full left-0 w-[380px] mt-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0A0A0F] p-1.5 shadow-xl shadow-black/40 z-50 max-h-[280px] overflow-y-auto"
                 style={{ animation: 'dropdown-enter 0.15s ease-out' }}>
                 {searchResults.length > 0 ? searchResults.map(j => (
                   <SearchResultRow key={j.address} job={j} onSelect={handleSearchSelect} />
@@ -219,7 +219,7 @@ export default function Header() {
         </button>
       </div>
       {mobileOpen && (
-        <div className="md:hidden glass-panel border-t border-[#ffffff0f] px-4 pb-6 pt-4">
+        <div className="md:hidden glass-panel border-t border-[rgba(255,255,255,0.06)] px-4 pb-6 pt-4">
           <div className="flex flex-col space-y-4">
             <Link href="/explorer" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Explorer</Link>
             <Link href="/docs/getting-started" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Docs</Link>
@@ -227,14 +227,14 @@ export default function Header() {
             <a href="/#specification" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Specification</a>
             <a href="/#architecture" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Architecture</a>
             <a href="/#ecosystem" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Ecosystem</a>
-            <div className="border-t border-[#ffffff0f] pt-4 flex items-center gap-2">
-              <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#ffffff0f] text-[#0098EA]">
+            <div className="border-t border-[rgba(255,255,255,0.06)] pt-4 flex items-center gap-2">
+              <a href="https://t.me/EnactProtocolBot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[rgba(255,255,255,0.06)] text-[#0098EA]">
                 <TelegramIcon /> Bot
               </a>
-              <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#ffffff0f] text-white">
+              <a href="https://x.com/EnactProtocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[rgba(255,255,255,0.06)] text-white">
                 <XIcon /> X
               </a>
-              <a href="https://github.com/ENACT-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#ffffff0f] text-white">
+              <a href="https://github.com/ENACT-protocol" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[rgba(255,255,255,0.06)] text-white">
                 <i className="hgi-stroke hgi-github" style={{ fontSize: 14 }} /> GitHub
               </a>
             </div>

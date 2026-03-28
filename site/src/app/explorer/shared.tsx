@@ -8,12 +8,12 @@ export const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 export const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 
 export const STATUS_STYLES: Record<string, string> = {
-  OPEN: 'border-[#FACC1533] text-[#FACC15] bg-[#ffffff0a]',
-  FUNDED: 'border-[#3B82F633] text-[#60A5FA] bg-[#ffffff0a]',
-  SUBMITTED: 'border-[#A78BFA33] text-[#A78BFA] bg-[#ffffff0a]',
-  COMPLETED: 'border-[#22C55E33] text-[#22C55E] bg-[#ffffff0a]',
-  CANCELLED: 'border-[#6B728033] text-[#6B7280] bg-[#ffffff0a]',
-  DISPUTED: 'border-[#EF444433] text-[#EF4444] bg-[#ffffff0a]',
+  OPEN: 'border-[rgba(250,204,21,0.2)] text-[#FACC15] bg-[rgba(255,255,255,0.04)]',
+  FUNDED: 'border-[rgba(59,130,246,0.2)] text-[#60A5FA] bg-[rgba(255,255,255,0.04)]',
+  SUBMITTED: 'border-[rgba(167,139,250,0.2)] text-[#A78BFA] bg-[rgba(255,255,255,0.04)]',
+  COMPLETED: 'border-[rgba(34,197,94,0.2)] text-[#22C55E] bg-[rgba(255,255,255,0.04)]',
+  CANCELLED: 'border-[rgba(107,114,128,0.2)] text-[#6B7280] bg-[rgba(255,255,255,0.04)]',
+  DISPUTED: 'border-[rgba(239,68,68,0.2)] text-[#EF4444] bg-[rgba(255,255,255,0.04)]',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -151,14 +151,14 @@ export function buildActivity(jobs: Job[], apiActivity?: ActivityEvent[]): Activ
 // ─── Components ───
 
 export function Shimmer({ className }: { className?: string }) {
-  return <div className={`animate-pulse bg-[#ffffff08] rounded ${className ?? ''}`} />;
+  return <div className={`animate-pulse bg-[rgba(255,255,255,0.03)] rounded ${className ?? ''}`} />;
 }
 
 export function Badge({ status, pending }: { status: string; pending?: string | null }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className={`text-[10px] leading-3 px-2 py-0.5 rounded border font-mono tracking-wider explorer-badge ${STATUS_STYLES[status] ?? 'border-[#555] text-[#A1A1AA]'}`}>{status}</span>
-      {pending && <span className="text-xs px-2 py-0.5 rounded bg-[#F59E0B20] border border-[#F59E0B] text-[#F59E0B] font-mono animate-pulse">{pending}</span>}
+      {pending && <span className="text-xs px-2 py-0.5 rounded bg-[rgba(245,158,11,0.13)] border border-[#F59E0B] text-[#F59E0B] font-mono animate-pulse">{pending}</span>}
     </span>
   );
 }
@@ -282,7 +282,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
         <div className={text ? 'mt-3' : ''}>
           <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer">
             <img src={file.ipfsUrl} alt={file.filename}
-              className="max-h-[130px] rounded-lg border border-[#ffffff0f] cursor-pointer hover:opacity-80 transition-opacity" />
+              className="max-h-[130px] rounded-lg border border-[rgba(255,255,255,0.06)] cursor-pointer hover:opacity-80 transition-opacity" />
           </a>
           {showFilename && (
             <div className="flex items-center gap-2 mt-1.5 text-xs text-[#52525B]">
@@ -298,7 +298,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       {isFile && file?.ipfsUrl && (
         <div className={text ? 'mt-3' : ''}>
           <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-2 bg-[#ffffff08] border border-[#ffffff0f] rounded-lg text-xs text-[#A1A1AA] hover:text-white transition-colors">
+            className="inline-flex items-center gap-2 px-3 py-2 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-xs text-[#A1A1AA] hover:text-white transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <div>
               <div className="text-[#A1A1AA]">{file!.filename}</div>

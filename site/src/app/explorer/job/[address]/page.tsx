@@ -77,7 +77,7 @@ export default function JobPage() {
             </div>
           </div>
         ) : !job ? (
-          <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-8 text-center">
+          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-8 text-center">
             <div className="text-[#A1A1AA] text-lg mb-2">Job not found</div>
             <div className="text-[#52525B] text-sm font-mono mb-4 break-all">{address}</div>
             <Link href="/explorer" className="text-[#0098EA] hover:underline text-sm cursor-pointer">← Back to Explorer</Link>
@@ -102,8 +102,8 @@ export default function JobPage() {
             </div>
 
             {/* ── Info card: single row with 5 columns ── */}
-            <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl mb-6 overflow-x-auto">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-[#ffffff08]">
+            <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl mb-6 overflow-x-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-[rgba(255,255,255,0.03)]">
                 <InfoCol label="Contract"><div className="[&_.break-all]:text-white"><ClickAddr addr={job.address} truncate /></div></InfoCol>
                 <InfoCol label="Client"><div className="[&_.break-all]:text-white"><ClickAddr addr={job.client} truncate /></div></InfoCol>
                 <InfoCol label="Provider">
@@ -125,7 +125,7 @@ export default function JobPage() {
             {/* ── Two columns: Timeline (left) + Content (right) ── */}
             <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 mb-6">
               {/* Timeline */}
-              <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+              <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
                 <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-4">Timeline</div>
                 <div className="relative ml-1">
                   {jobActivity.map((ev, i) => {
@@ -135,7 +135,7 @@ export default function JobPage() {
                       <div key={`${ev.event}-${ev.time}-${i}`} className="relative flex items-start" style={{ paddingBottom: isLast ? 0 : 28 }}>
                         {/* Line */}
                         {!isLast && (
-                          <div className="absolute left-[3.5px] top-[12px] w-[1px] bottom-0 bg-[#ffffff1a]" />
+                          <div className="absolute left-[3.5px] top-[12px] w-[1px] bottom-0 bg-[rgba(255,255,255,0.1)]" />
                         )}
                         {/* Dot */}
                         <div className="relative z-10 shrink-0 mt-[3px]" style={{ width: 8 }}>
@@ -187,22 +187,22 @@ export default function JobPage() {
               {/* Content column */}
               <div className="space-y-4">
                 {/* Description card */}
-                <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
                   <div className="mb-3">
                     <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Description</span>
                   </div>
-                  <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                  <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] rounded-[10px] p-4">
                     <ContentBlock content={job.description} hash={job.descHash} />
                   </div>
                 </div>
 
                 {/* Result card */}
                 {wasSubmitted && (
-                  <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                  <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
                     <div className="mb-3">
                       <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Result</span>
                     </div>
-                    <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] rounded-[10px] p-4">
                       <ContentBlock content={job.resultContent} hash={job.resultHash} />
                     </div>
                   </div>
@@ -210,11 +210,11 @@ export default function JobPage() {
 
                 {/* Evaluation card */}
                 {(job.stateName === 'COMPLETED' || job.stateName === 'DISPUTED') && (
-                  <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                  <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
                     <div className="mb-3">
                       <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Evaluation</span>
                     </div>
-                    <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] rounded-[10px] p-4">
                       <div className="flex items-center gap-2 mb-2">
                         {job.stateName === 'COMPLETED' ? (
                           <>
@@ -235,9 +235,9 @@ export default function JobPage() {
                 )}
 
                 {job.stateName === 'CANCELLED' && (
-                  <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                  <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
                     <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-3">Status</div>
-                    <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] rounded-[10px] p-4">
                       <div className="flex items-center gap-2">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#6B7280" strokeWidth="1.5"/><path d="M4.93 4.93l14.14 14.14" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round"/></svg>
                         <span className="text-[#6B7280] text-sm font-medium">Cancelled — funds refunded to client</span>
@@ -282,7 +282,7 @@ function TechnicalDetails({ job }: { job: Job }) {
   const [open, setOpen] = useState(false);
   const zeroHash = '0'.repeat(64);
   return (
-    <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl">
+    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-5 py-3.5 cursor-pointer">
         <span className="text-[#52525B] text-[10px] font-mono uppercase tracking-wider">Technical Details</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#52525B" strokeWidth="1.5" strokeLinecap="round"
@@ -291,7 +291,7 @@ function TechnicalDetails({ job }: { job: Job }) {
         </svg>
       </button>
       {open && (
-        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-[#ffffff08] pt-3">
+        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-[rgba(255,255,255,0.03)] pt-3">
           <TechRow label="Contract Address" value={job.address} copy mono />
           <TechRow label="State (raw)" value={`${job.state}`} />
           <TechRow label="Budget (raw)" value={job.budget} mono />

@@ -141,7 +141,7 @@ export default function FactoryPage() {
             <Shimmer className="h-60 rounded-xl" />
           </div>
         ) : !info ? (
-          <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-8 text-center">
+          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-8 text-center">
             <div className="text-[#A1A1AA] text-lg mb-2">Factory not found</div>
             <Link href="/explorer" className="text-[#0098EA] hover:underline text-sm cursor-pointer">← Back to Explorer</Link>
           </div>
@@ -189,14 +189,14 @@ export default function FactoryPage() {
             {/* Latest Activity */}
             {allActivity.length > 0 && (
               <div className="mb-6">
-                <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#ffffff08]">
+                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-[rgba(255,255,255,0.03)]">
                     <span className="text-white text-sm font-semibold">Latest Activity</span>
                     <InlinePageNav page={actPage} total={actTotalPages} onChange={setActPage} />
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm explorer-table">
-                      <thead><tr className="border-b border-[#ffffff08] text-[#52525B] text-[10px] uppercase tracking-[0.06em] font-medium">
+                      <thead><tr className="border-b border-[rgba(255,255,255,0.03)] text-[#52525B] text-[10px] uppercase tracking-[0.06em] font-medium">
                         <th className="text-left px-5 py-2">Job</th>
                         <th className="text-left px-3 py-2">Event</th>
                         <th className="text-left px-3 py-2 hidden xl:table-cell">Tx Address</th>
@@ -208,7 +208,7 @@ export default function FactoryPage() {
                       <tbody>
                         {allActivity.slice(actPage * ACTIVITY_PAGE, (actPage + 1) * ACTIVITY_PAGE).map((ev, i) => (
                           <tr key={`act-${ev.address}-${ev.event}-${ev.time}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
-                            className="border-b border-[#ffffff08] last:border-0 cursor-pointer hover:bg-[#ffffff08] transition-colors explorer-row">
+                            className="border-b border-[rgba(255,255,255,0.03)] last:border-0 cursor-pointer hover:bg-[rgba(255,255,255,0.03)] transition-colors explorer-row">
                             <td className="px-5 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
                             <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: ev.txStatus === 'pending' ? '#F59E0B' : (EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#52525B') }} className={`mr-2${ev.txStatus === 'pending' ? ' animate-pulse' : ''}`}>●</span> {ev.event}</td>
                             <td className="px-3 py-2 hidden xl:table-cell">{ev.txHash ? <a href={`https://tonscan.org/tx/${ev.txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#A1A1AA] hover:text-white cursor-pointer">{truncAddr(ev.txHash)}</a> : <span className="text-[#52525B]">—</span>}</td>
@@ -227,16 +227,16 @@ export default function FactoryPage() {
 
             {/* Jobs */}
             <div className="mb-6">
-              <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl overflow-hidden">
+              <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
                 {/* Jobs header */}
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#ffffff08] gap-3">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-[rgba(255,255,255,0.03)] gap-3">
                   <div className="flex items-center gap-3">
                     <span className="text-white text-sm font-semibold">Jobs ({filteredJobs.length})</span>
                     {/* Desktop: tab pills */}
-                    <div className="hidden sm:flex gap-0.5 bg-[#ffffff0d] rounded-lg p-0.5">
+                    <div className="hidden sm:flex gap-0.5 bg-[rgba(255,255,255,0.05)] rounded-lg p-0.5">
                       {tabs.map(t => (
                         <button key={t.key} onClick={() => { setTab(t.key); setJobPage(0); }}
-                          className={`px-3 py-1 text-xs rounded-md transition-colors whitespace-nowrap cursor-pointer font-medium ${tab === t.key ? 'bg-[#0098EA1A] text-[#0098EA]' : 'text-[#71717A] hover:text-[#A1A1AA]'}`}>
+                          className={`px-3 py-1 text-xs rounded-md transition-colors whitespace-nowrap cursor-pointer font-medium ${tab === t.key ? 'bg-[rgba(0,152,234,0.1)] text-[#0098EA]' : 'text-[#71717A] hover:text-[#A1A1AA]'}`}>
                           {t.label}
                         </button>
                       ))}
@@ -244,15 +244,15 @@ export default function FactoryPage() {
                     {/* Mobile: dropdown filter button */}
                     <div className="relative sm:hidden">
                       <button onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs rounded bg-[#ffffff0d] text-[#A1A1AA] cursor-pointer">
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs rounded bg-[rgba(255,255,255,0.05)] text-[#A1A1AA] cursor-pointer">
                         {tabs.find(t => t.key === tab)?.label}
                         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg>
                       </button>
                       {mobileFilterOpen && (
-                        <div className="absolute top-full left-0 mt-1 w-[120px] rounded-lg border border-[#ffffff14] bg-[#0A0A0F] p-1 shadow-xl z-50">
+                        <div className="absolute top-full left-0 mt-1 w-[120px] rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0A0A0F] p-1 shadow-xl z-50">
                           {tabs.map(t => (
                             <button key={t.key} onClick={() => { setTab(t.key); setJobPage(0); setMobileFilterOpen(false); }}
-                              className={`w-full text-left px-3 py-1.5 text-xs rounded-md cursor-pointer ${tab === t.key ? 'text-[#0098EA]' : 'text-[#A1A1AA] hover:text-white hover:bg-[#ffffff08]'}`}>
+                              className={`w-full text-left px-3 py-1.5 text-xs rounded-md cursor-pointer ${tab === t.key ? 'text-[#0098EA]' : 'text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.03)]'}`}>
                               {t.label}
                             </button>
                           ))}
@@ -264,13 +264,13 @@ export default function FactoryPage() {
                     <InlinePageNav page={jobPage} total={totalJobPages} onChange={setJobPage} />
                     <input type="text" value={addrFilter} onChange={e => { setAddrFilter(e.target.value); setJobPage(0); }}
                       placeholder="Filter by address or job ID..."
-                      className="bg-[#ffffff05] border border-[#ffffff0f] rounded px-3 py-1.5 text-xs text-white placeholder-[#52525B] font-mono focus:outline-none focus:border-[#0098EA] transition-colors w-56 hidden sm:block" />
+                      className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded px-3 py-1.5 text-xs text-white placeholder-[#52525B] font-mono focus:outline-none focus:border-[#0098EA] transition-colors w-56 hidden sm:block" />
                   </div>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm explorer-table">
-                    <thead><tr className="border-b border-[#ffffff08] text-[#52525B] text-[10px] uppercase tracking-[0.06em] font-medium">
+                    <thead><tr className="border-b border-[rgba(255,255,255,0.03)] text-[#52525B] text-[10px] uppercase tracking-[0.06em] font-medium">
                       <th className="text-left px-5 py-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('id')}># {sortBy === 'id' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="text-left px-3 py-2.5 hidden sm:table-cell">Address</th>
                       <th className="text-left px-3 py-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'desc' ? '↓' : '↑')}</th>
@@ -284,7 +284,7 @@ export default function FactoryPage() {
                       {jobsOnPage.length === 0 && <tr><td colSpan={8} className="text-center text-[#52525B] py-8">No jobs match filter</td></tr>}
                       {jobsOnPage.map(job => (
                         <tr key={`${job.type}-${job.jobId}`} onClick={() => router.push(`/explorer/job/${job.address}`)}
-                          className="border-b border-[#ffffff08] cursor-pointer hover:bg-[#ffffff08] transition-colors">
+                          className="border-b border-[rgba(255,255,255,0.03)] cursor-pointer hover:bg-[rgba(255,255,255,0.03)] transition-colors">
                           <td className="px-5 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} />{job.hasFile && <FileClip />}</span></td>
                           <td className="px-3 py-2.5 hidden sm:table-cell [&_.break-all]:text-white" onClick={e => e.stopPropagation()}><ClickAddr addr={job.address} truncate /></td>
                           <td className="px-3 py-2.5"><Badge status={job.stateName} pending={job.pendingState} /></td>
@@ -310,7 +310,7 @@ export default function FactoryPage() {
 
 function StatCard({ label, value, sub, sparkline }: { label: string; value: React.ReactNode; sub?: React.ReactNode; sparkline?: React.ReactNode }) {
   return (
-    <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl relative" style={{ minHeight: sparkline ? 145 : undefined }}>
+    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl relative" style={{ minHeight: sparkline ? 145 : undefined }}>
       <div className="px-3 sm:px-5 pt-3 sm:pt-4 pb-1 sm:pb-2 relative z-10">
         <div className="text-[#636370] text-[9px] sm:text-[10px] font-mono uppercase tracking-wider mb-0.5 sm:mb-1">{label}</div>
         <div className="flex items-baseline gap-1 sm:gap-2 flex-wrap">
@@ -331,9 +331,9 @@ function InlinePageNav({ page, total, onChange }: { page: number; total: number;
   if (total <= 1) return null;
   return (
     <nav className="flex items-center gap-2" aria-label="Pagination">
-      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0} aria-label="Previous page" className="w-7 h-6 flex items-center justify-center text-xs rounded-md bg-[#ffffff08] text-[#71717A] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">&larr;</button>
+      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0} aria-label="Previous page" className="w-7 h-6 flex items-center justify-center text-xs rounded-md bg-[rgba(255,255,255,0.03)] text-[#71717A] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">&larr;</button>
       <span className="text-[#A1A1AA] text-xs whitespace-nowrap" aria-live="polite">{page + 1} / {total}</span>
-      <button onClick={() => onChange(Math.min(total - 1, page + 1))} disabled={page >= total - 1} aria-label="Next page" className="w-7 h-6 flex items-center justify-center text-xs rounded-md bg-[#ffffff08] text-[#A1A1AA] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">&rarr;</button>
+      <button onClick={() => onChange(Math.min(total - 1, page + 1))} disabled={page >= total - 1} aria-label="Next page" className="w-7 h-6 flex items-center justify-center text-xs rounded-md bg-[rgba(255,255,255,0.03)] text-[#A1A1AA] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer">&rarr;</button>
     </nav>
   );
 }
