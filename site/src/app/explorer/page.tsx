@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
+import { useState, useMemo, useRef, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
@@ -54,6 +53,10 @@ function AmountWithIcon({ amount, type }: { amount: string; type: 'ton' | 'usdt'
 }
 
 export default function ExplorerPage() {
+  return <Suspense><ExplorerInner /></Suspense>;
+}
+
+function ExplorerInner() {
   const { data, loading, error } = useExplorerData();
   const router = useRouter();
   const searchParams = useSearchParams();
