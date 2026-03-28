@@ -192,7 +192,7 @@ export default function AskAI() {
       </div>
 
       {panelOpen && (
-        <div className="fixed top-16 right-0 w-full sm:w-[380px] h-[calc(100vh-64px)] z-50 sm:border-l border-t border-[rgba(255,255,255,0.08)] flex flex-col bg-[#050508]">
+        <div className="fixed top-16 right-0 w-full sm:w-[380px] z-50 sm:border-l border-t border-[rgba(255,255,255,0.08)] flex flex-col bg-[#050508]" style={{ height: 'calc(100dvh - 64px)', maxHeight: 'calc(100vh - 64px)' }}>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-[rgba(255,255,255,0.06)]">
             <div className="flex items-center gap-2.5">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="#0098EA"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
