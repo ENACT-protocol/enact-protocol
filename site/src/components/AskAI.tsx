@@ -28,9 +28,9 @@ function linkifyPages(children: React.ReactNode): React.ReactNode {
     });
   }
   if (children && typeof children === 'object' && 'props' in (children as any)) {
-    const el = children as React.ReactElement;
+    const el = children as React.ReactElement<Record<string, unknown>>;
     if (el.props?.children) {
-      return { ...el, props: { ...el.props, children: linkifyPages(el.props.children) } };
+      return { ...el, props: { ...el.props, children: linkifyPages(el.props.children as React.ReactNode) } };
     }
   }
   return children;
