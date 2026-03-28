@@ -1,6 +1,6 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import TonCanvas from '@/components/TonCanvas';
+import TonCanvasV2 from '@/components/TonCanvasV2';
 import Link from 'next/link';
 import CopyIcon from '@/components/CopyIcon';
 
@@ -13,7 +13,7 @@ const TgSmall = () => (
 export default function Home() {
   return (
     <div className="relative">
-      <TonCanvas />
+      <TonCanvasV2 variant="A" />
       <Header />
 
       {/* HERO */}
