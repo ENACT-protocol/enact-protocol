@@ -196,7 +196,7 @@ function ExplorerInner() {
                 sub={<><span>{stats.ton}</span> <TonIcon size={10} /> <span className="text-[#3F3F46] mx-0.5">·</span> <span>{stats.usdt}</span> <UsdtIcon size={10} /></>}
                 sparkline={sparklines.cumJobsTotal.length > 1 ? <MiniAreaSparkline data={sparklines.cumJobsTotal} color="#0088CC" meta={{ label: 'jobs', days: sparklines.days, details: [{ label: 'TON', data: sparklines.cumJobsTon }, { label: 'USDT', data: sparklines.cumJobsUsdt }] }} /> : undefined} />
               <StatCard label="Agents" value={agentStats.total}
-                sub={<span className="whitespace-nowrap">{agentStats.clients} clients · {agentStats.evaluators} evaluators · {agentStats.providers} providers</span>}
+                sub={<span>{agentStats.clients} clients · {agentStats.evaluators} evaluators · {agentStats.providers} providers</span>}
                 sparkline={sparklines.cumAgentsTotal.length > 1 ? <MiniAreaSparkline data={sparklines.cumAgentsTotal} color="#B8860B" meta={{ label: 'agents', days: sparklines.days, details: [{ label: 'Clients', data: sparklines.cumAgentsClients }, { label: 'Evaluators', data: sparklines.cumAgentsEvaluators }, { label: 'Providers', data: sparklines.cumAgentsProviders }] }} /> : undefined} />
               <StatCard label="Total Volume" value={`$${(volumeStats.tonNum * tonPrice + volumeStats.usdtNum).toFixed(0)}`}
                 sub={<><span>{volumeStats.tonVol}</span> <TonIcon size={10} /> <span className="text-[#3F3F46] mx-0.5">·</span> <span>{volumeStats.usdtVol}</span> <UsdtIcon size={10} /></>}
@@ -350,7 +350,7 @@ function StatCard({ label, value, sub, sparkline }: { label: string; value: stri
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl relative" style={{ minHeight: sparkline ? 145 : undefined }}>
       <div className="px-3 sm:px-5 pt-3 sm:pt-4 pb-1 sm:pb-2 relative z-10">
         <div className="text-[#636370] text-[9px] sm:text-[10px] font-mono uppercase tracking-wider mb-0.5 sm:mb-1">{label}</div>
-        <div className="flex items-baseline gap-1 sm:gap-2 flex-wrap">
+        <div className="flex items-baseline gap-1 sm:gap-2 overflow-hidden">
           <span className="text-[#F4F4F5] text-xl sm:text-[28px] font-semibold tracking-tight">{value}</span>
           {sub && <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-[11px] text-[#636370]">{sub}</span>}
         </div>
