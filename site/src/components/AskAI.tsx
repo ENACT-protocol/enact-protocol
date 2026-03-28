@@ -281,7 +281,7 @@ export default function AskAI() {
                             a({ href, children }) {
                               const isInternal = href?.startsWith('/');
                               if (isInternal) {
-                                return <Link href={href} className="text-[#0098EA] hover:underline">{children}</Link>;
+                                return <Link href={href!} className="text-[#0098EA] hover:underline">{children}</Link>;
                               }
                               return <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline">{children}</a>;
                             },
