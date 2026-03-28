@@ -282,7 +282,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
         <div className={text ? 'mt-3' : ''}>
           <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer">
             <img src={file.ipfsUrl} alt={file.filename}
-              className="max-h-[200px] rounded-lg border border-[#ffffff0f] cursor-pointer hover:opacity-80 transition-opacity" />
+              className="max-h-[130px] rounded-lg border border-[#ffffff0f] cursor-pointer hover:opacity-80 transition-opacity" />
           </a>
           {showFilename && (
             <div className="flex items-center gap-2 mt-1.5 text-xs text-[#52525B]">

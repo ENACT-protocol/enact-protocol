@@ -113,7 +113,7 @@ export default function JobPage() {
                 </InfoCol>
                 <InfoCol label="Evaluator">
                   {job.evaluator === AI_EVALUATOR
-                    ? <span className="inline-flex items-center gap-1.5"><CopyableAddr addr={AI_EVALUATOR} label="AI Evaluator" /><TonscanLink addr={AI_EVALUATOR} size={10} /></span>
+                    ? <span className="inline-flex items-center gap-1.5"><CopyableAddr addr={AI_EVALUATOR} label="AI Evaluator" /><TonscanLink addr={AI_EVALUATOR} size={12} /></span>
                     : <div className="[&_.break-all]:text-white"><ClickAddr addr={job.evaluator} truncate /></div>}
                 </InfoCol>
                 <InfoCol label="Factory">
@@ -188,11 +188,8 @@ export default function JobPage() {
               <div className="space-y-4">
                 {/* Description card */}
                 <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3">
                     <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Description</span>
-                    {job.description?.ipfsUrl && (
-                      <IpfsLabel hash={job.descHash} url={job.description.ipfsUrl} />
-                    )}
                   </div>
                   <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
                     <ContentBlock content={job.description} hash={job.descHash} />
@@ -202,11 +199,8 @@ export default function JobPage() {
                 {/* Result card */}
                 {wasSubmitted && (
                   <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="mb-3">
                       <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Result</span>
-                      {job.resultContent?.ipfsUrl && (
-                        <IpfsLabel hash={job.resultHash} url={job.resultContent.ipfsUrl} />
-                      )}
                     </div>
                     <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
                       <ContentBlock content={job.resultContent} hash={job.resultHash} />
@@ -217,9 +211,8 @@ export default function JobPage() {
                 {/* Evaluation card */}
                 {(job.stateName === 'COMPLETED' || job.stateName === 'DISPUTED') && (
                   <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="mb-3">
                       <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Evaluation</span>
-                      {job.reasonContent?.ipfsUrl && <IpfsLabel hash={job.resultHash} url={job.reasonContent.ipfsUrl} />}
                     </div>
                     <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
                       <div className="flex items-center gap-2 mb-2">
@@ -340,7 +333,7 @@ function TechRow({ label, value, copy, mono }: { label: string; value: string; c
 function CopyableAddr({ addr, label }: { addr: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <span className={`font-mono cursor-pointer transition-colors ${copied ? 'text-[#22C55E]' : 'text-[#A1A1AA] hover:text-white'}`}
+    <span className={`font-mono text-xs cursor-pointer transition-colors ${copied ? 'text-[#22C55E]' : 'text-white hover:text-[#A1A1AA]'}`}
       onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(addr); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
       {copied ? 'Copied!' : (label || truncAddr(addr))}
     </span>
