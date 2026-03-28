@@ -16,42 +16,25 @@ const pageMap: Record<string, string> = {
   'Smart Contracts': 'smart-contracts', 'TypeScript SDK': 'sdk-job',
 };
 
-function linkifyPages(children: React.ReactNode): React.ReactNode {
-  if (typeof children === 'string') return linkifyText(children);
-  if (Array.isArray(children)) {
-    return children.map((child, i) => {
-      if (typeof child === 'string') return <span key={i}>{linkifyText(child)}</span>;
-      // Don't process children of <a> tags (already links)
-      if (child && typeof child === 'object' && 'type' in child && (child.type === 'a' || child.type === Link)) return child;
-      return child;
-    });
-  }
-  return children;
-}
 
-function linkifyText(text: string): React.ReactNode {
+function preprocessText(text: string): string {
+  let result = text;
+  // Convert plain URLs to markdown links (skip already markdown-linked)
+  result = result.replace(/(?<!\])\(?(https?:\/\/[^\s,)]+)\)?/g, (match, url) => {
+    // Skip if already inside []() markdown
+    const before = result.slice(0, result.indexOf(match));
+    if (before.endsWith('](') || before.endsWith('](')) return match;
+    const label = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return `[${label}](${url})`;
+  });
+  // Convert page names to markdown links (only if not already inside []() or backticks)
   const sorted = Object.entries(pageMap).sort((a, b) => b[0].length - a[0].length);
-  const parts: React.ReactNode[] = [];
-  let remaining = text;
-  let key = 0;
-  while (remaining.length > 0) {
-    let earliestIdx = -1;
-    let matchedName = '';
-    let matchedSlug = '';
-    for (const [name, slug] of sorted) {
-      const idx = remaining.indexOf(name);
-      if (idx !== -1 && (earliestIdx === -1 || idx < earliestIdx)) {
-        earliestIdx = idx;
-        matchedName = name;
-        matchedSlug = slug;
-      }
-    }
-    if (earliestIdx === -1) { parts.push(remaining); break; }
-    if (earliestIdx > 0) parts.push(remaining.slice(0, earliestIdx));
-    parts.push(<Link key={key++} href={`/docs/${matchedSlug}`} className="text-[#0098EA] hover:underline">{matchedName}</Link>);
-    remaining = remaining.slice(earliestIdx + matchedName.length);
+  for (const [name, slug] of sorted) {
+    // Match page name NOT inside backticks or markdown links
+    const regex = new RegExp(`(?<!\`|\\[)\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?!\`|\\])`, 'g');
+    result = result.replace(regex, `[${name}](/docs/${slug})`);
   }
-  return <>{parts}</>;
+  return result;
 }
 
 type RelatedPage = { title: string; slug: string };
@@ -260,11 +243,7 @@ export default function AskAI() {
                     {!msg.thinking && msg.text && (
                       <div className="prose-ai text-[13px] text-[#E4E4E7] leading-relaxed">
                         <ReactMarkdown
-                          /* Pre-process: convert plain URLs to markdown links */
-                          children={msg.text.replace(/(^|[\s(])((https?:\/\/)[^\s,)]+)/g, (_, prefix, url) => {
-                            const label = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-                            return `${prefix}[${label}](${url})`;
-                          })}
+                          children={preprocessText(msg.text)}
                           components={{
                             code({ children, className }) {
                               const isBlock = className?.startsWith('language-');
@@ -285,8 +264,8 @@ export default function AskAI() {
                               }
                               return <code className="bg-[rgba(255,255,255,0.06)] px-1 py-0.5 rounded text-[12px] font-mono text-[#E4E4E7]">{children}</code>;
                             },
-                            p({ children }) { return <p className="mb-2">{linkifyPages(children)}</p>; },
-                            li({ children }) { return <li>{linkifyPages(children)}</li>; },
+                            p({ children }) { return <p className="mb-2">{children}</p>; },
+                            li({ children }) { return <li>{children}</li>; },
                             ol({ children }) { return <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>; },
                             ul({ children }) { return <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>; },
                             a({ href, children }) { return <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline">{children}</a>; },
