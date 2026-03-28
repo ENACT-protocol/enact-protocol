@@ -183,7 +183,7 @@ export default function Header() {
               onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
               onKeyDown={e => { if (e.key === 'Enter' && searchResults.length > 0) handleSearchSelect(searchResults[0].address); }}
               placeholder="Search by address or job ID..."
-              className="w-[240px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] border-subtle px-3.5 py-[7px] text-[12px] text-white placeholder-[#52525B] font-mono focus:outline-none focus:border-[#0098EA] transition-colors" />
+              className="w-[240px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg px-3.5 py-[7px] text-[12px] text-white placeholder-[#52525B] font-mono focus:outline-none focus:border-[#0098EA] transition-colors" />
             {searchFocused && headerSearch.trim() && (
               <div className="absolute top-full left-0 w-[380px] mt-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0A0A0F] p-1.5 shadow-xl shadow-black/40 z-50 max-h-[280px] overflow-y-auto"
                 style={{ animation: 'dropdown-enter 0.15s ease-out' }}>

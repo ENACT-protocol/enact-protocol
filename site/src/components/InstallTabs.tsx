@@ -53,7 +53,7 @@ function CursorPanel({ tab }: { tab: TabConfig }) {
             href={deeplink}
             className="flex items-center justify-center gap-3 w-full py-3.5 rounded-xl mb-2 font-medium text-sm text-white transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
             style={{
-              background: 'linear-gradient(135deg, #2A2A3A 0%, #1A1A28 100%)',
+              background: 'linear-gradient(135deg, #111118 0%, #0A0A0F 100%)',
               border: '1px solid rgba(255,255,255,0.08)',
               boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
             }}

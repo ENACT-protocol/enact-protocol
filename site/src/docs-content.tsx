@@ -2,14 +2,24 @@ import { ReactNode } from 'react';
 import Link from 'next/link';
 import InstallTabs from '@/components/InstallTabs';
 import CopyButton from '@/components/CopyButton';
+import CopyIcon from '@/components/CopyIcon';
 
 /* ══════════════════════════════════════════════════════════
    Primitives
    ══════════════════════════════════════════════════════════ */
+function slugify(text: string): string {
+  if (typeof text !== 'string') return '';
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 function H2({ children }: { children: ReactNode }) {
+  const id = typeof children === 'string' ? slugify(children) : '';
   return (
     <div className="doc-section">
-      <h2 className="font-serif text-2xl text-white mb-4">{children}</h2>
+      <h2 id={id} className="font-serif text-xl text-white mb-4 scroll-mt-20">{children}</h2>
     </div>
   );
 }
@@ -21,11 +31,16 @@ function P({ children }: { children: ReactNode }) {
 }
 function Code({ children, label }: { children: ReactNode; label?: string }) {
   return (
-    <div className="my-4">
-      {label && <div className="text-[11px] font-mono text-[var(--color-text-dim)] uppercase tracking-wider mb-2">{label}</div>}
+    <div className="my-4 rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden">
+      {label && (
+        <div className="flex items-center justify-between px-4 py-2 bg-[rgba(255,255,255,0.03)] border-b border-[rgba(255,255,255,0.06)]">
+          <span className="text-[11px] font-mono text-[#636370] uppercase tracking-wider">{label}</span>
+          {typeof children === 'string' && <CopyIcon text={children} />}
+        </div>
+      )}
       <div className="relative group">
-        <pre className="code-block pr-16">{children}</pre>
-        {typeof children === 'string' && <CopyButton text={children} />}
+        <pre className="code-block pr-16 !rounded-none !border-0 !my-0">{children}</pre>
+        {!label && typeof children === 'string' && <CopyButton text={children} />}
       </div>
     </div>
   );
@@ -36,13 +51,40 @@ function IC({ children }: { children: ReactNode }) {
 
 /* Callouts — Info / Tip / Warning */
 function Info({ children }: { children: ReactNode }) {
-  return <div className="callout info"><span className="callout-icon">i</span><div>{children}</div></div>;
+  return (
+    <div className="flex gap-3 items-start my-4 px-4 py-3 rounded-lg bg-[rgba(0,152,234,0.05)] border-l-[3px] border-[#0098EA]">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0098EA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <div className="text-[0.9375rem] text-[#A1A1AA] leading-relaxed">{children}</div>
+    </div>
+  );
 }
 function Tip({ children }: { children: ReactNode }) {
-  return <div className="callout tip"><span className="callout-icon">*</span><div>{children}</div></div>;
+  return (
+    <div className="flex gap-3 items-start my-4 px-4 py-3 rounded-lg bg-[rgba(34,197,94,0.05)] border-l-[3px] border-[#22C55E]">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+        <path d="M9 18h6" />
+        <path d="M10 22h4" />
+        <path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 01-1 1h-6a1 1 0 01-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z" />
+      </svg>
+      <div className="text-[0.9375rem] text-[#A1A1AA] leading-relaxed">{children}</div>
+    </div>
+  );
 }
 function Warn({ children }: { children: ReactNode }) {
-  return <div className="callout warn"><span className="callout-icon">!</span><div>{children}</div></div>;
+  return (
+    <div className="flex gap-3 items-start my-4 px-4 py-3 rounded-lg bg-[rgba(250,204,21,0.05)] border-l-[3px] border-[#FACC15]">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      <div className="text-[0.9375rem] text-[#A1A1AA] leading-relaxed">{children}</div>
+    </div>
+  );
 }
 
 /* Card-based navigation */

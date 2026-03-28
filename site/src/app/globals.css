@@ -52,9 +52,17 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .border-subtle { border: 1px solid var(--color-border); }
 
 .glass-panel {
-  background: rgba(5, 5, 8, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(5, 5, 8, 0.94);
+  backdrop-filter: blur(48px) saturate(1.2);
+  -webkit-backdrop-filter: blur(48px) saturate(1.2);
+}
+
+/* AI panel open — hide "on this page", shrink main content */
+html[data-ai-panel="true"] .docs-on-this-page {
+  display: none !important;
+}
+html[data-ai-panel="true"] .docs-main {
+  padding-right: 16px;
 }
 
 .step-number { font-size: 4rem; line-height: 1; color: var(--color-text-dim); opacity: 0.3; }
