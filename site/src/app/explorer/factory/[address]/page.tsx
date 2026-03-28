@@ -313,9 +313,9 @@ function StatCard({ label, value, sub, sparkline }: { label: string; value: Reac
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl relative" style={{ minHeight: sparkline ? 145 : undefined }}>
       <div className="px-3 sm:px-5 pt-3 sm:pt-4 pb-1 sm:pb-2 relative z-10">
         <div className="text-[#636370] text-[9px] sm:text-[10px] font-mono uppercase tracking-wider mb-0.5 sm:mb-1">{label}</div>
-        <div>
+        <div className="flex items-baseline gap-1 sm:gap-2 flex-wrap">
           <span className="text-[#F4F4F5] text-xl sm:text-[28px] font-semibold tracking-tight">{value}</span>
-          {sub && <span className="text-[10px] sm:text-[11px] text-[#636370] ml-1 sm:ml-2">{sub}</span>}
+          {sub && <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-[11px] text-[#636370]">{sub}</span>}
         </div>
       </div>
       {sparkline && (
