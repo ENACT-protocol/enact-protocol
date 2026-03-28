@@ -196,7 +196,7 @@ function ExplorerInner() {
                 sub={<><span>{stats.ton}</span> <TonIcon size={10} /> <span className="text-[#3F3F46] mx-0.5">·</span> <span>{stats.usdt}</span> <UsdtIcon size={10} /></>}
                 sparkline={sparklines.cumJobsTotal.length > 1 ? <MiniAreaSparkline data={sparklines.cumJobsTotal} color="#0088CC" meta={{ label: 'jobs', days: sparklines.days, details: [{ label: 'TON', data: sparklines.cumJobsTon }, { label: 'USDT', data: sparklines.cumJobsUsdt }] }} /> : undefined} />
               <StatCard label="Agents" value={agentStats.total}
-                sub={<span>{agentStats.clients} clients · {agentStats.evaluators} evaluators · {agentStats.providers} providers</span>}
+                sub={<><span className="hidden sm:inline">{agentStats.clients} clients · {agentStats.evaluators} eval · {agentStats.providers} prov</span><span className="sm:hidden">{agentStats.clients}c·{agentStats.evaluators}e·{agentStats.providers}p</span></>}
                 sparkline={sparklines.cumAgentsTotal.length > 1 ? <MiniAreaSparkline data={sparklines.cumAgentsTotal} color="#B8860B" meta={{ label: 'agents', days: sparklines.days, details: [{ label: 'Clients', data: sparklines.cumAgentsClients }, { label: 'Evaluators', data: sparklines.cumAgentsEvaluators }, { label: 'Providers', data: sparklines.cumAgentsProviders }] }} /> : undefined} />
               <StatCard label="Total Volume" value={`$${(volumeStats.tonNum * tonPrice + volumeStats.usdtNum).toFixed(0)}`}
                 sub={<><span>{volumeStats.tonVol}</span> <TonIcon size={10} /> <span className="text-[#3F3F46] mx-0.5">·</span> <span>{volumeStats.usdtVol}</span> <UsdtIcon size={10} /></>}
