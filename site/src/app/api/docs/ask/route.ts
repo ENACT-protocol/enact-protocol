@@ -28,7 +28,7 @@ function searchDocs(query: string): { slug: string; title: string; content: stri
     const contentLow = d.content.toLowerCase();
     for (const w of words) {
       // Skip common words that match everything
-      if (['enact', 'protocol', 'ton', 'что', 'как', 'the', 'how', 'what', 'can'].includes(w)) continue;
+      if (['enact', 'protocol', 'ton', 'the', 'how', 'what', 'can', 'for', 'and', 'with'].includes(w)) continue;
       if (titleLow.includes(w)) score += 5;
       if (d.slug.includes(w)) score += 4;
       // Count content matches (more matches = higher score)
