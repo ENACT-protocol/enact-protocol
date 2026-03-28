@@ -149,8 +149,8 @@ export default function Header() {
     <nav className="fixed top-0 left-0 w-full z-50 glass-panel border-b border-[#ffffff0f]">
       <div className="max-w-[1440px] mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
         <div className="flex items-center gap-5">
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <img src="/enact_without.png" alt="ENACT" className="h-10 w-10" />
+          <Link href="/" className="flex items-center gap-1.5 shrink-0">
+            <img src="/enact_without.png" alt="ENACT" className="h-[52px] w-[52px]" />
             <span className="font-serif italic text-[17px] tracking-tight text-white">
               ENACT<span className="font-sans not-italic font-light text-[13px] text-[#636370] ml-1.5 relative -top-0.5">Protocol</span>
             </span>
