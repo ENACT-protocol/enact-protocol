@@ -142,6 +142,16 @@ export default function AskAI() {
     }
   };
 
+  // Lock body scroll when panel open on mobile
+  useEffect(() => {
+    if (panelOpen && window.innerWidth < 640) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [panelOpen]);
+
   const handleSubmit = () => {
     if (!query.trim()) return;
     const msg = query.trim();
