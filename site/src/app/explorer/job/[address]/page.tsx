@@ -1,22 +1,41 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import {
-  AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, STATUS_COLORS, EVENT_DOT_COLORS,
-  Badge, Shimmer, TypeIcon, ClickAddr, Row, ContentBlock, TonscanLink, AIBadge, CopyHash,
-  BudgetDisplay, fmtDate, fmtTimeout,
+  AI_EVALUATOR, FACTORY, JETTON_FACTORY, useExplorerData, buildActivity, STATUS_COLORS, EVENT_DOT_COLORS,
+  Badge, Shimmer, TypeIcon, ContentBlock, TonscanLink, ClickAddr, CopyHash,
+  BudgetDisplay, fmtDateShort, fmtTimeout, truncAddr, txCount, Job,
 } from '../../shared';
 
-const TL_STATES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED'];
+/* ── Live countdown timer ── */
+function TimeoutCountdown({ createdAt, timeout, isFinal }: { createdAt: number; timeout: number; isFinal: boolean }) {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    if (isFinal) return;
+    const i = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(i);
+  }, [isFinal]);
+
+  const deadline = createdAt + timeout;
+  const remaining = Math.max(0, deadline - now);
+  const totalH = Math.round(timeout / 3600);
+
+  if (isFinal || remaining === 0) {
+    return <span className="text-[#636370] text-sm">Expired ({totalH}h)</span>;
+  }
+
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  return <span className="text-[#A1A1AA] text-sm">{h}h {m}m left ({totalH}h)</span>;
+}
 
 export default function JobPage() {
   const { address } = useParams<{ address: string }>();
   const { data, loading } = useExplorerData();
-  const [showTech, setShowTech] = useState(false);
 
   const job = useMemo(() => {
     if (!data) return null;
@@ -26,255 +45,218 @@ export default function JobPage() {
   const isFinal = job ? ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(job.stateName) : false;
   const wasSubmitted = !!job?.submittedAt;
 
-  // Activity events from API — sorted chronologically
-  const jobActivity = useMemo(() =>
-    data?.activity?.filter(a => a.address === address)?.sort((a, b) => a.time - b.time) ?? [],
-    [data?.activity, address]);
-  const isUsdt = job?.type === 'usdt';
+  // Activity events — from API or fallback from job data
+  const jobActivity = useMemo(() => {
+    const apiEvents = data?.activity?.filter(a => a.address === address);
+    if (apiEvents && apiEvents.length > 0) return apiEvents.sort((a, b) => a.time - b.time);
+    // Fallback: build from job data
+    if (job) return buildActivity([job]).sort((a, b) => a.time - b.time);
+    return [];
+  }, [data?.activity, address, job]);
 
-  // Timeline: use activity events for accurate times
-  const actTime = (event: string) => jobActivity.find(a => a.event === event)?.time ?? 0;
-  const tlStates = useMemo(() => {
-    if (!job) return [];
-    const states: Array<{ name: string; reached: boolean; current: boolean; time: string; color: string }> = [];
-    const addState = (name: string, reached: boolean, current: boolean, time: number) => {
-      states.push({ name, reached, current, time: reached && time ? fmtDate(time) : '', color: STATUS_COLORS[name] || '#555' });
-    };
-
-    const hasTaken = !!(job.provider && job.provider !== 'none');
-    addState('OPEN', true, job.stateName === 'OPEN', actTime('Created') || job.createdAt);
-
-    if (job.stateName === 'CANCELLED' && !wasSubmitted) {
-      addState('FUNDED', job.state >= 1 || job.stateName === 'CANCELLED', false, actTime('Funded') || job.createdAt);
-      addState('TAKEN', hasTaken, false, actTime('Taken'));
-      addState('CANCELLED', true, true, actTime('Cancelled'));
-    } else if (job.stateName === 'CANCELLED' && wasSubmitted) {
-      addState('FUNDED', true, false, actTime('Funded') || job.createdAt);
-      addState('TAKEN', hasTaken, false, actTime('Taken'));
-      addState('SUBMITTED', true, false, actTime('Submitted') || job.submittedAt);
-      addState('CANCELLED', true, true, actTime('Cancelled'));
-    } else if (job.stateName === 'DISPUTED') {
-      addState('FUNDED', true, false, actTime('Funded') || job.createdAt);
-      addState('TAKEN', hasTaken, false, actTime('Taken'));
-      addState('SUBMITTED', true, false, actTime('Submitted') || job.submittedAt);
-      addState('DISPUTED', true, true, actTime('Rejected'));
-    } else {
-      addState('FUNDED', job.state >= 1, job.stateName === 'FUNDED', actTime('Funded') || job.createdAt);
-      addState('TAKEN', hasTaken, false, actTime('Taken'));
-      addState('SUBMITTED', !!job.submittedAt, job.stateName === 'SUBMITTED', actTime('Submitted') || job.submittedAt);
-      addState('COMPLETED', job.stateName === 'COMPLETED', job.stateName === 'COMPLETED', actTime('Approved') || actTime('Claimed'));
-    }
-    return states;
-  }, [job, jobActivity]);
+  const numTxns = job ? txCount(job) : 0;
 
   return (
     <>
       <Header />
-      <main className="min-h-screen pt-20 pb-12 px-4 sm:px-6 max-w-[1200px] mx-auto">
-        <div className="flex items-center gap-2 text-sm text-[#555] mb-6">
-          <Link href="/explorer" className="hover:text-white transition-colors cursor-pointer">← Explorer</Link>
+      <main className="min-h-screen pt-20 pb-24 px-4 sm:px-6 max-w-[1200px] mx-auto">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-[#52525B] mb-5">
+          <Link href="/explorer" className="hover:text-[#A1A1AA] transition-colors cursor-pointer">← Explorer</Link>
           <span>/</span>
-          {job && <span className="text-[#888]">Job #{job.jobId}</span>}
+          {job && <span className="text-[#636370]">Job #{job.jobId}</span>}
         </div>
 
         {loading ? (
-          <div className="space-y-4"><Shimmer className="h-12 w-64 rounded-lg" />
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4"><Shimmer className="h-80 rounded-xl lg:col-span-3" /><Shimmer className="h-80 rounded-xl lg:col-span-2" /></div>
+          <div className="space-y-4">
+            <Shimmer className="h-10 w-96 rounded-lg" />
+            <Shimmer className="h-16 rounded-xl" />
+            <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
+              <Shimmer className="h-80 rounded-xl" />
+              <Shimmer className="h-80 rounded-xl" />
+            </div>
           </div>
         ) : !job ? (
-          <div className="bg-[#111] border border-[#222] rounded-xl p-8 text-center">
-            <div className="text-[#888] text-lg mb-2">Job not found</div>
-            <div className="text-[#555] text-sm font-mono mb-4 break-all">{address}</div>
+          <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-8 text-center">
+            <div className="text-[#A1A1AA] text-lg mb-2">Job not found</div>
+            <div className="text-[#52525B] text-sm font-mono mb-4 break-all">{address}</div>
             <Link href="/explorer" className="text-[#0098EA] hover:underline text-sm cursor-pointer">← Back to Explorer</Link>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-3 mb-6 flex-wrap">
-              <h1 className="font-serif text-3xl text-white">Job #{job.jobId}</h1>
-              <Badge status={job.stateName} />
-              <TypeIcon type={job.type} size={20} />
+            {/* ── Hero line ── */}
+            <div className="flex items-center gap-2.5 mb-6 flex-wrap">
+              <TypeIcon type={job.type} size={26} />
+              <span className="text-[28px] font-semibold text-white leading-none tracking-tight">#{job.jobId}</span>
+              <Badge status={job.stateName} pending={job.pendingState} />
+              <span className="text-[#F4F4F5] text-sm font-medium"><BudgetDisplay job={job} /></span>
+              <span className="text-[#3F3F46]">·</span>
+              <span className="text-[#636370] text-sm">{fmtDateShort(job.createdAt)}</span>
+              <span className="text-[#3F3F46]">·</span>
+              <span className="inline-flex items-center gap-1 text-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#636370" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <TimeoutCountdown createdAt={job.createdAt} timeout={job.timeout} isFinal={isFinal} />
+              </span>
+              <span className="text-[#3F3F46]">·</span>
+              <span className="text-[#636370] text-sm">{numTxns} txns</span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
-              <div className="lg:col-span-3 space-y-4">
-                <Section title="Overview">
-                  <div className="space-y-3">
-                    <Row label="Address"><ClickAddr addr={job.address} /></Row>
-                    <Row label="Factory">{job.type === 'ton' ? 'JobFactory (TON)' : 'JettonJobFactory (USDT)'}</Row>
-                    <Row label="Status"><Badge status={job.stateName} /></Row>
-                    <Row label="Budget"><span className="text-white font-medium"><BudgetDisplay job={job} /></span></Row>
-                    <Row label="Created">{fmtDate(actTime('Created') || job.createdAt)}</Row>
-                    <Row label="Timeout">{fmtTimeout(job.timeout)} (eval: {fmtTimeout(job.evalTimeout)})</Row>
-                  </div>
-                </Section>
-
-                <Section title="Content">
-                  <div className="space-y-4">
-                    <div><div className="text-[#555] text-xs mb-1">Description</div>
-                      <div className="bg-[#0a0a0a] rounded-lg p-3"><ContentBlock content={job.description} hash={job.descHash} /></div>
-                    </div>
-                    {wasSubmitted && (
-                      <div><div className="text-[#555] text-xs mb-1">Result</div>
-                        <div className="bg-[#0a0a0a] rounded-lg p-3"><ContentBlock content={job.resultContent} hash={job.resultHash} /></div>
-                      </div>
-                    )}
-                    {job.stateName === 'COMPLETED' && (
-                      <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
-                        <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm inline-flex items-center gap-2">
-                          <span className="text-[#4ADE80] inline-flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg> Approved</span>
-                          {job.reasonContent?.text && <span className="text-[#ccc]">— {job.reasonContent.text}</span>}
-                        </div>
-                      </div>
-                    )}
-                    {job.stateName === 'DISPUTED' && (
-                      <div><div className="text-[#555] text-xs mb-1">Evaluation</div>
-                        <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm inline-flex items-center gap-2">
-                          <span className="text-[#EF4444] inline-flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg> Rejected</span>
-                          {job.reasonContent?.text && <span className="text-[#ccc]">— {job.reasonContent.text}</span>}
-                        </div>
-                      </div>
-                    )}
-                    {job.stateName === 'CANCELLED' && (
-                      <div><div className="text-[#555] text-xs mb-1">Status</div>
-                        <div className="bg-[#0a0a0a] rounded-lg p-3 text-sm">
-                          <span className="text-[#6B7280] inline-flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg> Cancelled — funds refunded to client</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Section>
-
-                {/* Transaction Cards — rendered from activity events (opcode-parsed) */}
-                <Section title="Transactions">
-                  <div className="space-y-3">
-                    {jobActivity.map((ev, i) => {
-                      const isAI = job.evaluator === AI_EVALUATOR;
-                      const color = EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555';
-                      switch (ev.event) {
-                        case 'Created':
-                          return <TxCard key={i} color={color} label="Created" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
-                            <TxRow label="Budget"><BudgetDisplay job={job} /></TxRow>
-                          </TxCard>;
-                        case 'Funded':
-                          return <TxCard key={i} color={color} label="Funded" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Locked"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> in escrow</span></TxRow>
-                          </TxCard>;
-                        case 'Taken':
-                          return <TxCard key={i} color={color} label="Taken" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Provider">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</TxRow>
-                          </TxCard>;
-                        case 'Quit':
-                          return <TxCard key={i} color={color} label="Quit" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Provider">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</TxRow>
-                          </TxCard>;
-                        case 'Submitted':
-                          return <TxCard key={i} color={color} label="Submitted" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Provider">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</TxRow>
-                            <TxRow label="Result">
-                              <span className="inline-flex items-center gap-1.5">
-                                <span className="text-[#ccc] text-xs">{job.resultContent?.text ? (job.resultContent.text.slice(0, 80) + (job.resultContent.text.length > 80 ? '...' : '')) : '—'}</span>
-                                {job.resultContent?.ipfsUrl && <a href={job.resultContent.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS"><img src="/logos/pinata.jpeg" alt="IPFS" width={12} height={12} className="rounded-sm" /></a>}
-                                <CopyHash hash={job.resultHash} />
-                              </span>
-                            </TxRow>
-                          </TxCard>;
-                        case 'Approved':
-                          return <TxCard key={i} color={color} label="Approved" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
-                            <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
-                            {job.reasonContent?.text && <TxRow label="Reason"><span className="text-[#ccc] text-xs">{job.reasonContent.text}</span></TxRow>}
-                          </TxCard>;
-                        case 'Rejected':
-                          return <TxCard key={i} color={color} label="Rejected" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Evaluator">{isAI ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}</TxRow>
-                            <TxRow label="Action">Result rejected, funds refunded</TxRow>
-                          </TxCard>;
-                        case 'Cancelled':
-                          return <TxCard key={i} color={color} label="Cancelled" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Client"><ClickAddr addr={job.client} truncate /></TxRow>
-                            <TxRow label="Refund"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Client</span></TxRow>
-                          </TxCard>;
-                        case 'Claimed':
-                          return <TxCard key={i} color={color} label="Claimed" time={fmtDate(ev.time)} txHash={ev.txHash ?? ''}>
-                            <TxRow label="Provider">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</TxRow>
-                            <TxRow label="Payout"><span className="inline-flex items-center gap-1"><BudgetDisplay job={job} /> → Provider</span></TxRow>
-                          </TxCard>;
-                        default:
-                          return null;
-                      }
-                    })}
-                  </div>
-                </Section>
+            {/* ── Info card: single row with 5 columns ── */}
+            <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl mb-6 overflow-x-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-[#ffffff08]">
+                <InfoCol label="Contract"><div className="[&_.break-all]:text-white"><ClickAddr addr={job.address} truncate /></div></InfoCol>
+                <InfoCol label="Client"><div className="[&_.break-all]:text-white"><ClickAddr addr={job.client} truncate /></div></InfoCol>
+                <InfoCol label="Provider">
+                  {job.provider && job.provider !== 'none'
+                    ? <div className="[&_.break-all]:text-white"><ClickAddr addr={job.provider} truncate /></div>
+                    : <span className="text-[#52525B] text-xs">Not assigned</span>}
+                </InfoCol>
+                <InfoCol label="Evaluator">
+                  {job.evaluator === AI_EVALUATOR
+                    ? <span className="inline-flex items-center gap-1.5"><CopyableAddr addr={AI_EVALUATOR} label="AI Evaluator" /><TonscanLink addr={AI_EVALUATOR} size={10} /></span>
+                    : <div className="[&_.break-all]:text-white"><ClickAddr addr={job.evaluator} truncate /></div>}
+                </InfoCol>
+                <InfoCol label="Factory">
+                  <Link href={`/explorer/factory/${job.type === 'ton' ? FACTORY : JETTON_FACTORY}`} className="text-[#0098EA] text-xs hover:underline">{job.type === 'ton' ? 'JobFactory' : 'JettonJobFactory'}</Link>
+                </InfoCol>
               </div>
+            </div>
 
-              <div className="lg:col-span-2 space-y-4">
-                <Section title="Participants">
-                  <div className="space-y-4">
-                    <div><div className="text-[#555] text-xs mb-1">Client</div><ClickAddr addr={job.client} truncate /></div>
-                    <div><div className="text-[#555] text-xs mb-1">Provider</div>
-                      {job.provider && job.provider !== 'none' ? <ClickAddr addr={job.provider} truncate /> : <span className="text-[#555] text-sm">Not assigned</span>}
-                    </div>
-                    <div><div className="text-[#555] text-xs mb-1">Evaluator</div>
-                      {job.evaluator === AI_EVALUATOR ? <AIBadge addr={AI_EVALUATOR} /> : <ClickAddr addr={job.evaluator} truncate />}
-                    </div>
-                  </div>
-                </Section>
-
-                {/* Timeline */}
-                <Section title="Timeline">
-                  <div className="relative ml-1.5">
-                    {tlStates.map((s, i) => {
-                      const isLast = i === tlStates.length - 1;
-                      return (
-                        <div key={s.name} className="relative flex items-start" style={{ paddingBottom: isLast ? 0 : 24 }}>
-                          {!isLast && (
-                            <div className="absolute left-[5px] top-[12px] w-[2px] bottom-0"
-                              style={s.reached ? { backgroundColor: s.color } : { borderLeft: '2px dashed #333' }} />
+            {/* ── Two columns: Timeline (left) + Content (right) ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 mb-6">
+              {/* Timeline */}
+              <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-4">Timeline</div>
+                <div className="relative ml-1">
+                  {jobActivity.map((ev, i) => {
+                    const isLast = i === jobActivity.length - 1;
+                    const color = EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555';
+                    return (
+                      <div key={`${ev.event}-${ev.time}-${i}`} className="relative flex items-start" style={{ paddingBottom: isLast ? 0 : 28 }}>
+                        {/* Line */}
+                        {!isLast && (
+                          <div className="absolute left-[3.5px] top-[12px] w-[1px] bottom-0 bg-[#ffffff1a]" />
+                        )}
+                        {/* Dot */}
+                        <div className="relative z-10 shrink-0 mt-[3px]" style={{ width: 8 }}>
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                        </div>
+                        {/* Event info */}
+                        <div className="ml-3 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium" style={{ color }}>{ev.event}</span>
+                            <a href={ev.txHash ? `https://tonscan.org/tx/${ev.txHash}` : `https://tonscan.org/address/${job.address}`}
+                              target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                              className="text-[#52525B] hover:text-white transition-colors cursor-pointer shrink-0" title={ev.txHash ? 'View transaction' : 'View contract'}>
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path fill="currentColor" d="M4.14 6.881c0 .199.483.684.84.676.358-.007.88-.452.88-.676 0-.223-.523-.257-.839-.257s-.88.059-.88.257M2.677 5.679c.517.201 1.04.09 1.168-.247s-.189-.774-.706-.976-.958-.225-1.086.113c-.127.337.107.908.624 1.11M6.158 5.432c.128.338.66.425 1.15.188.488-.236.717-.713.59-1.051-.128-.338-.517-.315-1.035-.113s-.833.639-.705.976"/><path fill="currentColor" fillRule="evenodd" d="M1.814.343c.435.267.995.698 1.677 1.284Q4.4 1.469 5 1.468q.597.001 1.494.159C7.18 1.053 7.742.628 8.175.362c.227-.14.437-.247.62-.304.163-.05.414-.097.626.05a.7.7 0 0 1 .249.35q.066.19.093.443c.037.336.035.801-.012 1.414q-.045.581-.157 1.22c.404.768.503 1.627.314 2.557-.186.912-.784 1.726-1.672 2.468C7.368 9.285 6.292 10 4.99 10c-1.29 0-2.57-.733-3.338-1.454C.9 7.84.395 7.143.16 6.342-.114 5.416-.033 4.48.386 3.55q-.121-.67-.156-1.24C.188 1.59.177 1.13.21.824.225.67.254.531.31.411A.75.75 0 0 1 .544.118c.209-.16.462-.127.637-.077.19.054.403.16.633.302M.982.738.96.732A1 1 0 0 0 .93.9c-.025.237-.02.64.024 1.368q.032.56.165 1.262l.022.116-.051.107C.697 4.574.626 5.363.854 6.138c.186.632.595 1.222 1.295 1.88.686.644 1.798 1.257 2.842 1.257 1.033 0 1.938-.567 2.78-1.27.82-.687 1.286-1.368 1.426-2.057.169-.829.063-1.545-.297-2.171l-.066-.116.024-.131q.125-.675.17-1.27c.046-.594.044-1.009.014-1.28a1.5 1.5 0 0 0-.039-.227c-.1.032-.247.103-.45.227-.412.253-.984.686-1.721 1.31L6.7 2.4l-.169-.03C5.88 2.25 5.372 2.193 5 2.193q-.555-.001-1.552.177l-.17.03-.132-.113C2.414 1.65 1.846 1.212 1.435.96A2 2 0 0 0 .982.738" clipRule="evenodd"/></svg>
+                            </a>
+                          </div>
+                          <div className="text-[#52525B] text-xs mt-0.5">{fmtDateShort(ev.time)}</div>
+                          {ev.from && (
+                            <div className="mt-1 text-xs">
+                              <CopyableAddr addr={ev.from} label={ev.from === AI_EVALUATOR ? 'AI Evaluator' : undefined} />
+                            </div>
                           )}
-                          <div className="relative z-10 shrink-0" style={{ width: 12 }}>
-                            {s.current
-                              ? <div className="w-3 h-3 rounded-full border-2" style={{ borderColor: s.color, backgroundColor: s.color + '40', boxShadow: `0 0 8px ${s.color}60` }} />
-                              : <div className={`w-3 h-3 rounded-full border-2 ${s.reached ? '' : 'border-[#333]'}`} style={s.reached ? { borderColor: s.color, backgroundColor: s.color + '40' } : {}} />}
-                          </div>
-                          <div className="ml-3">
-                            <div className={`text-sm ${s.reached ? 'text-white' : 'text-[#555]'}`}>{s.name}</div>
-                            {s.time && <div className="text-[#555] text-xs">{s.time}</div>}
-                          </div>
+                          {ev.event === 'Created' && !ev.from && (
+                            <div className="mt-1 text-xs">
+                              <CopyableAddr addr={job.client} />
+                            </div>
+                          )}
+                          {ev.event === 'Funded' && (
+                            <div className="mt-0.5 text-xs text-white"><BudgetDisplay job={job} /> <span className="text-white">locked</span></div>
+                          )}
+                          {ev.event === 'Approved' && (
+                            <div className="mt-0.5 text-xs text-white"><BudgetDisplay job={job} /> <span className="text-white">→ Provider</span></div>
+                          )}
+                          {ev.event === 'Cancelled' && (
+                            <div className="mt-0.5 text-xs text-white"><BudgetDisplay job={job} /> <span className="text-white">→ Client</span></div>
+                          )}
+                          {ev.event === 'Claimed' && (
+                            <div className="mt-0.5 text-xs text-white"><BudgetDisplay job={job} /> <span className="text-white">→ Provider</span></div>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                </Section>
+                      </div>
+                    );
+                  })}
+                  {jobActivity.length === 0 && (
+                    <div className="text-[#52525B] text-xs">No events yet</div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Technical Details */}
-            <div className="mt-4">
-              <button onClick={() => setShowTech(!showTech)} className="flex items-center gap-2 text-xs text-[#555] hover:text-[#888] transition-colors font-mono cursor-pointer">
-                <span className={`transform transition-transform ${showTech ? 'rotate-90' : ''}`}>▶</span> Technical Details
-              </button>
-              {showTech && (
-                <div className="mt-3 bg-[#111] border border-[#222] rounded-xl p-5 text-[13px] text-[#555] font-mono space-y-1">
-                  {([['jobId', job.jobId], ['state', `${job.state} (${job.stateName})`],
-                    ['client', job.client], ['provider', job.provider ?? 'none'], ['evaluator', job.evaluator],
-                    ['budget (raw)', job.budget], ['budgetFormatted', job.budgetFormatted],
-                    ['descHash', job.descHash], ['resultHash', job.resultHash],
-                    ['resultType', job.resultType ?? 0],
-                    ['timeout', job.timeout], ['evalTimeout', job.evalTimeout],
-                    ['createdAt', job.createdAt], ['submittedAt', job.submittedAt],
-                    ['factory', job.type === 'ton' ? FACTORY : JETTON_FACTORY],
-                  ] as [string, any][]).map(([k, v]) => (
-                    <div key={k} className="flex gap-3"><span className="text-[#444] w-32 shrink-0">{k}</span><span className="text-[#555] break-all">{String(v)}</span></div>
-                  ))}
-                  <div className="pt-2 mt-2 border-t border-[#1a1a1a] text-[#444] space-y-0.5">
-                    <div>Main Cell: jobId · factory · client · provider · state</div>
-                    <div>Details: evaluator · budget · descHash · resultHash</div>
-                    <div>Extension: timeout · createdAt · evalTimeout · submittedAt · resultType · reason</div>
+              {/* Content column */}
+              <div className="space-y-4">
+                {/* Description card */}
+                <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Description</span>
+                    {job.description?.ipfsUrl && (
+                      <IpfsLabel hash={job.descHash} url={job.description.ipfsUrl} />
+                    )}
+                  </div>
+                  <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                    <ContentBlock content={job.description} hash={job.descHash} />
                   </div>
                 </div>
-              )}
+
+                {/* Result card */}
+                {wasSubmitted && (
+                  <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Result</span>
+                      {job.resultContent?.ipfsUrl && (
+                        <IpfsLabel hash={job.resultHash} url={job.resultContent.ipfsUrl} />
+                      )}
+                    </div>
+                    <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                      <ContentBlock content={job.resultContent} hash={job.resultHash} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Evaluation card */}
+                {(job.stateName === 'COMPLETED' || job.stateName === 'DISPUTED') && (
+                  <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Evaluation</span>
+                      {job.reasonContent?.ipfsUrl && <IpfsLabel hash={job.resultHash} url={job.reasonContent.ipfsUrl} />}
+                    </div>
+                    <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        {job.stateName === 'COMPLETED' ? (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#22C55E" strokeWidth="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#22C55E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span className="text-[#22C55E] text-sm font-medium">Approved</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#EF4444" strokeWidth="1.5"/><path d="M15 9l-6 6M9 9l6 6" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                            <span className="text-[#EF4444] text-sm font-medium">Rejected</span>
+                          </>
+                        )}
+                      </div>
+                      {job.reasonContent?.text && <p className="text-[#A1A1AA] text-sm leading-relaxed">{job.reasonContent.text}</p>}
+                      {!job.reasonContent?.text && <p className="text-[#52525B] text-sm">No reason provided</p>}
+                    </div>
+                  </div>
+                )}
+
+                {job.stateName === 'CANCELLED' && (
+                  <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl p-5">
+                    <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-3">Status</div>
+                    <div className="bg-[#ffffff05] border border-[#ffffff08] rounded-[10px] p-4">
+                      <div className="flex items-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#6B7280" strokeWidth="1.5"/><path d="M4.93 4.93l14.14 14.14" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                        <span className="text-[#6B7280] text-sm font-medium">Cancelled — funds refunded to client</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* ── Technical Details: collapsible ── */}
+            <TechnicalDetails job={job} />
           </>
         )}
       </main>
@@ -283,30 +265,97 @@ export default function JobPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="bg-[#111] border border-[#222] rounded-xl p-5 explorer-section"><div className="text-[#555] text-xs font-mono mb-4 uppercase tracking-wider">{title}</div>{children}</div>;
-}
+/* ── Helper components ── */
 
-function TxCard({ color, label, time, txHash, children }: { color: string; label: string; time?: string; txHash?: string; children: React.ReactNode }) {
+function InfoCol({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg p-4 bg-[#0a0a0a] explorer-tx" style={{ borderLeft: `3px solid ${color}` }}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span style={{ color }} className="text-lg leading-none">●</span>
-          <span className="text-white text-sm font-medium">{label}</span>
-        </div>
-        {txHash && (
-          <a href={`https://tonscan.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View transaction">
-            <svg width="16" height="16" viewBox="0 0 10 10" fill="none"><path fill="currentColor" d="M4.14 6.881c0 .199.483.684.84.676.358-.007.88-.452.88-.676 0-.223-.523-.257-.839-.257s-.88.059-.88.257M2.677 5.679c.517.201 1.04.09 1.168-.247s-.189-.774-.706-.976-.958-.225-1.086.113c-.127.337.107.908.624 1.11M6.158 5.432c.128.338.66.425 1.15.188.488-.236.717-.713.59-1.051-.128-.338-.517-.315-1.035-.113s-.833.639-.705.976"/><path fill="currentColor" fillRule="evenodd" d="M1.814.343c.435.267.995.698 1.677 1.284Q4.4 1.469 5 1.468q.597.001 1.494.159C7.18 1.053 7.742.628 8.175.362c.227-.14.437-.247.62-.304.163-.05.414-.097.626.05a.7.7 0 0 1 .249.35q.066.19.093.443c.037.336.035.801-.012 1.414q-.045.581-.157 1.22c.404.768.503 1.627.314 2.557-.186.912-.784 1.726-1.672 2.468C7.368 9.285 6.292 10 4.99 10c-1.29 0-2.57-.733-3.338-1.454C.9 7.84.395 7.143.16 6.342-.114 5.416-.033 4.48.386 3.55q-.121-.67-.156-1.24C.188 1.59.177 1.13.21.824.225.67.254.531.31.411A.75.75 0 0 1 .544.118c.209-.16.462-.127.637-.077.19.054.403.16.633.302M.982.738.96.732A1 1 0 0 0 .93.9c-.025.237-.02.64.024 1.368q.032.56.165 1.262l.022.116-.051.107C.697 4.574.626 5.363.854 6.138c.186.632.595 1.222 1.295 1.88.686.644 1.798 1.257 2.842 1.257 1.033 0 1.938-.567 2.78-1.27.82-.687 1.286-1.368 1.426-2.057.169-.829.063-1.545-.297-2.171l-.066-.116.024-.131q.125-.675.17-1.27c.046-.594.044-1.009.014-1.28a1.5 1.5 0 0 0-.039-.227c-.1.032-.247.103-.45.227-.412.253-.984.686-1.721 1.31L6.7 2.4l-.169-.03C5.88 2.25 5.372 2.193 5 2.193q-.555-.001-1.552.177l-.17.03-.132-.113C2.414 1.65 1.846 1.212 1.435.96A2 2 0 0 0 .982.738" clipRule="evenodd"/></svg>
-          </a>
-        )}
-      </div>
-      {time && <div className="text-[#555] text-xs mb-2">{time}</div>}
-      <div className="space-y-1.5">{children}</div>
+    <div className="px-4 py-3.5">
+      <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-1.5">{label}</div>
+      <div>{children}</div>
     </div>
   );
 }
 
-function TxRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="flex gap-2 text-sm"><span className="text-[#555] w-20 shrink-0">{label}</span><span className="text-[#ccc] min-w-0">{children}</span></div>;
+function TechCol({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="px-4 py-2">
+      <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-1">{label}</div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function TechnicalDetails({ job }: { job: Job }) {
+  const [open, setOpen] = useState(false);
+  const zeroHash = '0'.repeat(64);
+  return (
+    <div className="bg-[#ffffff05] border border-[#ffffff0f] rounded-xl">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-5 py-3.5 cursor-pointer">
+        <span className="text-[#52525B] text-[10px] font-mono uppercase tracking-wider">Technical Details</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#52525B" strokeWidth="1.5" strokeLinecap="round"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+          <path d="M3 4.5L6 7.5L9 4.5"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-[#ffffff08] pt-3">
+          <TechRow label="Contract Address" value={job.address} copy mono />
+          <TechRow label="State (raw)" value={`${job.state}`} />
+          <TechRow label="Budget (raw)" value={job.budget} mono />
+          <TechRow label="Description Hash" value={job.descHash || '—'} copy={!!job.descHash} mono />
+          <TechRow label="Result Hash" value={job.resultHash && job.resultHash !== zeroHash ? job.resultHash : '—'} copy={!!job.resultHash && job.resultHash !== zeroHash} mono />
+          <TechRow label="Timeout (seconds)" value={`${job.timeout}`} />
+          <TechRow label="Eval Timeout (seconds)" value={`${job.evalTimeout}`} />
+          <TechRow label="Created (unix)" value={job.createdAt ? String(job.createdAt) : '—'} />
+          {job.submittedAt > 0 && <TechRow label="Submitted (unix)" value={String(job.submittedAt)} />}
+          {job.resultType != null && <TechRow label="Result Type" value={String(job.resultType)} />}
+          {job.pendingState && <TechRow label="Pending State" value={job.pendingState} />}
+          <TechRow label="Has File" value={job.hasFile ? 'Yes' : 'No'} />
+          <TechRow label="Tx Count" value={String(job.transactions?.length || txCount(job))} />
+          {job.description?.source && <TechRow label="Desc Source" value={job.description.source} />}
+          {job.description?.ipfsUrl && <TechRow label="Desc IPFS" value={job.description.ipfsUrl} copy />}
+          {job.resultContent?.source && <TechRow label="Result Source" value={job.resultContent.source} />}
+          {job.resultContent?.ipfsUrl && <TechRow label="Result IPFS" value={job.resultContent.ipfsUrl} copy />}
+          {job.reasonContent?.source && <TechRow label="Reason Source" value={job.reasonContent.source} />}
+          {job.description?.file && <TechRow label="Desc File" value={job.description.file.filename} />}
+          {job.resultContent?.file && <TechRow label="Result File" value={job.resultContent.file.filename} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TechRow({ label, value, copy, mono }: { label: string; value: string; copy?: boolean; mono?: boolean }) {
+  return (
+    <div>
+      <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">{label}</div>
+      <div className={`text-[11px] text-[#636370] ${mono ? 'font-mono' : ''} break-all inline-flex items-center gap-1`}>
+        {value.length > 20 ? value.slice(0, 16) + '…' : value}
+        {copy && value !== '—' && <CopyHash hash={value} />}
+      </div>
+    </div>
+  );
+}
+
+function CopyableAddr({ addr, label }: { addr: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className={`font-mono cursor-pointer transition-colors ${copied ? 'text-[#22C55E]' : 'text-[#A1A1AA] hover:text-white'}`}
+      onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(addr); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+      {copied ? 'Copied!' : (label || truncAddr(addr))}
+    </span>
+  );
+}
+
+function IpfsLabel({ hash, url }: { hash: string; url: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-[10px] text-[#52525B] hover:text-[#A1A1AA] transition-colors cursor-pointer font-mono">
+        IPFS
+        <span className="text-[#3F3F46]">{hash.slice(0, 8)}...</span>
+      </a>
+      <CopyHash hash={hash} />
+    </span>
+  );
 }

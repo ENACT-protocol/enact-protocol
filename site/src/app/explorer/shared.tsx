@@ -8,17 +8,17 @@ export const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 export const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 
 export const STATUS_STYLES: Record<string, string> = {
-  OPEN: 'border-[#FACC15] text-[#FACC15] bg-[#FACC1520]',
-  FUNDED: 'border-[#60A5FA] text-[#60A5FA] bg-[#60A5FA20]',
-  SUBMITTED: 'border-[#A78BFA] text-[#A78BFA] bg-[#A78BFA20]',
-  COMPLETED: 'border-[#4ADE80] text-[#4ADE80] bg-[#4ADE8020]',
-  CANCELLED: 'border-[#6B7280] text-[#6B7280] bg-[#6B728020]',
-  DISPUTED: 'border-[#EF4444] text-[#EF4444] bg-[#EF444420]',
+  OPEN: 'border-[#FACC1533] text-[#FACC15] bg-[#ffffff0a]',
+  FUNDED: 'border-[#3B82F633] text-[#60A5FA] bg-[#ffffff0a]',
+  SUBMITTED: 'border-[#A78BFA33] text-[#A78BFA] bg-[#ffffff0a]',
+  COMPLETED: 'border-[#22C55E33] text-[#22C55E] bg-[#ffffff0a]',
+  CANCELLED: 'border-[#6B728033] text-[#6B7280] bg-[#ffffff0a]',
+  DISPUTED: 'border-[#EF444433] text-[#EF4444] bg-[#ffffff0a]',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
   OPEN: '#FACC15', FUNDED: '#60A5FA', SUBMITTED: '#A78BFA',
-  COMPLETED: '#4ADE80', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
+  COMPLETED: '#22C55E', CANCELLED: '#6B7280', DISPUTED: '#EF4444',
 };
 
 // Dot color by event name (independent of contract status)
@@ -151,13 +151,13 @@ export function buildActivity(jobs: Job[], apiActivity?: ActivityEvent[]): Activ
 // ─── Components ───
 
 export function Shimmer({ className }: { className?: string }) {
-  return <div className={`animate-pulse bg-[#1a1a1a] rounded ${className ?? ''}`} />;
+  return <div className={`animate-pulse bg-[#ffffff08] rounded ${className ?? ''}`} />;
 }
 
 export function Badge({ status, pending }: { status: string; pending?: string | null }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`text-xs px-2 py-0.5 rounded border font-mono explorer-badge ${STATUS_STYLES[status] ?? 'border-[#555] text-[#888]'}`}>{status}</span>
+      <span className={`text-[10px] leading-3 px-2 py-0.5 rounded border font-mono tracking-wider explorer-badge ${STATUS_STYLES[status] ?? 'border-[#555] text-[#A1A1AA]'}`}>{status}</span>
       {pending && <span className="text-xs px-2 py-0.5 rounded bg-[#F59E0B20] border border-[#F59E0B] text-[#F59E0B] font-mono animate-pulse">{pending}</span>}
     </span>
   );
@@ -180,7 +180,7 @@ export function TypeIcon({ type, size = 16 }: { type: 'ton' | 'usdt'; size?: num
 }
 
 export function FileClip() {
-  return <Paperclip size={14} className="inline-block text-[#555] align-middle" />;
+  return <Paperclip size={14} className="inline-block text-[#52525B] align-middle" />;
 }
 
 export function AIBadge({ addr }: { addr?: string }) {
@@ -196,7 +196,7 @@ export function CopyHash({ hash }: { hash: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button onClick={e => { e.stopPropagation(); e.preventDefault(); navigator.clipboard.writeText(hash); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      className="text-[#555] hover:text-white transition-colors shrink-0 cursor-pointer inline-flex items-center" title="Copy hash" aria-label={copied ? 'Copied' : 'Copy hash'}>
+      className="text-[#52525B] hover:text-white transition-colors shrink-0 cursor-pointer inline-flex items-center" title="Copy hash" aria-label={copied ? 'Copied' : 'Copy hash'}>
       {copied
         ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
         : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>}
@@ -204,10 +204,10 @@ export function CopyHash({ hash }: { hash: string }) {
   );
 }
 
-export function TonscanLink({ addr, size = 16 }: { addr: string; size?: number }) {
+export function TonscanLink({ addr, size = 13 }: { addr: string; size?: number }) {
   return (
     <a href={tonscanUrl(addr)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-      className="text-[#555] hover:text-white transition-colors shrink-0 cursor-pointer inline-flex items-center" title="View on TONScan">
+      className="text-[#52525B] hover:text-white transition-colors shrink-0 cursor-pointer inline-flex items-center" title="View on TONScan">
       <svg width={size} height={size} viewBox="0 0 10 10" fill="none"><path fill="currentColor" d="M4.14 6.881c0 .199.483.684.84.676.358-.007.88-.452.88-.676 0-.223-.523-.257-.839-.257s-.88.059-.88.257M2.677 5.679c.517.201 1.04.09 1.168-.247s-.189-.774-.706-.976-.958-.225-1.086.113c-.127.337.107.908.624 1.11M6.158 5.432c.128.338.66.425 1.15.188.488-.236.717-.713.59-1.051-.128-.338-.517-.315-1.035-.113s-.833.639-.705.976"/><path fill="currentColor" fillRule="evenodd" d="M1.814.343c.435.267.995.698 1.677 1.284Q4.4 1.469 5 1.468q.597.001 1.494.159C7.18 1.053 7.742.628 8.175.362c.227-.14.437-.247.62-.304.163-.05.414-.097.626.05a.7.7 0 0 1 .249.35q.066.19.093.443c.037.336.035.801-.012 1.414q-.045.581-.157 1.22c.404.768.503 1.627.314 2.557-.186.912-.784 1.726-1.672 2.468C7.368 9.285 6.292 10 4.99 10c-1.29 0-2.57-.733-3.338-1.454C.9 7.84.395 7.143.16 6.342-.114 5.416-.033 4.48.386 3.55q-.121-.67-.156-1.24C.188 1.59.177 1.13.21.824.225.67.254.531.31.411A.75.75 0 0 1 .544.118c.209-.16.462-.127.637-.077.19.054.403.16.633.302M.982.738.96.732A1 1 0 0 0 .93.9c-.025.237-.02.64.024 1.368q.032.56.165 1.262l.022.116-.051.107C.697 4.574.626 5.363.854 6.138c.186.632.595 1.222 1.295 1.88.686.644 1.798 1.257 2.842 1.257 1.033 0 1.938-.567 2.78-1.27.82-.687 1.286-1.368 1.426-2.057.169-.829.063-1.545-.297-2.171l-.066-.116.024-.131q.125-.675.17-1.27c.046-.594.044-1.009.014-1.28a1.5 1.5 0 0 0-.039-.227c-.1.032-.247.103-.45.227-.412.253-.984.686-1.721 1.31L6.7 2.4l-.169-.03C5.88 2.25 5.372 2.193 5 2.193q-.555-.001-1.552.177l-.17.03-.132-.113C2.414 1.65 1.846 1.212 1.435.96A2 2 0 0 0 .982.738" clipRule="evenodd"/></svg>
     </a>
   );
@@ -217,7 +217,7 @@ export function ClickAddr({ addr, truncate = false }: { addr: string; truncate?:
   const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="font-mono text-xs text-[#ccc] cursor-pointer hover:text-white transition-colors"
+      <span className="font-mono text-xs text-[#A1A1AA] cursor-pointer hover:text-white transition-colors"
         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(addr); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
         {copied ? <span className="text-[#4ADE80]">Copied!</span> : <span className="break-all">{truncate ? truncAddr(addr) : addr}</span>}
       </span>
@@ -227,7 +227,7 @@ export function ClickAddr({ addr, truncate = false }: { addr: string; truncate?:
 }
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="flex gap-3"><span className="text-[#555] w-24 shrink-0 text-sm">{label}</span><span className="text-[#ccc] min-w-0 text-sm">{children}</span></div>;
+  return <div className="flex gap-3"><span className="text-[#636370] w-24 shrink-0 text-sm">{label}</span><span className="text-[#A1A1AA] min-w-0 text-sm">{children}</span></div>;
 }
 
 export function LiveTimer({ timestamp }: { timestamp: number }) {
@@ -254,7 +254,7 @@ export function BudgetDisplay({ job }: { job: Job }) {
 export function ContentBlock({ content, hash }: { content?: ResolvedContent; hash: string }) {
   const [expanded, setExpanded] = useState(false);
   const zeroHash = '0'.repeat(64);
-  if (!hash || hash === zeroHash) return <span className="text-[#555]">—</span>;
+  if (!hash || hash === zeroHash) return <span className="text-[#52525B]">—</span>;
 
   const text = content?.text;
   const isLong = !!text && text.length > 200;
@@ -268,11 +268,11 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       {/* Text */}
       {text && (
         <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
-          <span className="text-[#ccc] whitespace-pre-wrap text-sm">{text}</span>
+          <span className="text-[#A1A1AA] whitespace-pre-wrap text-sm">{text}</span>
         </div>
       )}
       {isLong && (
-        <button onClick={() => setExpanded(!expanded)} className="text-[#555] hover:text-white transition-colors cursor-pointer mt-1">
+        <button onClick={() => setExpanded(!expanded)} className="text-[#52525B] hover:text-white transition-colors cursor-pointer mt-1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       )}
@@ -282,10 +282,10 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
         <div className={text ? 'mt-3' : ''}>
           <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer">
             <img src={file.ipfsUrl} alt={file.filename}
-              className="max-h-[200px] rounded-lg border border-[#222] cursor-pointer hover:opacity-80 transition-opacity" />
+              className="max-h-[200px] rounded-lg border border-[#ffffff0f] cursor-pointer hover:opacity-80 transition-opacity" />
           </a>
           {showFilename && (
-            <div className="flex items-center gap-2 mt-1.5 text-xs text-[#555]">
+            <div className="flex items-center gap-2 mt-1.5 text-xs text-[#52525B]">
               <span>{file.filename}</span>
               <span>{file.mimeType}</span>
               <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline cursor-pointer">View on IPFS</a>
@@ -298,11 +298,11 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
       {isFile && file?.ipfsUrl && (
         <div className={text ? 'mt-3' : ''}>
           <a href={file.ipfsUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-2 bg-[#151515] border border-[#222] rounded-lg text-xs text-[#ccc] hover:text-white transition-colors">
+            className="inline-flex items-center gap-2 px-3 py-2 bg-[#ffffff08] border border-[#ffffff0f] rounded-lg text-xs text-[#A1A1AA] hover:text-white transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <div>
-              <div className="text-[#ccc]">{file!.filename}</div>
-              {file!.size > 0 && <div className="text-[#555]">{(file!.size / 1024).toFixed(1)} KB</div>}
+              <div className="text-[#A1A1AA]">{file!.filename}</div>
+              {file!.size > 0 && <div className="text-[#52525B]">{(file!.size / 1024).toFixed(1)} KB</div>}
             </div>
           </a>
         </div>
@@ -310,14 +310,14 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
 
       {/* No text, no file — show hash */}
       {!text && !file && (
-        <span className="text-[#555] font-mono text-xs">Content hash: {hash.slice(0, 16)}... <CopyHash hash={hash} /></span>
+        <span className="text-[#52525B] font-mono text-xs">Content hash: {hash.slice(0, 16)}... <CopyHash hash={hash} /></span>
       )}
 
       {/* Copy hash + IPFS link */}
       <div className="flex items-center gap-1.5 mt-1.5">
         <span className="flex-1" />
         {content?.ipfsUrl && (
-          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
+          <a href={content.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#52525B] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
             <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
           </a>
         )}

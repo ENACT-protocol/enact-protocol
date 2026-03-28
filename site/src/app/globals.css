@@ -480,3 +480,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 }
 .tx-pending { animation: tx-pulse 1.5s ease-in-out infinite; background: rgba(250,204,21,0.05) !important; }
 .tx-confirmed { animation: tx-pulse 3s ease-in-out infinite; background: rgba(96,165,250,0.04) !important; }
+
+/* Header dropdown animation */
+@keyframes dropdown-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
