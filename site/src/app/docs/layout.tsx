@@ -161,7 +161,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       <Header />
 
       {/* Mobile sidebar toggle */}
-      <div className="lg:hidden sticky top-16 z-30 flex items-center px-4 py-2.5 border-b border-[rgba(255,255,255,0.06)] bg-[#050508]">
+      <div className="md:hidden sticky top-16 z-30 flex items-center px-4 py-2.5 border-b border-[rgba(255,255,255,0.06)] bg-[#050508]">
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="flex items-center gap-2 text-[#A1A1AA] text-[13px] cursor-pointer">
           {sidebarOpen
             ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -186,8 +186,8 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           border-r border-[rgba(255,255,255,0.06)]
           py-5 pb-40 z-40 bg-[#050508] [&]::-webkit-scrollbar{display:none} [-ms-overflow-style:none] [scrollbar-width:none]
           transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          lg:shrink-0 lg:sticky lg:h-[calc(100vh-64px)]
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          md:shrink-0 md:sticky md:h-[calc(100vh-64px)]
         `}>
           {sidebar.map(group => (
               <div key={group.group} className="mb-5">

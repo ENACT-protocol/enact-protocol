@@ -21,17 +21,10 @@ function linkifyPages(children: React.ReactNode): React.ReactNode {
   if (Array.isArray(children)) {
     return children.map((child, i) => {
       if (typeof child === 'string') return <span key={i}>{linkifyText(child)}</span>;
-      if (child && typeof child === 'object' && 'props' in child && child.props?.children) {
-        return { ...child, props: { ...child.props, children: linkifyPages(child.props.children) } };
-      }
+      // Don't process children of <a> tags (already links)
+      if (child && typeof child === 'object' && 'type' in child && (child.type === 'a' || child.type === Link)) return child;
       return child;
     });
-  }
-  if (children && typeof children === 'object' && 'props' in (children as any)) {
-    const el = children as React.ReactElement<Record<string, unknown>>;
-    if (el.props?.children) {
-      return { ...el, props: { ...el.props, children: linkifyPages(el.props.children as React.ReactNode) } };
-    }
   }
   return children;
 }
@@ -296,7 +289,7 @@ export default function AskAI() {
                             li({ children }) { return <li>{linkifyPages(children)}</li>; },
                             ol({ children }) { return <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>; },
                             ul({ children }) { return <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>; },
-                            a({ href, children }) { return <a href={href} target="_blank" className="text-[#0098EA] hover:underline">{children}</a>; },
+                            a({ href, children }) { return <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline">{children}</a>; },
                           }}
                         />
                         {msg.typing && <span className="inline-block w-[2px] h-[13px] bg-[#0098EA] ml-0.5 animate-pulse align-middle" />}
