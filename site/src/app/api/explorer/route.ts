@@ -225,10 +225,11 @@ async function fetchFromRPC() {
         const txs = await fetchTxsForJob(addr);
         const effectiveCreatedAt = status.createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
 
+        const reasonHash = (status as any).reasonHash || '';
         const [desc, result, reasonResolved] = await Promise.all([
           resolveContent(status.descHash),
           resolveContent(status.resultHash),
-          resolveContent(status.reasonHash),
+          resolveContent(reasonHash),
         ]);
 
         const job = {
