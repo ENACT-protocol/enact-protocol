@@ -18,6 +18,7 @@
 import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Address, beginCell, toNano } from '@ton/core';
+import { createServer } from 'http';
 // ─── Config ───
 const MNEMONIC = process.env.WALLET_MNEMONIC ?? '';
 const LLM_API_KEY = process.env.GROQ_API_KEY ?? '';
@@ -174,6 +175,22 @@ async function main() {
 
     const evaluated = new Set<string>();
 
+    // ─── Health HTTP server (keeps Render Web Service alive) ───
+    const PORT = parseInt(process.env.PORT || '10000', 10);
+    let lastScan = Date.now();
+    let scanCount = 0;
+    createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: 'ok',
+            service: 'enact-ai-evaluator',
+            uptime: Math.floor(process.uptime()),
+            lastScan: new Date(lastScan).toISOString(),
+            scanCount,
+            dryRun: DRY_RUN,
+        }));
+    }).listen(PORT, () => log(`🌐 Health server on :${PORT}`));
+
     log(`🤖 ENACT AI Evaluator started${DRY_RUN ? ' (DRY RUN)' : ''}`);
     log(`🧠 LLM: ${LLM_MODEL} via ${LLM_URL.includes('groq') ? 'Groq' : 'OpenAI-compatible'}`);
     log(`👛 Evaluator address: ${myAddr}`);
@@ -327,6 +344,8 @@ Submitted result: ${result}`;
             log(`❌ Scan error: ${err.message}`);
         }
 
+        lastScan = Date.now();
+        scanCount++;
         await sleep(INTERVAL);
         log(`🔍 Scanning...`);
     }
