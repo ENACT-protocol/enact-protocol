@@ -228,8 +228,7 @@ export default function JobPage() {
                           </>
                         )}
                       </div>
-                      {job.reasonContent?.text && <p className="text-[#A1A1AA] text-sm leading-relaxed">{job.reasonContent.text}</p>}
-                      {!job.reasonContent?.text && <p className="text-[#52525B] text-sm">No reason provided</p>}
+                      <ContentBlock content={job.reasonContent} hash={job.reasonHash || ''} />
                     </div>
                   </div>
                 )}

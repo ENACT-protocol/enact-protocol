@@ -27,6 +27,7 @@ export interface JobData {
     budgetTon: string;
     descHash: string;
     resultHash: string;
+    reasonHash: string;
     timeout: number;
     createdAt: number;
     evalTimeout: number;
@@ -188,7 +189,7 @@ export class EnactClient {
         const evalTimeout = result.stack.readNumber();
         const submittedAt = result.stack.readNumber();
         result.stack.readNumber(); // resultType
-        result.stack.readBigNumber(); // reason
+        const reason = result.stack.readBigNumber();
         const state = result.stack.readNumber();
 
         return {
@@ -200,6 +201,7 @@ export class EnactClient {
             budgetTon: (Number(budget) / 1e9).toFixed(4),
             descHash: descHash.toString(16).padStart(64, '0'),
             resultHash: resultHash.toString(16).padStart(64, '0'),
+            reasonHash: reason.toString(16).padStart(64, '0'),
             timeout, createdAt, evalTimeout, submittedAt, address: jobAddress,
         };
     }

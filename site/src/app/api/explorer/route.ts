@@ -62,13 +62,15 @@ async function fetchFromSupabase() {
       state: j.state, stateName: j.state_name,
       client: j.client, provider: j.provider, evaluator: j.evaluator,
       budget: String(j.budget), budgetFormatted: j.budget_formatted,
-      descHash: j.desc_hash, resultHash: j.result_hash,
+      descHash: j.desc_hash, resultHash: j.result_hash, reasonHash: j.reason_hash || '',
       timeout: j.timeout, createdAt: j.created_at,
       evalTimeout: j.eval_timeout, submittedAt: j.submitted_at,
       resultType: j.result_type,
       description: descContent,
       resultContent: resContent,
-      reasonContent: j.reason_text ? { text: j.reason_text, source: 'hex' } : { text: null, source: 'hash' },
+      reasonContent: j.reason_text
+        ? { text: j.reason_text, source: j.reason_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.reason_ipfs_url }
+        : { text: null, source: 'hash' },
       hasFile: !!(j.description_file_cid || j.result_file_cid),
       pendingState: j.pending_state || null,
       transactions: txByJob.get(j.address) ?? [],
@@ -223,9 +225,10 @@ async function fetchFromRPC() {
         const txs = await fetchTxsForJob(addr);
         const effectiveCreatedAt = status.createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
 
-        const [desc, result] = await Promise.all([
+        const [desc, result, reasonResolved] = await Promise.all([
           resolveContent(status.descHash),
           resolveContent(status.resultHash),
+          resolveContent(status.reasonHash),
         ]);
 
         const job = {
@@ -236,7 +239,7 @@ async function fetchFromRPC() {
           budgetFormatted: type === 'usdt' ? `${(Number(status.budget) / 1e6).toFixed(2)} USDT` : `${(Number(status.budget) / 1e9).toFixed(2)} TON`,
           description: desc,
           resultContent: result,
-          reasonContent: { text: null, source: 'hash' },
+          reasonContent: reasonResolved,
           hasFile: !!(desc.file || result.file),
           transactions: txs,
         };

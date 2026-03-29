@@ -35,7 +35,7 @@ export type Job = {
   jobId: number; address: string; type: 'ton' | 'usdt'; state: number; stateName: string;
   client: string; provider: string | null; evaluator: string;
   budget: string; budgetFormatted: string;
-  descHash: string; resultHash: string; timeout: number; createdAt: number;
+  descHash: string; resultHash: string; reasonHash?: string; timeout: number; createdAt: number;
   evalTimeout: number; submittedAt: number; resultType?: number;
   description?: ResolvedContent; resultContent?: ResolvedContent; reasonContent?: ResolvedContent;
   hasFile?: boolean;
