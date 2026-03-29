@@ -145,7 +145,36 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
-      return NextResponse.json({ error: 'AI service error', filesRead: 0, searches: [], relatedPages: [] }, { status: 500 });
+      const errText = await res.text().catch(() => 'unknown');
+      console.error(`Groq API error ${res.status}: ${errText}`);
+      // Rate limit — fallback to smaller model
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 1000));
+        const retry = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'llama-3.1-8b-instant',
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: `Question: ${message}` },
+            ],
+            max_tokens: 512,
+            temperature: 0.2,
+          }),
+        });
+        if (retry.ok) {
+          const retryData = await retry.json();
+          return NextResponse.json({
+            response: retryData.choices?.[0]?.message?.content || 'Please try again.',
+            filesRead: relevant.length, searches, relatedPages: relevant.map(d => ({ title: d.title, slug: d.slug })),
+          });
+        }
+      }
+      return NextResponse.json({
+        response: 'Service is temporarily busy. Please try again in a moment.',
+        filesRead: 0, searches: [], relatedPages: [],
+      });
     }
 
     const data = await res.json();
