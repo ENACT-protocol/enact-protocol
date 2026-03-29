@@ -229,7 +229,17 @@ export function useSparklineData(jobs?: Job[]) {
     if (!effectiveStats.length) return [] as string[];
     const s = new Set<string>();
     for (const st of effectiveStats) s.add(st.day);
-    return Array.from(s).sort();
+    const rawDays = Array.from(s).sort();
+    if (rawDays.length === 0) return [];
+    // Fill gaps from first day to today
+    const start = new Date(rawDays[0]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const allDays: string[] = [];
+    for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+      allDays.push(d.toISOString().slice(0, 10));
+    }
+    return allDays;
   }, [effectiveStats]);
 
   const dayLabels = useMemo(() => sortedDays.map(d => d.slice(5)), [sortedDays]);
