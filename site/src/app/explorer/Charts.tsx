@@ -225,24 +225,32 @@ export function useSparklineData(jobs?: Job[]) {
     return Array.from(dayMap.values());
   }, [stats, jobs]);
 
-  const sortedDays = useMemo(() => {
+  // Local date formatter (avoids UTC shift from toISOString)
+  const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // Days with actual activity (for bar charts)
+  const activeDays = useMemo(() => {
     if (!effectiveStats.length) return [] as string[];
     const s = new Set<string>();
     for (const st of effectiveStats) s.add(st.day);
-    const rawDays = Array.from(s).sort();
-    if (rawDays.length === 0) return [];
-    // Fill gaps from first day to today
-    const start = new Date(rawDays[0]);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const allDays: string[] = [];
-    for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-      allDays.push(d.toISOString().slice(0, 10));
-    }
-    return allDays;
+    return Array.from(s).sort();
   }, [effectiveStats]);
 
+  // Continuous days from first job to today (for cumulative area charts)
+  const sortedDays = useMemo(() => {
+    if (!activeDays.length) return [] as string[];
+    const start = new Date(activeDays[0]);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const allDays: string[] = [];
+    for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+      allDays.push(fmtDate(d));
+    }
+    return allDays;
+  }, [activeDays]);
+
   const dayLabels = useMemo(() => sortedDays.map(d => d.slice(5)), [sortedDays]);
+  const activeDayLabels = useMemo(() => activeDays.map(d => d.slice(5)), [activeDays]);
 
   const cumJobs = useMemo(() => {
     if (!sortedDays.length) return [];
@@ -267,11 +275,11 @@ export function useSparklineData(jobs?: Job[]) {
   }, [effectiveStats, sortedDays]);
 
   const jobsPerDay = useMemo(() => {
-    if (!sortedDays.length) return [];
+    if (!activeDays.length) return [];
     const dayMap = new Map<string, number>();
     for (const s of effectiveStats) dayMap.set(s.day, (dayMap.get(s.day) || 0) + Number(s.job_count));
-    return sortedDays.map(d => dayMap.get(d) || 0);
-  }, [effectiveStats, sortedDays]);
+    return activeDays.map(d => dayMap.get(d) || 0);
+  }, [effectiveStats, activeDays]);
 
   // Cumulative unique agents (clients, providers, evaluators) by day
   const cumAgents = useMemo(() => {
@@ -315,5 +323,6 @@ export function useSparklineData(jobs?: Job[]) {
     cumAgentsEvaluators: cumAgents.evaluators,
     jobsPerDay,
     days: dayLabels,
+    barDays: activeDayLabels,
   };
 }
