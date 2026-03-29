@@ -228,7 +228,22 @@ export default function JobPage() {
                           </>
                         )}
                       </div>
-                      <ContentBlock content={job.reasonContent} hash={job.reasonHash || ''} />
+                      {job.reasonContent?.text ? (
+                        <div>
+                          <p className="text-[#A1A1AA] text-sm leading-relaxed whitespace-pre-wrap">{job.reasonContent.text}</p>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className="flex-1" />
+                            {job.reasonContent.ipfsUrl && (
+                              <a href={job.reasonContent.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#52525B] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View on IPFS">
+                                <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
+                              </a>
+                            )}
+                            {job.reasonHash && job.reasonHash !== '0'.repeat(64) && <CopyHash hash={job.reasonHash} />}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[#52525B] text-sm">No reason provided</p>
+                      )}
                     </div>
                   </div>
                 )}
