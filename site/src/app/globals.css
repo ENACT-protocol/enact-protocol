@@ -65,6 +65,15 @@ html[data-ai-panel="true"] .docs-main {
   padding-right: 16px;
 }
 
+/* Hide AI input when mobile sidebar is open */
+@media (max-width: 767px) {
+  html[data-sidebar-open="true"] .docs-ask-input {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(20px);
+  }
+}
+
 .step-number { font-size: 4rem; line-height: 1; color: var(--color-text-dim); opacity: 0.3; }
 @media (max-width: 639px) {
   .step-number { font-size: 2.5rem; }

@@ -116,6 +116,15 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     return () => clearTimeout(timer);
   }, [pathname, staticToc.length]);
 
+  // Toggle body class for mobile sidebar (hides AI input)
+  useEffect(() => {
+    if (sidebarOpen && window.innerWidth < 768) {
+      document.documentElement.setAttribute('data-sidebar-open', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-sidebar-open');
+    }
+  }, [sidebarOpen]);
+
   // Close sidebar on route change
   useEffect(() => {
     setSidebarOpen(false);

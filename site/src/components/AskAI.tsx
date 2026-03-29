@@ -152,6 +152,18 @@ export default function AskAI() {
     return () => { document.body.style.overflow = ''; };
   }, [panelOpen]);
 
+  // Hide AI input when mobile docs sidebar is open
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const isOpen = document.documentElement.hasAttribute('data-sidebar-open');
+      setSidebarHidden(isOpen);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-sidebar-open'] });
+    return () => observer.disconnect();
+  }, []);
+
   const handleSubmit = () => {
     if (!query.trim()) return;
     const msg = query.trim();
@@ -188,7 +200,7 @@ export default function AskAI() {
 
   return (
     <>
-      <div className="fixed bottom-4 z-40" style={{ left: '16px', right: '16px', maxWidth: '600px', margin: '0 auto' }}>
+      <div className="fixed bottom-4 z-40 transition-all duration-300" style={{ left: '16px', right: '16px', maxWidth: '600px', margin: '0 auto', opacity: sidebarHidden ? 0 : 1, pointerEvents: sidebarHidden ? 'none' : 'auto', transform: sidebarHidden ? 'translateY(20px)' : 'none' }}>
         <div className="flex items-center px-5 py-4 rounded-2xl border border-[rgba(255,255,255,0.12)] shadow-2xl shadow-black/50"
           style={{ background: 'rgba(8,8,12,0.8)', backdropFilter: 'blur(40px) saturate(1.5)', WebkitBackdropFilter: 'blur(40px) saturate(1.5)' }}>
           <input type="text" value={query} onChange={e => setQuery(e.target.value)}
