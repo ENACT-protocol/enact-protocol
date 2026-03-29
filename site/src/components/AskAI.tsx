@@ -293,7 +293,7 @@ export default function AskAI() {
                             a({ href, children }) {
                               const isInternal = href?.startsWith('/');
                               if (isInternal) {
-                                return <Link href={href!} className="text-[#0098EA] hover:underline">{children}</Link>;
+                                return <Link href={href!} className="text-[#0098EA] hover:underline" onClick={() => { if (window.innerWidth < 640) { setPanelOpen(false); window.dispatchEvent(new Event('ai-panel-close')); document.body.style.overflow = ''; } }}>{children}</Link>;
                               }
                               return <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0098EA] hover:underline">{children}</a>;
                             },
@@ -307,6 +307,7 @@ export default function AskAI() {
                       <div className="mt-3 space-y-1">
                         {msg.relatedPages.map((p, j) => (
                           <Link key={j} href={`/docs/${p.slug}`}
+                            onClick={() => { if (window.innerWidth < 640) { setPanelOpen(false); window.dispatchEvent(new Event('ai-panel-close')); document.body.style.overflow = ''; } }}
                             className="block text-[13px] text-[#F4F4F5] font-medium hover:text-[#0098EA] transition-colors">
                             {p.title}
                           </Link>
