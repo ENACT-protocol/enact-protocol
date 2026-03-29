@@ -208,7 +208,11 @@ async function main() {
                 try {
                     const r = await client.runMethod(Address.parse(factory.addr), 'get_next_job_id');
                     jobCount = r.stack.readNumber();
-                } catch { continue; }
+                } catch (err: any) {
+                    log(`⚠️ ${factory.label} factory error: ${err.message}`);
+                    continue;
+                }
+                log(`  📊 ${factory.label}: ${jobCount} jobs`);
 
                 for (let i = 0; i < jobCount; i++) {
                     const jobKey = `${factory.label}#${i}`;
@@ -226,7 +230,14 @@ async function main() {
                         const status = await getJobStatus(client, jobAddrStr);
 
                         if (status.stateName !== 'SUBMITTED') continue;
-                        if (status.evaluator !== myAddr) continue;
+
+                        // Compare addresses in raw form to avoid bounceable/non-bounceable mismatch
+                        const jobEvaluator = Address.parse(status.evaluator).toRawString();
+                        const myAddrRaw = wallet.address.toRawString();
+                        if (jobEvaluator !== myAddrRaw) {
+                            log(`  ⏭️ ${jobKey}: evaluator mismatch (job=${status.evaluator.slice(0,12)}... me=${myAddr.slice(0,12)}...)`);
+                            continue;
+                        }
 
                         log(`\n📋 ${jobKey} (${jobAddrStr.slice(0, 12)}...): SUBMITTED — evaluating...`);
 
@@ -335,7 +346,7 @@ Submitted result: ${result}`;
 
                         evaluated.add(jobKey);
                     } catch (err: any) {
-                        // Skip individual job errors
+                        log(`  ❌ ${jobKey} error: ${err.message}`);
                         continue;
                     }
                 }
