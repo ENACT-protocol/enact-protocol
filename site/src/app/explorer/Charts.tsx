@@ -274,12 +274,20 @@ export function useSparklineData(jobs?: Job[]) {
     return sortedDays.map(d => { cumT += tonMap.get(d) || 0; cumU += usdtMap.get(d) || 0; return { total: cumT + cumU, ton: cumT, usdt: cumU }; });
   }, [effectiveStats, sortedDays]);
 
-  const jobsPerDay = useMemo(() => {
-    if (!activeDays.length) return [];
+  // Transactions per day — from actual tx timestamps across ALL jobs
+  const { txnsPerDay, txDays } = useMemo(() => {
+    if (!jobs?.length) return { txnsPerDay: [] as number[], txDays: [] as string[] };
     const dayMap = new Map<string, number>();
-    for (const s of effectiveStats) dayMap.set(s.day, (dayMap.get(s.day) || 0) + Number(s.job_count));
-    return activeDays.map(d => dayMap.get(d) || 0);
-  }, [effectiveStats, activeDays]);
+    for (const j of jobs) {
+      for (const tx of (j.transactions || [])) {
+        if (!tx.utime) continue;
+        const day = fmtDate(new Date(tx.utime * 1000));
+        dayMap.set(day, (dayMap.get(day) || 0) + 1);
+      }
+    }
+    const days = Array.from(dayMap.keys()).sort();
+    return { txnsPerDay: days.map(d => dayMap.get(d) || 0), txDays: days.map(d => d.slice(5)) };
+  }, [jobs]);
 
   // Cumulative unique agents (clients, providers, evaluators) by day
   const cumAgents = useMemo(() => {
@@ -321,8 +329,8 @@ export function useSparklineData(jobs?: Job[]) {
     cumAgentsClients: cumAgents.clients,
     cumAgentsProviders: cumAgents.providers,
     cumAgentsEvaluators: cumAgents.evaluators,
-    jobsPerDay,
+    txnsPerDay,
     days: dayLabels,
-    barDays: activeDayLabels,
+    txDays,
   };
 }

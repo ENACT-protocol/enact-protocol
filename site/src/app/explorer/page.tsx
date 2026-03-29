@@ -203,7 +203,7 @@ function ExplorerInner() {
                 sparkline={sparklines.cumVolumeTotal.length > 1 ? <MiniAreaSparkline data={sparklines.cumVolumeTotal.map((v, i) => sparklines.cumVolumeTon[i] * tonPrice + sparklines.cumVolumeUsdt[i])} color="#26A17B" meta={{ label: '$', days: sparklines.days, details: [{ label: 'TON', data: sparklines.cumVolumeTon }, { label: 'USDT', data: sparklines.cumVolumeUsdt }] }} /> : undefined} />
               <StatCard label="Transactions" value={stats.txTotal}
                 sub={<span>across {stats.total} jobs</span>}
-                sparkline={sparklines.jobsPerDay.length > 1 ? <MiniBarSparkline data={sparklines.jobsPerDay} color="#4A90D9" meta={{ label: 'txns', days: sparklines.barDays }} /> : undefined} />
+                sparkline={sparklines.txnsPerDay.length > 1 ? <MiniBarSparkline data={sparklines.txnsPerDay} color="#4A90D9" meta={{ label: 'txns', days: sparklines.txDays }} /> : undefined} />
             </div>
 
             {/* Latest Activity */}
