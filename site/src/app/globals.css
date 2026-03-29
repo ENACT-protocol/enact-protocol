@@ -53,8 +53,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 
 .glass-panel {
   background: rgba(5, 5, 8, 0.75);
-  backdrop-filter: blur(80px) saturate(1.8);
-  -webkit-backdrop-filter: blur(80px) saturate(1.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* AI panel open — hide "on this page", shrink main content */

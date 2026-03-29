@@ -146,7 +146,7 @@ export default function Header() {
   );
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-50 glass-panel border-b border-[rgba(255,255,255,0.06)]">
+    <nav className="fixed top-0 left-0 w-full z-50 glass-panel backdrop-blur-[20px] backdrop-saturate-[1.8] border-b border-[rgba(255,255,255,0.06)]">
       <div className="max-w-[1440px] mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
         <div className="flex items-center gap-5">
           <Link href="/" className="flex items-center gap-0.5 shrink-0">
@@ -219,7 +219,7 @@ export default function Header() {
         </button>
       </div>
       {mobileOpen && (
-        <div className="md:hidden glass-panel border-t border-[rgba(255,255,255,0.06)] px-4 pb-6 pt-4">
+        <div className="md:hidden glass-panel backdrop-blur-[20px] backdrop-saturate-[1.8] border-t border-[rgba(255,255,255,0.06)] px-4 pb-6 pt-4">
           <div className="flex flex-col space-y-4">
             <Link href="/explorer" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Explorer</Link>
             <Link href="/docs/getting-started" onClick={() => setMobileOpen(false)} className="text-[13px] text-[#A1A1AA] hover:text-white transition-colors py-1">Docs</Link>
