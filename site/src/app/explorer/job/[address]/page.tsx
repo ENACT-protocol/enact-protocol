@@ -238,7 +238,7 @@ export default function JobPage() {
                                 <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
                               </a>
                             )}
-                            <CopyHash hash={job.reasonHash || job.reasonContent.text} />
+                            <CopyHash hash={job.reasonHash || (job.reasonContent.source === 'hex' ? Array.from(new TextEncoder().encode(job.reasonContent.text!)).map(b => b.toString(16).padStart(2, '0')).join('') : job.reasonContent.text!)} />
                           </div>
                         </div>
                       ) : (
