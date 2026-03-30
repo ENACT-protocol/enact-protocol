@@ -191,6 +191,19 @@ async function main() {
         }));
     }).listen(PORT, () => log(`🌐 Health server on :${PORT}`));
 
+    // ─── IdentityHub heartbeat (every 3 min) ───
+    const IH_KEY = process.env.IDENTITY_HUB_KEY || '';
+    if (IH_KEY) {
+        const sendHeartbeat = () => {
+            fetch('https://api.identityhub.app/agents/me/heartbeat', {
+                method: 'POST',
+                headers: { 'X-Agent-Key': IH_KEY },
+            }).then(() => log('💓 IdentityHub heartbeat sent')).catch(() => {});
+        };
+        sendHeartbeat();
+        setInterval(sendHeartbeat, 180_000);
+    }
+
     log(`🤖 ENACT AI Evaluator started${DRY_RUN ? ' (DRY RUN)' : ''}`);
     log(`🧠 LLM: ${LLM_MODEL} via ${LLM_URL.includes('groq') ? 'Groq' : 'OpenAI-compatible'}`);
     log(`👛 Evaluator address: ${myAddr}`);
