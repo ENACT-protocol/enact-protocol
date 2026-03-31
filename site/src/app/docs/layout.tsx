@@ -191,7 +191,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
 
         {/* Sidebar */}
         <aside className={`
-          fixed lg:relative top-16 lg:top-0 left-0 w-[240px] h-[calc(100vh-64px)] overflow-y-auto
+          fixed lg:sticky top-16 left-0 w-[240px] h-[calc(100vh-64px)] overflow-y-auto
           border-r border-[rgba(255,255,255,0.06)]
           py-5 pb-40 z-40 bg-[#050508] [&]::-webkit-scrollbar{display:none} [-ms-overflow-style:none] [scrollbar-width:none]
           transition-transform duration-300 ease-in-out
