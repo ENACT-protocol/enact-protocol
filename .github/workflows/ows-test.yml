@@ -1,0 +1,119 @@
+name: OWS Integration Test
+on: workflow_dispatch
+
+jobs:
+  test-ows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install OWS
+        run: |
+          mkdir ows-test && cd ows-test
+          npm init -y
+          npm install @open-wallet-standard/core
+
+      - name: Test OWS with TON
+        run: |
+          cd ows-test
+          node -e "
+          const ows = require('@open-wallet-standard/core');
+
+          console.log('=== TEST 1: Create wallet ===');
+          const w = ows.createWallet('test-agent');
+          console.log('Wallet ID:', w.id);
+          console.log('Wallet name:', w.name);
+          console.log('Accounts:');
+          for (const a of w.accounts) {
+            console.log('  chain:', a.chainId, 'addr:', a.address, 'path:', a.derivationPath);
+          }
+
+          const tonAccount = w.accounts.find(a => a.chainId.includes('ton'));
+          console.log('\n=== TEST 2: TON account ===');
+          if (tonAccount) {
+            console.log('TON chain ID:', tonAccount.chainId);
+            console.log('TON address:', tonAccount.address);
+            console.log('TON derivation:', tonAccount.derivationPath);
+          } else {
+            console.log('NO TON ACCOUNT FOUND');
+            console.log('Available chains:', w.accounts.map(a => a.chainId));
+          }
+
+          console.log('\n=== TEST 3: Export wallet (check if public key accessible) ===');
+          try {
+            const exported = ows.exportWallet('test-agent');
+            console.log('Export type:', typeof exported);
+            console.log('Export preview:', exported.slice(0, 80) + '...');
+          } catch(e) {
+            console.log('Export error:', e.message);
+          }
+
+          console.log('\n=== TEST 4: signMessage with TON chain ===');
+          // Test signing a 32-byte hash (like Cell.hash() returns)
+          const testHash = 'a'.repeat(64); // 32 bytes as hex
+          try {
+            const chainId = tonAccount ? tonAccount.chainId : 'ton';
+            const sig = ows.signMessage('test-agent', chainId, testHash, undefined, 'hex');
+            console.log('Signature hex:', sig.signature);
+            console.log('Signature length (bytes):', sig.signature.length / 2);
+            console.log('Recovery ID:', sig.recoveryId);
+          } catch(e) {
+            console.log('signMessage error:', e.message);
+            // Try with different chain identifiers
+            for (const chain of ['ton', 'ton:mainnet', 'TON', 'solana']) {
+              try {
+                const sig = ows.signMessage('test-agent', chain, testHash, undefined, 'hex');
+                console.log('SUCCESS with chain=' + chain + ', sig length:', sig.signature.length / 2);
+                break;
+              } catch(e2) {
+                console.log('  chain=' + chain + ': ' + e2.message);
+              }
+            }
+          }
+
+          console.log('\n=== TEST 5: signTransaction with TON ===');
+          try {
+            const chainId = tonAccount ? tonAccount.chainId : 'ton';
+            const fakeTx = 'b5ee9c72'.repeat(16); // fake BOC hex
+            const sig = ows.signTransaction('test-agent', chainId, fakeTx);
+            console.log('signTransaction result:', JSON.stringify(sig));
+          } catch(e) {
+            console.log('signTransaction error:', e.message);
+          }
+
+          console.log('\n=== TEST 6: Import wallet from mnemonic ===');
+          try {
+            const mnemonic = ows.generateMnemonic(24);
+            console.log('Generated mnemonic words:', mnemonic.split(' ').length);
+            const imported = ows.importWalletMnemonic('imported-test', mnemonic);
+            console.log('Imported wallet accounts:');
+            for (const a of imported.accounts) {
+              console.log('  chain:', a.chainId, 'addr:', a.address.slice(0,20) + '...');
+            }
+            ows.deleteWallet('imported-test');
+          } catch(e) {
+            console.log('Import error:', e.message);
+          }
+
+          console.log('\n=== TEST 7: deriveAddress for TON ===');
+          try {
+            const mnemonic = ows.generateMnemonic(24);
+            for (const chain of ['ton', 'ton:mainnet', 'solana', 'evm']) {
+              try {
+                const addr = ows.deriveAddress(mnemonic, chain);
+                console.log('deriveAddress(' + chain + '):', addr);
+              } catch(e2) {
+                console.log('deriveAddress(' + chain + '): ERROR -', e2.message);
+              }
+            }
+          } catch(e) {
+            console.log('deriveAddress error:', e.message);
+          }
+
+          // Cleanup
+          ows.deleteWallet('test-agent');
+          console.log('\n=== ALL TESTS COMPLETE ===');
+          "
