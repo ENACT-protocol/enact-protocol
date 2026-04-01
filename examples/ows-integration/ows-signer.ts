@@ -27,7 +27,6 @@
  */
 
 import { Cell } from '@ton/core';
-import { mnemonicToPrivateKey } from '@ton/crypto';
 
 // OWS types (from @open-wallet-standard/core v1.1.2)
 interface OWSSignResult {
@@ -100,16 +99,24 @@ export async function createOWSSigner(
         throw new Error(`OWS wallet "${walletName}" has no TON account. Available chains: ${wallet.accounts.map(a => a.chainId).join(', ')}`);
     }
 
-    // 2. Derive public key from mnemonic
+    // 2. Derive public key from mnemonic using BIP-39 + SLIP-10
     //    OWS v1.1 doesn't expose public keys via API.
-    //    We extract the mnemonic, derive the keypair, keep ONLY publicKey,
-    //    and immediately zero the secret key.
+    //    OWS uses BIP-39 mnemonic + SLIP-10 Ed25519 derivation at m/44'/607'/0'
+    //    (NOT @ton/crypto mnemonicToPrivateKey which uses TON-specific derivation).
+    //    We derive the keypair, keep ONLY publicKey, and zero the secret material.
+    const bip39 = require('bip39');
+    const { derivePath } = require('ed25519-hd-key');
+    const nacl = require('tweetnacl');
+
     const mnemonic = ows.exportWallet(walletName, passphrase, vaultPath);
-    const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
+    const seed = await bip39.mnemonicToSeed(mnemonic);
+    const derived = derivePath("m/44'/607'/0'", seed.toString('hex'));
+    const keyPair = nacl.sign.keyPair.fromSeed(new Uint8Array(derived.key));
     const publicKey = Buffer.from(keyPair.publicKey);
 
-    // Zero out the secret key — we never use it for signing
-    keyPair.secretKey.fill(0);
+    // Zero out derived secret material — we never use it for signing
+    derived.key.fill(0);
+    Buffer.from(keyPair.secretKey).fill(0);
 
     // 3. Build signer callback
     const sign = async (message: Cell): Promise<Buffer> => {

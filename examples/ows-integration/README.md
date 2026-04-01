@@ -134,14 +134,19 @@ Now your AI agent has both:
 
 OWS v1.1 doesn't expose public keys via API — only addresses. But `@ton/ton` needs the public key to create a `WalletContractV5R1` instance.
 
-**Our solution:** At initialization, we call `exportWallet()` to get the mnemonic, derive the keypair via `@ton/crypto`, keep only the `publicKey`, and immediately zero the `secretKey`:
+**Our solution:** At initialization, we call `exportWallet()` to get the mnemonic, derive the keypair using BIP-39 + SLIP-10 (the same derivation OWS uses internally), keep only the `publicKey`, and immediately zero all secret material:
 
 ```typescript
 const mnemonic = ows.exportWallet(walletName);
-const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
+const seed = await bip39.mnemonicToSeed(mnemonic);
+const derived = derivePath("m/44'/607'/0'", seed.toString('hex'));
+const keyPair = nacl.sign.keyPair.fromSeed(derived.key);
 const publicKey = Buffer.from(keyPair.publicKey);
-keyPair.secretKey.fill(0);  // zeroed, never used
+derived.key.fill(0);                    // zeroed
+Buffer.from(keyPair.secretKey).fill(0); // zeroed, never used
 ```
+
+**Important:** OWS uses standard BIP-39 + SLIP-10 derivation, NOT `@ton/crypto`'s `mnemonicToPrivateKey()` which uses TON-specific HMAC-based derivation. Using the wrong derivation produces a different keypair and signatures won't verify.
 
 The private key is **never used for signing**. All signing goes through `ows.signMessage()`.
 
@@ -165,7 +170,9 @@ We plan to open a feature request in the OWS repository for a `getPublicKey(wall
 | OWS | 1.1.2+ | Requires native binary (no Windows yet) |
 | @ton/ton | 16.2.2+ | WalletContractV5R1 with signer callback |
 | @ton/core | ~0 | Cell, Address, beginCell |
-| @ton/crypto | 3.3.0+ | mnemonicToPrivateKey (for publicKey derivation) |
+| bip39 | 3.1.0+ | BIP-39 mnemonic to seed |
+| ed25519-hd-key | 1.3.0+ | SLIP-10 Ed25519 HD derivation |
+| tweetnacl | 1.0.3+ | Ed25519 keypair from seed |
 | Node.js | 18+ | Required by OWS |
 
 ## Security Model

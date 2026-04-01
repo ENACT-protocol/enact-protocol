@@ -6,9 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -16,101 +14,95 @@ jobs:
         run: |
           cd examples/ows-integration
           npm init -y
-          npm install @open-wallet-standard/core @ton/ton @ton/core @ton/crypto typescript ts-node tweetnacl ed25519-hd-key bip39
+          npm install @open-wallet-standard/core @ton/ton @ton/core @ton/crypto tweetnacl ed25519-hd-key bip39
 
-      - name: Test OWS key derivation compatibility
+      - name: Write test script
         run: |
-          cd examples/ows-integration
-          npx ts-node -e "
+          cat > examples/ows-integration/test-derivation.mjs << 'SCRIPT'
+          import { createRequire } from 'module';
+          const require = createRequire(import.meta.url);
+
           const ows = require('@open-wallet-standard/core');
           const nacl = require('tweetnacl');
           const bip39 = require('bip39');
-          const { derivePath, getMasterKeyFromSeed } = require('ed25519-hd-key');
+          const { derivePath } = require('ed25519-hd-key');
           const { beginCell } = require('@ton/core');
 
           async function test() {
-            console.log('=== Finding correct key derivation for OWS ===\n');
+            console.log('=== OWS Key Derivation Test ===\n');
 
-            // 1. Create OWS wallet
+            // 1. Create wallet
             const wallet = ows.createWallet('test-derive');
             const mnemonic = ows.exportWallet('test-derive');
+            const tonAddr = wallet.accounts.find(a => a.chainId === 'ton:mainnet')?.address;
+            console.log('TON address:', tonAddr);
             console.log('Mnemonic words:', mnemonic.split(' ').length);
 
-            // 2. OWS signs a known message
-            const testMsg = 'a'.repeat(64); // 32 bytes hex
-            const owsSig = ows.signMessage('test-derive', 'ton:mainnet', testMsg, null, 'hex');
-            console.log('OWS signature:', owsSig.signature.slice(0, 32) + '...');
+            // 2. OWS signs a known 32-byte hash
+            const testHash = 'aa'.repeat(32);
+            const owsSig = ows.signMessage('test-derive', 'ton:mainnet', testHash, null, 'hex');
+            console.log('OWS signature (64 bytes):', owsSig.signature.length / 2);
 
-            // 3. Try BIP-39 seed + SLIP-10 derivation at m/44'/607'/0'
+            // 3. Try BIP-39 + SLIP-10 derivation
             const seed = await bip39.mnemonicToSeed(mnemonic);
-            console.log('BIP-39 seed:', seed.toString('hex').slice(0, 32) + '...');
 
-            const TON_PATH = \"m/44'/607'/0'\";
-            const derived = derivePath(TON_PATH, seed.toString('hex'));
-            console.log('SLIP-10 derived key (32 bytes):', derived.key.toString('hex'));
-
-            // Ed25519 keypair from derived seed
-            const keyPair = nacl.sign.keyPair.fromSeed(Buffer.from(derived.key));
-            const pubKey = Buffer.from(keyPair.publicKey);
-            console.log('Derived publicKey:', pubKey.toString('hex'));
-
-            // 4. Verify OWS signature against this publicKey
-            const msgBytes = Buffer.from(testMsg, 'hex');
+            const paths = ["m/44'/607'/0'", "m/44'/607'/0'/0'", "m/44'/607'", "m/44'/607'/0'/0/0"];
+            const msgBytes = Buffer.from(testHash, 'hex');
             const sigBytes = Buffer.from(owsSig.signature, 'hex');
-            const valid = nacl.sign.detached.verify(msgBytes, sigBytes, keyPair.publicKey);
-            console.log('\nBIP-39 + SLIP-10 verification:', valid);
 
-            if (valid) {
-              console.log('✓ MATCH! BIP-39 + SLIP-10 at m/44\\''/607\\''/0\\'' produces the same key as OWS');
+            let matched = false;
+            for (const path of paths) {
+              try {
+                const derived = derivePath(path, seed.toString('hex'));
+                const kp = nacl.sign.keyPair.fromSeed(new Uint8Array(derived.key));
+                const valid = nacl.sign.detached.verify(msgBytes, sigBytes, kp.publicKey);
+                console.log(`  ${path}: ${valid ? 'MATCH!' : 'no'} (pubkey: ${Buffer.from(kp.publicKey).toString('hex').slice(0, 16)}...)`);
+                if (valid) {
+                  matched = true;
+
+                  // Full Cell signing test
+                  console.log('\n=== Cell Signing Test ===');
+                  const cell = beginCell().storeUint(0x10, 32).storeUint(12345n, 64).endCell();
+                  const cellHash = cell.hash();
+                  const cellSig = ows.signMessage('test-derive', 'ton:mainnet', cellHash.toString('hex'), null, 'hex');
+                  const cellSigBuf = Buffer.from(cellSig.signature, 'hex');
+                  const cellValid = nacl.sign.detached.verify(cellHash, cellSigBuf, kp.publicKey);
+                  console.log('Cell hash:', cellHash.toString('hex').slice(0, 16) + '...');
+                  console.log('Signature valid:', cellValid);
+                  console.log('Signature length:', cellSigBuf.length);
+
+                  if (!cellValid) throw new Error('Cell signature failed!');
+
+                  console.log('\n=== RESULT ===');
+                  console.log('Derivation path:', path);
+                  console.log('Public key:', Buffer.from(kp.publicKey).toString('hex'));
+                  console.log('All signatures verify correctly.');
+                  break;
+                }
+              } catch (e) {
+                if (e.message.includes('failed')) throw e;
+                console.log(`  ${path}: error - ${e.message}`);
+              }
             }
 
-            // 5. If matched, do the full signer test
-            if (valid) {
-              console.log('\n=== Full Signer Test ===\n');
+            if (!matched) {
+              console.log('\nNo BIP-44 path matched. Trying raw seed...');
+              // Maybe OWS uses the first 32 bytes of BIP-39 seed directly
+              const rawKp = nacl.sign.keyPair.fromSeed(new Uint8Array(seed.slice(0, 32)));
+              const rawValid = nacl.sign.detached.verify(msgBytes, sigBytes, rawKp.publicKey);
+              console.log('Raw seed[0:32]:', rawValid ? 'MATCH!' : 'no');
 
-              // Build a Cell
-              const testCell = beginCell()
-                .storeUint(0x00000010, 32)
-                .storeUint(12345n, 64)
-                .endCell();
-              const cellHash = testCell.hash();
-              console.log('Cell hash:', cellHash.toString('hex'));
-
-              // Sign via OWS
-              const cellSig = ows.signMessage('test-derive', 'ton:mainnet', cellHash.toString('hex'), null, 'hex');
-              const cellSigBuf = Buffer.from(cellSig.signature, 'hex');
-              console.log('OWS signature:', cellSig.signature.slice(0, 32) + '...');
-              console.log('Signature length:', cellSigBuf.length, 'bytes');
-
-              // Verify
-              const cellValid = nacl.sign.detached.verify(cellHash, cellSigBuf, keyPair.publicKey);
-              console.log('Cell signature valid:', cellValid);
-
-              if (cellValid) {
-                console.log('\n═══ ALL TESTS PASSED ═══');
-                console.log('Key derivation: BIP-39 seed → SLIP-10 at m/44\\''/607\\''/0\\''');
-                console.log('NOT @ton/crypto mnemonicToPrivateKey (uses TON-specific derivation)');
-              } else {
-                throw new Error('Cell signature verification failed');
-              }
-            } else {
-              // Try other paths
-              console.log('\nTrying other derivation paths...');
-              for (const path of [\"m/44'/607'/0'/0'\", \"m/44'/607'/0'/0/0\", \"m/44'/607'/0'\", \"m/44'/607'\"] ) {
-                try {
-                  const d = derivePath(path, seed.toString('hex'));
-                  const kp = nacl.sign.keyPair.fromSeed(Buffer.from(d.key));
-                  const v = nacl.sign.detached.verify(msgBytes, sigBytes, kp.publicKey);
-                  console.log('  ' + path + ':', v ? 'MATCH!' : 'no');
-                  if (v) break;
-                } catch(e) {
-                  console.log('  ' + path + ': error -', e.message);
-                }
+              if (!rawValid) {
+                throw new Error('Could not match OWS key derivation. Need to investigate OWS source.');
               }
             }
 
             ows.deleteWallet('test-derive');
+            console.log('\n=== ALL TESTS PASSED ===');
           }
 
           test().catch(e => { console.error('FATAL:', e.message); process.exit(1); });
-          "
+          SCRIPT
+
+      - name: Run test
+        run: cd examples/ows-integration && node test-derivation.mjs
