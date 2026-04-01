@@ -58,7 +58,8 @@ OWS is **not related** to the remote MCP server at `mcp.enact.info` — that ser
 |------|---------|
 | `ows-signer.ts` | Core adapter — bridges OWS signMessage with @ton/ton signer callback |
 | `demo.ts` | Full escrow lifecycle (create → fund → take → submit → evaluate) |
-| `enact-policy.js` | OWS policy — value limits and rate limiting |
+| `enact-policy.json` | OWS policy config — registers the executable with chain allowlist |
+| `enact-policy.js` | Policy executable — value limits and rate limiting |
 
 ## Quick Start
 

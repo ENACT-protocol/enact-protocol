@@ -1,0 +1,7 @@
+{
+  "name": "enact-safety",
+  "rules": [
+    { "type": "allowed_chains", "chain_ids": ["ton:mainnet"] }
+  ],
+  "executable": "./enact-policy.js"
+}

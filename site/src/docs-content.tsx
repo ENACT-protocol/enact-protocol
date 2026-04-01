@@ -1042,12 +1042,14 @@ npx ts-node agent.ts`}</Code>
 
         <H2>Policy Engine (Optional)</H2>
         <P>OWS can enforce rules <strong className="text-white">before</strong> any signing. ENACT provides a ready-made policy:</P>
-        <Code label="Terminal">{`# Download the policy
-curl -o enact-policy.js https://raw.githubusercontent.com/ENACT-protocol/enact-protocol/master/examples/ows-integration/enact-policy.js
+        <Code label="Terminal">{`# Download the policy files
+curl -O https://raw.githubusercontent.com/ENACT-protocol/enact-protocol/master/examples/ows-integration/enact-policy.json
+curl -O https://raw.githubusercontent.com/ENACT-protocol/enact-protocol/master/examples/ows-integration/enact-policy.js
 chmod +x enact-policy.js
 
-# Register it
+# Register the policy
 ows policy create --file enact-policy.json`}</Code>
+        <P><IC>enact-policy.json</IC> defines the policy (chain allowlist + path to executable). <IC>enact-policy.js</IC> is the executable that enforces value and rate limits.</P>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Rule</th><th>Default</th><th>What it does</th></tr></thead>
           <tbody>
