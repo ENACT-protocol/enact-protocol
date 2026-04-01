@@ -925,12 +925,6 @@ TONCENTER_API_KEY=your_key`}</Code>
           ENACT Protocol is the <strong className="text-white">first TON project</strong> to integrate OWS. AI agents can create escrow jobs, lock funds, deliver work, and get paid — without the agent or the LLM ever touching a private key.
         </P>
 
-        <div className="flex flex-wrap gap-2 mb-6">
-          {['TON Foundation', 'MoonPay', 'PayPal', 'OKX', 'Solana Foundation', 'Ethereum Foundation', 'Circle'].map(p => (
-            <span key={p} className="px-2.5 py-1 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-xs text-[#A1A1AA]">{p}</span>
-          ))}
-        </div>
-
         <H2>How It Works</H2>
         <P>OWS handles key storage and signing. ENACT SDK handles message construction. They meet at the <IC>signer</IC> callback:</P>
         <Code label="Architecture">{`┌──────────────┐     Cell.hash()     ┌──────────────┐
@@ -1034,7 +1028,7 @@ ows policy create --file enact-policy.json`}</Code>
         </table></div>
 
         <H2>Using with ENACT MCP</H2>
-        <P>OWS manages keys locally via CLI and SDK — it does not have a built-in MCP server. For AI agents, use OWS programmatically in your agent code alongside the ENACT MCP server:</P>
+        <P>OWS provides wallet primitives via its Node.js SDK. Use it programmatically in your agent alongside the <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">ENACT MCP server</a>:</P>
         <Code label="mcp.json">{`{
   "mcpServers": {
     "enact-protocol": {
@@ -1042,7 +1036,8 @@ ows policy create --file enact-policy.json`}</Code>
     }
   }
 }`}</Code>
-        <P>Your agent uses ENACT MCP tools for job lifecycle (create, fund, take, submit, evaluate) and OWS SDK for secure transaction signing within the agent{"'"}s runtime.</P>
+        <P>Your agent uses ENACT MCP tools for the job lifecycle (create, fund, take, submit, evaluate) and <IC>@open-wallet-standard/core</IC> SDK for secure transaction signing within the agent{"'"}s runtime.</P>
+        <Info>OWS <IC>ows serve --mcp</IC> is <a href="https://github.com/open-wallet-standard/core/issues/119" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">planned but not yet released</a>. When it ships, OWS will also work as a standalone MCP server.</Info>
 
         <H2>Security Model</H2>
         <div className="doc-table-wrapper"><table className="doc-table">

@@ -397,15 +397,16 @@ export default function Home() {
             <p className="text-sm text-gray-400 font-light mb-8 sm:mb-12">Integrations that let any agent interact with ENACT on-chain.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {[
-                ['MCP Server','Model Context Protocol for LLMs. 15 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client'],
-                ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot'],
-                ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 15 tools — full lifecycle + USDT.','cp plugin → ~/.teleton/plugins/'],
-              ].map(([n,d,t])=>(
-                <div key={n} className="bg-[#0A0A0E] border border-[#1A1A24] p-4 sm:p-5 hover:border-gray-700 transition-colors">
+                ['MCP Server','Model Context Protocol for LLMs. 15 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client','/docs/mcp-server'],
+                ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot','/docs/telegram-bot'],
+                ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 15 tools — full lifecycle + USDT.','cp plugin → ~/.teleton/plugins/','/docs/teleton'],
+                ['Open Wallet Standard','Secure key management by MoonPay. Private keys never leave the vault.','OWS SDK · Policy Engine · TON + 8 chains','/docs/ows'],
+              ].map(([n,d,t,href])=>(
+                <Link key={n} href={href} className="bg-[#0A0A0E] border border-[#1A1A24] p-4 sm:p-5 hover:border-gray-700 transition-colors block">
                   <div className="mono-label text-white mb-2">{n}</div>
                   <p className="text-xs text-gray-400 font-light mb-3">{d}</p>
                   <div className="text-[10px] font-mono text-gray-600 break-all sm:break-normal">{t}</div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

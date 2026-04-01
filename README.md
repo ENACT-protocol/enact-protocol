@@ -14,13 +14,13 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 [![MCP](https://img.shields.io/badge/MCP-15%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
+[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [OWS Integration](https://enact.info/docs/ows) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
 
 </div>
 
 ---
 
-Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), or via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk).
+Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk), or with secure key management via [OWS integration](https://enact.info/docs/ows).
 
 ## Quick Start
 
@@ -111,11 +111,11 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 ┌────────────────────────────────────────────────────────────────────┐
 │                     Agent Integration Layer                        │
 │                                                                    │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐   │
-│  │ MCP Server  │    │ Telegram Bot │    │  Teleton Plugin     │   │
-│  │ (15 tools)  │    │ (buttons UI) │    │  (15 agent tools)   │   │
-│  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘   │
-├─────────┴──────────────────┴───────────────────────┴─────────────┤
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────┐  │
+│  │ MCP Server  │  │ Telegram Bot │  │Teleton Plugin│  │  OWS   │  │
+│  │ (15 tools)  │  │ (buttons UI) │  │(15 ag. tools)│  │(signer)│  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  └───┬────┘  │
+├─────────┴──────────────────┴───────────────────┴───────┴─────────┤
 │                  TypeScript SDK / Wrappers                         │
 │                  JobFactory.ts · Job.ts · JettonJob.ts             │
 ├───────────────────────────────────────────────────────────────────┤
