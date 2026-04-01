@@ -95,11 +95,15 @@ jobs:
 
             // 6. Send via OWS signer
             console.log('5. Signing and sending via OWS...');
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 3000));
             const seqno = await contract.getSeqno();
             console.log('   Seqno:', seqno);
+            await new Promise(r => setTimeout(r, 3000));
 
-            await contract.sendTransfer({
+            // Retry up to 3 times on 429
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                await contract.sendTransfer({
               seqno,
               signer: sign,  // ← OWS signs, private key never exposed
               sendMode: SendMode.PAY_GAS_SEPARATELY,
@@ -110,8 +114,15 @@ jobs:
                 bounce: true,
               })],
             });
-
-            console.log('   Transaction sent!');
+                console.log('   Transaction sent!');
+                break;
+              } catch(err) {
+                if (attempt < 2 && err.message.includes('429')) {
+                  console.log('   Rate limited, retrying in 5s... (attempt', attempt + 1, ')');
+                  await new Promise(r => setTimeout(r, 5000));
+                } else { throw err; }
+              }
+            }
 
             // 7. Wait for confirmation
             console.log('6. Waiting for confirmation...');
