@@ -14,7 +14,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 [![MCP](https://img.shields.io/badge/MCP-15%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [OWS Integration](https://enact.info/docs/ows) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
+[Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
 
 </div>
 
