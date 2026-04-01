@@ -1072,7 +1072,7 @@ ows policy create --file enact-policy.json`}</Code>
         <H2>Links</H2>
         <CardGroup cols={2}>
           <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/examples/ows-integration" icon="hgi-source-code" title="Source Code" desc="Adapter, demo script, and policy" />
-          <NavCard href="https://docs.openwallet.sh" icon="hgi-wallet-03" title="OWS Docs" desc="Open Wallet Standard documentation" />
+          <NavCard href="https://docs.openwallet.sh" icon="hgi-book-02" title="OWS Docs" desc="Open Wallet Standard documentation" />
         </CardGroup>
 
         <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
