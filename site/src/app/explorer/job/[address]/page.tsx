@@ -321,9 +321,9 @@ function TechnicalDetails({ job }: { job: Job }) {
           <TechRow label="Tx Count" value={String(job.transactions?.length || txCount(job))} />
           {job.description?.source && <TechRow label="Desc Source" value={job.description.source} />}
           {job.description?.ipfsUrl && <TechRow label="Desc IPFS" value={job.description.ipfsUrl} copy />}
-          {job.resultContent?.source && <TechRow label="Result Source" value={job.resultContent.source} />}
+          {job.resultContent?.source && job.resultHash && job.resultHash !== '0'.repeat(64) && <TechRow label="Result Source" value={job.resultContent.source} />}
           {job.resultContent?.ipfsUrl && <TechRow label="Result IPFS" value={job.resultContent.ipfsUrl} copy />}
-          {job.reasonContent?.source && <TechRow label="Reason Source" value={job.reasonContent.source} />}
+          {job.reasonContent?.source && job.reasonContent.source !== 'hash' && <TechRow label="Reason Source" value={job.reasonContent.source} />}
           {job.description?.file && <TechRow label="Desc File" value={job.description.file.filename} />}
           {job.resultContent?.file && <TechRow label="Result File" value={job.resultContent.file.filename} />}
         </div>
