@@ -78,7 +78,8 @@ jobs:
             // 5. Build createJob message
             console.log('4. Building createJob transaction...');
             const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
-            const descHash = BigInt('0x' + Buffer.from('OWS integration test — first TON job signed with Open Wallet Standard').toString('hex').padEnd(64, '0'));
+            const { createHash } = require('crypto');
+            const descHash = BigInt('0x' + createHash('sha256').update('OWS integration test — first TON job signed with Open Wallet Standard').digest('hex'));
 
             const body = beginCell()
               .storeUint(0x00000010, 32)                        // createJob opcode
