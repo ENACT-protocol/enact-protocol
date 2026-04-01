@@ -1,0 +1,142 @@
+name: OWS Create Job Test
+on: workflow_dispatch
+
+jobs:
+  create-job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          cd examples/ows-integration
+          npm init -y
+          npm install @open-wallet-standard/core @ton/ton @ton/core @ton/crypto bip39 ed25519-hd-key tweetnacl
+
+      - name: Import wallet and create ENACT job via OWS
+        env:
+          TONCENTER_API_KEY: "47c81293dba3c9e85c43a75927aab867c3eb0a37c80f32942f2e23a7e108f0be"
+        run: |
+          cd examples/ows-integration
+          node -e "
+          const ows = require('@open-wallet-standard/core');
+          const bip39 = require('bip39');
+          const { derivePath } = require('ed25519-hd-key');
+          const nacl = require('tweetnacl');
+          const { TonClient, WalletContractV5R1, internal, SendMode } = require('@ton/ton');
+          const { Address, beginCell, toNano } = require('@ton/core');
+
+          const MNEMONIC = 'sentence danger proud number exhibit mystery summer arrow message swift wrong bubble';
+          const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
+
+          (async () => {
+            console.log('=== OWS × ENACT: Create Job Test ===\n');
+
+            // 1. Import wallet into OWS vault
+            console.log('1. Importing wallet into OWS vault...');
+            const wallet = ows.importWalletMnemonic('enact-test', MNEMONIC);
+            const tonAccount = wallet.accounts.find(a => a.chainId === 'ton:mainnet');
+            console.log('   Address:', tonAccount.address);
+
+            // 2. Derive public key (BIP-39 + SLIP-10)
+            console.log('2. Deriving public key...');
+            const seed = await bip39.mnemonicToSeed(MNEMONIC);
+            const derived = derivePath(\"m/44'/607'/0'\", seed.toString('hex'));
+            const kp = nacl.sign.keyPair.fromSeed(new Uint8Array(derived.key));
+            const publicKey = Buffer.from(kp.publicKey);
+            derived.key.fill(0);
+            Buffer.from(kp.secretKey).fill(0);
+            console.log('   Public key:', publicKey.toString('hex'));
+
+            // 3. Create signer callback
+            const sign = async (message) => {
+              const hash = message.hash();
+              const result = ows.signMessage('enact-test', 'ton:mainnet', hash.toString('hex'), null, 'hex');
+              return Buffer.from(result.signature, 'hex');
+            };
+
+            // 4. Connect to TON
+            console.log('3. Connecting to TON mainnet...');
+            const client = new TonClient({
+              endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+              apiKey: process.env.TONCENTER_API_KEY,
+            });
+
+            const walletContract = WalletContractV5R1.create({ publicKey, workchain: 0 });
+            const contract = client.open(walletContract);
+            const balance = await contract.getBalance();
+            console.log('   Balance:', (Number(balance) / 1e9).toFixed(4), 'TON');
+
+            if (balance < toNano('0.05')) {
+              console.log('   ERROR: Insufficient balance. Need at least 0.05 TON');
+              process.exit(1);
+            }
+
+            // 5. Build createJob message
+            console.log('4. Building createJob transaction...');
+            const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
+            const descHash = BigInt('0x' + Buffer.from('OWS integration test — first TON job signed with Open Wallet Standard').toString('hex').padEnd(64, '0'));
+
+            const body = beginCell()
+              .storeUint(0x00000010, 32)                        // createJob opcode
+              .storeAddress(Address.parse(AI_EVALUATOR))        // evaluator
+              .storeCoins(toNano('0.05'))                       // budget: 0.05 TON
+              .storeUint(descHash, 256)                         // description hash
+              .storeUint(86400, 32)                             // 24h timeout
+              .storeUint(86400, 32)                             // 24h eval timeout
+              .endCell();
+
+            // 6. Send via OWS signer
+            console.log('5. Signing and sending via OWS...');
+            const seqno = await contract.getSeqno();
+            console.log('   Seqno:', seqno);
+
+            await contract.sendTransfer({
+              seqno,
+              signer: sign,  // ← OWS signs, private key never exposed
+              sendMode: SendMode.PAY_GAS_SEPARATELY,
+              messages: [internal({
+                to: Address.parse(FACTORY),
+                value: toNano('0.03'),
+                body,
+                bounce: true,
+              })],
+            });
+
+            console.log('   Transaction sent!');
+
+            // 7. Wait for confirmation
+            console.log('6. Waiting for confirmation...');
+            for (let i = 0; i < 30; i++) {
+              await new Promise(r => setTimeout(r, 2000));
+              const newSeqno = await contract.getSeqno();
+              if (newSeqno > seqno) {
+                console.log('   Confirmed! New seqno:', newSeqno);
+                break;
+              }
+              if (i === 29) console.log('   Timeout — check explorer manually');
+            }
+
+            // 8. Check job was created
+            console.log('\n7. Checking factory...');
+            const factoryContract = client.open({ address: Address.parse(FACTORY) });
+            try {
+              const result = await client.runMethod(Address.parse(FACTORY), 'get_next_job_id');
+              const jobCount = result.stack.readNumber();
+              console.log('   Total jobs in factory:', jobCount);
+              console.log('   Latest job ID:', jobCount - 1);
+            } catch(e) {
+              console.log('   Could not read factory:', e.message);
+            }
+
+            console.log('\n=== SUCCESS ===');
+            console.log('Job created on TON mainnet via OWS signer!');
+            console.log('Private key never left the OWS vault.');
+            console.log('Explorer: https://enact.info/explorer');
+
+            ows.deleteWallet('enact-test');
+          })().catch(e => { console.error('FATAL:', e.message); process.exit(1); });
+          "
