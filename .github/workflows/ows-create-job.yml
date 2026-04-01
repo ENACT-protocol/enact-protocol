@@ -67,6 +67,7 @@ jobs:
 
             const walletContract = WalletContractV5R1.create({ publicKey, workchain: 0 });
             const contract = client.open(walletContract);
+            await new Promise(r => setTimeout(r, 2000));
             const balance = await contract.getBalance();
             console.log('   Balance:', (Number(balance) / 1e9).toFixed(4), 'TON');
 
@@ -76,6 +77,7 @@ jobs:
             }
 
             // 5. Build createJob message
+            await new Promise(r => setTimeout(r, 2000));
             console.log('4. Building createJob transaction...');
             const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
             // Short text (≤32 bytes) stored directly as hex on-chain — explorer decodes it
@@ -93,6 +95,7 @@ jobs:
 
             // 6. Send via OWS signer
             console.log('5. Signing and sending via OWS...');
+            await new Promise(r => setTimeout(r, 2000));
             const seqno = await contract.getSeqno();
             console.log('   Seqno:', seqno);
 
