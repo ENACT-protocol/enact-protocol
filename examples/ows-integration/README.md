@@ -47,7 +47,7 @@ await contract.sendTransfer({ signer: owsSigner.sign, ... });
 | `ows-signer.ts` | Core adapter — bridges OWS signMessage with @ton/ton signer callback |
 | `demo.ts` | Full escrow lifecycle (create → fund → take → submit → evaluate) |
 | `enact-policy.js` | OWS policy — restricts wallet to ENACT contracts only |
-| `mcp-config.json` | Dual MCP setup: OWS (wallet) + ENACT (protocol) |
+| `mcp-config.json` | ENACT MCP server config for AI agents |
 
 ## Quick Start
 
@@ -112,21 +112,18 @@ ows policy add --name enact-allowlist --executable ./enact-policy.js
 
 The policy restricts the wallet to only interact with ENACT factory contracts, with a 100 TON max per transaction and 10 transactions per hour rate limit.
 
-### 5. Dual MCP Setup
+### 5. ENACT MCP Setup
 
-Copy `mcp-config.json` to your Claude Code / Cursor config:
+OWS is a local CLI/SDK — it does not have a built-in MCP server. Use OWS programmatically in your agent code alongside the ENACT MCP server:
 
 ```bash
 # Claude Code
-cp mcp-config.json ~/.claude/settings.json   # merge mcpServers key
+claude mcp add enact-protocol https://mcp.enact.info/mcp
 
-# Cursor
-cp mcp-config.json .cursor/mcp.json
+# Cursor — add to .cursor/mcp.json
 ```
 
-Now your AI agent has both:
-- **OWS tools**: create wallets, sign transactions, manage policies
-- **ENACT tools**: create jobs, fund escrow, submit results, evaluate
+Your agent uses ENACT MCP tools for job lifecycle and OWS SDK for secure transaction signing within the agent's runtime.
 
 ## How the Signer Works
 
@@ -169,7 +166,7 @@ We plan to open a feature request in the OWS repository for a `getPublicKey(wall
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| OWS | 1.1.2+ | Requires native binary (no Windows yet) |
+| OWS | 1.1.2+ | Native Rust bindings via NAPI-RS |
 | @ton/ton | 16.2.2+ | WalletContractV5R1 with signer callback |
 | @ton/core | ~0 | Cell, Address, beginCell |
 | bip39 | 3.1.0+ | BIP-39 mnemonic to seed |

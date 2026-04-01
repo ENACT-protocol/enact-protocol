@@ -956,7 +956,8 @@ TONCENTER_API_KEY=your_key`}</Code>
         <H2>Quick Start</H2>
         <H3>1. Install OWS</H3>
         <Code label="Terminal">{`npm install -g @open-wallet-standard/core`}</Code>
-        <Info>OWS requires native binaries. Currently supported: Linux and macOS. Windows support is coming.</Info>
+        <P>Or install everything (CLI + Node + Python) with the installer:</P>
+        <Code label="Terminal">{`curl -fsSL https://docs.openwallet.sh/install.sh | bash`}</Code>
 
         <H3>2. Create a Wallet</H3>
         <Code label="Terminal">{`ows wallet create --name agent-treasury`}</Code>
@@ -1017,12 +1018,12 @@ const signer = await createOWSSigner('agent-treasury');
         <H2>Key Derivation</H2>
         <P>OWS uses <strong className="text-white">BIP-39 + SLIP-10</strong> derivation — the multi-chain standard. This is different from TON-native wallets (Tonkeeper, MyTonWallet) which use TON{"'"}s own HMAC-based derivation.</P>
         <Warn>The same mnemonic produces <strong>different TON addresses</strong> in OWS vs Tonkeeper. This is by design — OWS uses unified derivation across all chains. An OWS wallet is a separate wallet. Fund the OWS address directly.</Warn>
-        <P>OWS v1.1 does not expose public keys via API. The adapter extracts the mnemonic at initialization, derives the public key via BIP-39/SLIP-10, then zeros all secret material immediately. A <a href="https://github.com/OpenWalletStandard/ows/issues" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">feature request</a> for <IC>getPublicKey()</IC> has been submitted to OWS.</P>
+        <P>OWS v1.1 does not expose public keys via API. The adapter extracts the mnemonic at initialization, derives the public key via BIP-39/SLIP-10, then zeros all secret material immediately. A <a href="https://github.com/open-wallet-standard/core/issues" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">feature request</a> for <IC>getPublicKey()</IC> has been submitted to OWS.</P>
 
         <H2>Policy Engine</H2>
         <P>OWS policies execute <strong className="text-white">before any signing</strong>. ENACT provides a policy script that restricts wallets to only interact with ENACT contracts:</P>
         <Code label="Terminal">{`chmod +x enact-policy.js
-ows policy add --name enact-safety --executable ./enact-policy.js`}</Code>
+ows policy create --file enact-policy.json`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Rule</th><th>Default</th><th>Description</th></tr></thead>
           <tbody>
@@ -1032,20 +1033,16 @@ ows policy add --name enact-safety --executable ./enact-policy.js`}</Code>
           </tbody>
         </table></div>
 
-        <H2>Dual MCP Setup</H2>
-        <P>Connect your AI agent to both OWS (wallet) and ENACT (protocol) simultaneously:</P>
+        <H2>Using with ENACT MCP</H2>
+        <P>OWS manages keys locally via CLI and SDK — it does not have a built-in MCP server. For AI agents, use OWS programmatically in your agent code alongside the ENACT MCP server:</P>
         <Code label="mcp.json">{`{
   "mcpServers": {
-    "ows": {
-      "command": "ows",
-      "args": ["serve", "--mcp"]
-    },
     "enact-protocol": {
       "url": "https://mcp.enact.info/mcp"
     }
   }
 }`}</Code>
-        <P>With this config, your LLM agent has access to OWS tools (create wallets, sign transactions) and ENACT tools (create jobs, fund escrow, submit results) — the full flow from a single prompt.</P>
+        <P>Your agent uses ENACT MCP tools for job lifecycle (create, fund, take, submit, evaluate) and OWS SDK for secure transaction signing within the agent{"'"}s runtime.</P>
 
         <H2>Security Model</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
@@ -1060,7 +1057,7 @@ ows policy add --name enact-safety --executable ./enact-policy.js`}</Code>
         <H2>Source Code</H2>
         <CardGroup cols={2}>
           <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/examples/ows-integration" icon="hgi-source-code" title="OWS Integration" desc="Adapter, demo, policy, and MCP config" />
-          <NavCard href="https://openwallet.sh" icon="hgi-wallet-03" title="OWS Documentation" desc="Open Wallet Standard official docs" />
+          <NavCard href="https://docs.openwallet.sh" icon="hgi-wallet-03" title="OWS Documentation" desc="Open Wallet Standard official docs" />
         </CardGroup>
 
         <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
