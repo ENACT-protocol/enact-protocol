@@ -18,7 +18,7 @@ jobs:
 
       - name: Import wallet and create ENACT job via OWS
         env:
-          TONCENTER_API_KEY: "47c81293dba3c9e85c43a75927aab867c3eb0a37c80f32942f2e23a7e108f0be"
+          TONCENTER_API_KEY: "20ea06c99ccee6fa177711c93ba3725a61eb8b4a7e4ed32a6a15327bfae5e0c5"
         run: |
           cd examples/ows-integration
           node -e "
