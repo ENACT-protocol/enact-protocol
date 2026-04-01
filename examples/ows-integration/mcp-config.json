@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "enact-protocol": {
-      "url": "https://mcp.enact.info/mcp",
-      "description": "ENACT Protocol — trustless escrow for AI agent commerce on TON"
-    }
-  }
-}

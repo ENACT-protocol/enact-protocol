@@ -2,6 +2,8 @@
 
 Secure wallet integration for AI agents using [OWS](https://openwallet.sh) as the signing layer and [ENACT Protocol](https://enact.info) for trustless escrow on TON.
 
+**[Full documentation →](https://enact.info/docs/ows)**
+
 ## What This Is
 
 OWS and ENACT solve different problems for AI agents:
@@ -17,7 +19,7 @@ Together: an AI agent can create jobs, lock funds, deliver work, and get paid �
 ## Architecture
 
 ```
-┌──────────────┐     Cell + hash     ┌──────────────┐
+┌──────────────┐     Cell.hash()     ┌──────────────┐
 │  ENACT SDK   │ ──── 32 bytes ────► │  OWS Vault   │
 │  constructs  │ ◄── 64-byte sig ── │  signs with  │
 │  TON messages│                     │  Ed25519 key │
@@ -30,7 +32,7 @@ Together: an AI agent can create jobs, lock funds, deliver work, and get paid �
 └──────────────┘
 ```
 
-The integration uses `@ton/ton`'s `signer` callback interface:
+OWS works at the **SDK level** — it replaces the signing mechanism inside your agent code:
 
 ```typescript
 // Instead of passing secretKey directly:
@@ -40,27 +42,32 @@ await contract.sendTransfer({ secretKey: rawKey, ... });
 await contract.sendTransfer({ signer: owsSigner.sign, ... });
 ```
 
+## How It Fits with ENACT
+
+| Integration | Signing | Use Case |
+|---|---|---|
+| **ENACT SDK + OWS** | OWS vault (signer callback) | Agent code with secure local keys |
+| **Local MCP + OWS** | Modify MCP server to use OWS | Local MCP with secure signing |
+| **Remote MCP** | Server-side mnemonic or deeplink | Quick setup, no OWS needed |
+
+OWS is **not related** to the remote MCP server at `mcp.enact.info` — that server has its own signing. OWS replaces signing in your own agent code via the `ows-signer.ts` adapter.
+
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `ows-signer.ts` | Core adapter — bridges OWS signMessage with @ton/ton signer callback |
 | `demo.ts` | Full escrow lifecycle (create → fund → take → submit → evaluate) |
-| `enact-policy.js` | OWS policy — restricts wallet to ENACT contracts only |
-| `mcp-config.json` | ENACT MCP server config for AI agents |
+| `enact-policy.js` | OWS policy — value limits and rate limiting |
 
 ## Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- Linux or macOS (OWS native binary required — Windows not yet supported)
-- `@open-wallet-standard/core` installed globally or locally
 
 ### 1. Install OWS
 
 ```bash
 npm install -g @open-wallet-standard/core
+# or
+curl -fsSL https://docs.openwallet.sh/install.sh | bash
 ```
 
 ### 2. Create Wallets
@@ -81,23 +88,20 @@ import { createOWSSigner } from './ows-signer';
 const signer = await createOWSSigner('agent-client');
 const client = new TonClient({ endpoint: '...', apiKey: '...' });
 
-// Create wallet contract using OWS-derived public key
 const wallet = WalletContractV5R1.create({
     publicKey: signer.publicKey,
     workchain: 0,
 });
 const opened = client.open(wallet);
-const seqno = await opened.getSeqno();
 
-// Send transaction — OWS signs, never exposes the key
 await opened.sendTransfer({
-    seqno,
-    signer: signer.sign,  // ← OWS callback
+    seqno: await opened.getSeqno(),
+    signer: signer.sign,  // ← OWS callback, not raw secretKey
     sendMode: SendMode.PAY_GAS_SEPARATELY,
     messages: [internal({
         to: Address.parse('EQAFHodW...'),
         value: toNano('0.03'),
-        body: beginCell().storeUint(1, 32).endCell(),
+        body: beginCell().storeUint(0x10, 32).endCell(),
         bounce: true,
     })],
 });
@@ -107,83 +111,36 @@ await opened.sendTransfer({
 
 ```bash
 chmod +x enact-policy.js
-ows policy add --name enact-allowlist --executable ./enact-policy.js
+ows policy create --file enact-policy.json
 ```
 
-The policy restricts the wallet to only interact with ENACT factory contracts, with a 100 TON max per transaction and 10 transactions per hour rate limit.
+## Key Derivation
 
-### 5. How It Fits with ENACT
+OWS uses **BIP-39 + SLIP-10** derivation at `m/44'/607'/0'`. This is different from TON-native wallets (Tonkeeper, MyTonWallet) which use TON's own HMAC-based derivation.
 
-OWS works at the **SDK level** — it replaces the signing mechanism inside your agent code:
+**Same mnemonic → different TON addresses** in OWS vs Tonkeeper. This is by design — OWS uses unified multi-chain derivation. Fund the OWS address directly.
 
-| Integration | Signing | Use Case |
-|---|---|---|
-| **ENACT SDK + OWS** | OWS vault (signer callback) | Agent code with secure local keys |
-| **Local MCP + OWS** | Modify MCP server to use OWS | Local MCP with secure signing |
-| **Remote MCP** | Server-side mnemonic or deeplink | Quick setup, no OWS needed |
-
-OWS is **not related** to the remote MCP server at `mcp.enact.info` — that server has its own signing. OWS replaces signing in your own agent code via the `ows-signer.ts` adapter.
-
-## How the Signer Works
-
-### The Public Key Problem
-
-OWS v1.1 doesn't expose public keys via API — only addresses. But `@ton/ton` needs the public key to create a `WalletContractV5R1` instance.
-
-**Our solution:** At initialization, we call `exportWallet()` to get the mnemonic, derive the keypair using BIP-39 + SLIP-10 (the same derivation OWS uses internally), keep only the `publicKey`, and immediately zero all secret material:
-
-```typescript
-const mnemonic = ows.exportWallet(walletName);
-const seed = await bip39.mnemonicToSeed(mnemonic);
-const derived = derivePath("m/44'/607'/0'", seed.toString('hex'));
-const keyPair = nacl.sign.keyPair.fromSeed(derived.key);
-const publicKey = Buffer.from(keyPair.publicKey);
-derived.key.fill(0);                    // zeroed
-Buffer.from(keyPair.secretKey).fill(0); // zeroed, never used
-```
-
-**Important:** OWS uses standard BIP-39 + SLIP-10 derivation, NOT `@ton/crypto`'s `mnemonicToPrivateKey()` which uses TON-specific HMAC-based derivation. Using the wrong derivation produces a different keypair and signatures won't verify.
-
-**Note on address compatibility:** The same 12/24-word mnemonic will produce **different TON addresses** in OWS vs Tonkeeper/MyTonWallet. This is by design — OWS is a multi-chain wallet that uses a unified BIP-39/SLIP-10 derivation path (`m/44'/607'/0'`) across all chains, while TON-native wallets use TON's own HMAC-based key derivation. An OWS wallet is a separate wallet from your Tonkeeper wallet, even if they share the same mnemonic. Fund the OWS address directly.
-
-The private key is **never used for signing**. All signing goes through `ows.signMessage()`.
-
-We plan to open a feature request in the OWS repository for a `getPublicKey(walletName, chainId)` method, which would eliminate the mnemonic round-trip entirely.
-
-### Signing Flow
-
-```
-1. @ton/ton constructs the unsigned message (Cell)
-2. signer callback receives the Cell
-3. Cell.hash() → 32-byte SHA-256 hash
-4. OWS signMessage(hash, 'hex') → 64-byte Ed25519 signature
-5. Signature returned to @ton/ton for message packing
-6. Signed message sent to TON network
-```
+OWS v1.1 does not expose public keys via API. The adapter derives the public key from the mnemonic at init, then zeros all secret material. See [feature request](https://github.com/open-wallet-standard/core/issues) for `getPublicKey()`.
 
 ## Compatibility
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| OWS | 1.1.2+ | Native Rust bindings via NAPI-RS |
-| @ton/ton | 16.2.2+ | WalletContractV5R1 with signer callback |
-| @ton/core | ~0 | Cell, Address, beginCell |
-| bip39 | 3.1.0+ | BIP-39 mnemonic to seed |
-| ed25519-hd-key | 1.3.0+ | SLIP-10 Ed25519 HD derivation |
-| tweetnacl | 1.0.3+ | Ed25519 keypair from seed |
-| Node.js | 18+ | Required by OWS |
+| Component | Version |
+|-----------|---------|
+| OWS | 1.1.2+ |
+| @ton/ton | 16.2.2+ |
+| @ton/core | ~0 |
+| bip39 | 3.1.0+ |
+| ed25519-hd-key | 1.3.0+ |
+| tweetnacl | 1.0.3+ |
+| Node.js | 18+ |
 
-## Security Model
+## Links
 
-| Concern | How it's handled |
-|---------|-----------------|
-| Private key exposure | Keys stay in OWS vault (AES-256-GCM encrypted) |
-| LLM context leakage | Private key never enters agent/LLM context |
-| Unauthorized transactions | OWS policy engine evaluates BEFORE signing |
-| Contract allowlist | `enact-policy.js` restricts to ENACT factories |
-| Spending limits | Policy enforces max 100 TON per transaction |
-| Rate limiting | Policy enforces max 10 transactions per hour |
+- [ENACT × OWS Documentation](https://enact.info/docs/ows)
+- [ENACT Protocol](https://enact.info)
+- [OWS Documentation](https://docs.openwallet.sh)
+- [OWS GitHub](https://github.com/open-wallet-standard/core)
 
 ## License
 
-MIT — same as ENACT Protocol and OWS.
+MIT
