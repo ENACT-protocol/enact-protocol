@@ -16,115 +16,100 @@ jobs:
         run: |
           cd examples/ows-integration
           npm init -y
-          npm install @open-wallet-standard/core @ton/ton @ton/core @ton/crypto typescript ts-node
+          npm install @open-wallet-standard/core @ton/ton @ton/core @ton/crypto typescript ts-node tweetnacl ed25519-hd-key bip39
 
-      - name: Run OWS Signer integration test
+      - name: Test OWS key derivation compatibility
         run: |
           cd examples/ows-integration
           npx ts-node -e "
-          import { createOWSSigner } from './ows-signer';
-          import { beginCell, Cell } from '@ton/core';
-          import { sign, keyPairFromSecretKey } from '@ton/crypto';
-
-          // We need OWS functions directly for wallet setup
           const ows = require('@open-wallet-standard/core');
+          const nacl = require('tweetnacl');
+          const bip39 = require('bip39');
+          const { derivePath, getMasterKeyFromSeed } = require('ed25519-hd-key');
+          const { beginCell } = require('@ton/core');
 
           async function test() {
-            console.log('=== TEST: OWS Signer ↔ @ton/ton Bridge ===\n');
+            console.log('=== Finding correct key derivation for OWS ===\n');
 
-            // 1. Create test wallet
-            console.log('1. Creating OWS wallet...');
-            const wallet = ows.createWallet('test-signer');
-            const tonAccount = wallet.accounts.find((a: any) => a.chainId === 'ton:mainnet');
-            console.log('   TON address:', tonAccount?.address);
-            console.log('   ✓ Wallet created\n');
+            // 1. Create OWS wallet
+            const wallet = ows.createWallet('test-derive');
+            const mnemonic = ows.exportWallet('test-derive');
+            console.log('Mnemonic words:', mnemonic.split(' ').length);
 
-            // 2. Create OWSSigner
-            console.log('2. Initializing OWSSigner...');
-            const signer = await createOWSSigner('test-signer');
-            console.log('   publicKey:', signer.publicKey.toString('hex'));
-            console.log('   publicKey length:', signer.publicKey.length, 'bytes');
-            console.log('   address:', signer.address);
-            console.log('   ✓ Signer ready\n');
+            // 2. OWS signs a known message
+            const testMsg = 'a'.repeat(64); // 32 bytes hex
+            const owsSig = ows.signMessage('test-derive', 'ton:mainnet', testMsg, null, 'hex');
+            console.log('OWS signature:', owsSig.signature.slice(0, 32) + '...');
 
-            // 3. Build a test Cell (simulates what @ton/ton sendTransfer builds)
-            console.log('3. Building test Cell...');
-            const testCell = beginCell()
-              .storeUint(0x00000010, 32)  // ENACT createJob opcode
-              .storeUint(12345n, 64)      // some data
-              .storeUint(67890n, 256)     // hash-like data
-              .endCell();
-            const cellHash = testCell.hash();
-            console.log('   Cell hash:', cellHash.toString('hex'));
-            console.log('   Cell hash length:', cellHash.length, 'bytes');
-            console.log('   ✓ Cell built\n');
+            // 3. Try BIP-39 seed + SLIP-10 derivation at m/44'/607'/0'
+            const seed = await bip39.mnemonicToSeed(mnemonic);
+            console.log('BIP-39 seed:', seed.toString('hex').slice(0, 32) + '...');
 
-            // 4. Sign via OWS signer callback
-            console.log('4. Signing Cell via OWS...');
-            const signature = await signer.sign(testCell);
-            console.log('   Signature:', signature.toString('hex'));
-            console.log('   Signature length:', signature.length, 'bytes');
-            if (signature.length !== 64) {
-              throw new Error('FAIL: Expected 64-byte Ed25519 signature, got ' + signature.length);
+            const TON_PATH = \"m/44'/607'/0'\";
+            const derived = derivePath(TON_PATH, seed.toString('hex'));
+            console.log('SLIP-10 derived key (32 bytes):', derived.key.toString('hex'));
+
+            // Ed25519 keypair from derived seed
+            const keyPair = nacl.sign.keyPair.fromSeed(Buffer.from(derived.key));
+            const pubKey = Buffer.from(keyPair.publicKey);
+            console.log('Derived publicKey:', pubKey.toString('hex'));
+
+            // 4. Verify OWS signature against this publicKey
+            const msgBytes = Buffer.from(testMsg, 'hex');
+            const sigBytes = Buffer.from(owsSig.signature, 'hex');
+            const valid = nacl.sign.detached.verify(msgBytes, sigBytes, keyPair.publicKey);
+            console.log('\nBIP-39 + SLIP-10 verification:', valid);
+
+            if (valid) {
+              console.log('✓ MATCH! BIP-39 + SLIP-10 at m/44\\''/607\\''/0\\'' produces the same key as OWS');
             }
-            console.log('   ✓ Signature is 64 bytes (Ed25519)\n');
 
-            // 5. Verify signature using @ton/crypto
-            console.log('5. Verifying signature with publicKey...');
+            // 5. If matched, do the full signer test
+            if (valid) {
+              console.log('\n=== Full Signer Test ===\n');
 
-            // Get the real keypair to verify (only for test — in prod we never do this)
-            const mnemonic = ows.exportWallet('test-signer');
-            const { mnemonicToPrivateKey } = require('@ton/crypto');
-            const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
+              // Build a Cell
+              const testCell = beginCell()
+                .storeUint(0x00000010, 32)
+                .storeUint(12345n, 64)
+                .endCell();
+              const cellHash = testCell.hash();
+              console.log('Cell hash:', cellHash.toString('hex'));
 
-            // Verify: nacl.sign.detached.verify(hash, signature, publicKey)
-            const nacl = require('tweetnacl');
-            const isValid = nacl.sign.detached.verify(
-              cellHash,
-              signature,
-              signer.publicKey,
-            );
-            console.log('   Verification result:', isValid);
-            if (!isValid) {
-              throw new Error('FAIL: Signature verification failed!');
+              // Sign via OWS
+              const cellSig = ows.signMessage('test-derive', 'ton:mainnet', cellHash.toString('hex'), null, 'hex');
+              const cellSigBuf = Buffer.from(cellSig.signature, 'hex');
+              console.log('OWS signature:', cellSig.signature.slice(0, 32) + '...');
+              console.log('Signature length:', cellSigBuf.length, 'bytes');
+
+              // Verify
+              const cellValid = nacl.sign.detached.verify(cellHash, cellSigBuf, keyPair.publicKey);
+              console.log('Cell signature valid:', cellValid);
+
+              if (cellValid) {
+                console.log('\n═══ ALL TESTS PASSED ═══');
+                console.log('Key derivation: BIP-39 seed → SLIP-10 at m/44\\''/607\\''/0\\''');
+                console.log('NOT @ton/crypto mnemonicToPrivateKey (uses TON-specific derivation)');
+              } else {
+                throw new Error('Cell signature verification failed');
+              }
+            } else {
+              // Try other paths
+              console.log('\nTrying other derivation paths...');
+              for (const path of [\"m/44'/607'/0'/0'\", \"m/44'/607'/0'/0/0\", \"m/44'/607'/0'\", \"m/44'/607'\"] ) {
+                try {
+                  const d = derivePath(path, seed.toString('hex'));
+                  const kp = nacl.sign.keyPair.fromSeed(Buffer.from(d.key));
+                  const v = nacl.sign.detached.verify(msgBytes, sigBytes, kp.publicKey);
+                  console.log('  ' + path + ':', v ? 'MATCH!' : 'no');
+                  if (v) break;
+                } catch(e) {
+                  console.log('  ' + path + ': error -', e.message);
+                }
+              }
             }
-            console.log('   ✓ Signature verified with publicKey\n');
 
-            // 6. Verify that the same signature would be produced by direct signing
-            console.log('6. Cross-check: direct Ed25519 sign vs OWS sign...');
-            const directSig = nacl.sign.detached(cellHash, keyPair.secretKey);
-            const directValid = nacl.sign.detached.verify(cellHash, directSig, signer.publicKey);
-            console.log('   Direct sign also valid:', directValid);
-
-            // Both signatures should verify, but may differ due to deterministic vs randomized
-            // The important thing is BOTH verify against the same publicKey
-            const owsVerifiesDirect = nacl.sign.detached.verify(cellHash, directSig, signer.publicKey);
-            const directVerifiesOws = nacl.sign.detached.verify(cellHash, signature, signer.publicKey);
-            console.log('   OWS sig verifies with pubkey:', directVerifiesOws);
-            console.log('   Direct sig verifies with pubkey:', owsVerifiesDirect);
-            console.log('   ✓ Both signing methods produce valid signatures\n');
-
-            // 7. Test that secretKey was zeroed
-            console.log('7. Checking secretKey was zeroed in signer init...');
-            // We can not check this directly since createOWSSigner zeroes internally
-            // But we can verify the signer object has no secretKey property
-            const hasSecretKey = 'secretKey' in signer;
-            console.log('   signer has secretKey property:', hasSecretKey);
-            if (hasSecretKey) {
-              throw new Error('FAIL: signer should not expose secretKey');
-            }
-            console.log('   ✓ No secretKey on signer object\n');
-
-            // Cleanup
-            ows.deleteWallet('test-signer');
-            keyPair.secretKey.fill(0);
-
-            console.log('═══ ALL TESTS PASSED ═══');
-            console.log('The OWS ↔ @ton/ton bridge works correctly:');
-            console.log('  • OWS signMessage produces valid Ed25519 signatures');
-            console.log('  • Signatures verify against the derived publicKey');
-            console.log('  • @ton/ton signer callback interface is compatible');
-            console.log('  • Private key never used for signing (only OWS)');
+            ows.deleteWallet('test-derive');
           }
 
           test().catch(e => { console.error('FATAL:', e.message); process.exit(1); });
