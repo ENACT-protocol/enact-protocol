@@ -1027,17 +1027,21 @@ ows policy create --file enact-policy.json`}</Code>
           </tbody>
         </table></div>
 
-        <H2>Using with ENACT MCP</H2>
-        <P>OWS provides wallet primitives via its Node.js SDK. Use it programmatically in your agent alongside the <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">ENACT MCP server</a>:</P>
-        <Code label="mcp.json">{`{
-  "mcpServers": {
-    "enact-protocol": {
-      "url": "https://mcp.enact.info/mcp"
-    }
-  }
-}`}</Code>
-        <P>Your agent uses ENACT MCP tools for the job lifecycle (create, fund, take, submit, evaluate) and <IC>@open-wallet-standard/core</IC> SDK for secure transaction signing within the agent{"'"}s runtime.</P>
-        <Info>OWS <IC>ows serve --mcp</IC> is <a href="https://github.com/open-wallet-standard/core/issues/119" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">planned but not yet released</a>. When it ships, OWS will also work as a standalone MCP server.</Info>
+        <H2>Integration Options</H2>
+        <P>OWS works at the <strong className="text-white">SDK level</strong> — it replaces the signing mechanism inside your agent code. Here{"'"}s how it fits with ENACT{"'"}s integration layers:</P>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>Integration</th><th>Signing</th><th>Use Case</th></tr></thead>
+          <tbody>
+            {[
+              ['ENACT SDK + OWS','OWS vault (signer callback)','Agent code with secure local key management'],
+              ['Local MCP Server + OWS','OWS vault (modify MCP server to use OWS signer)','Local MCP with secure signing'],
+              ['Remote MCP Server','Server-side mnemonic or Tonkeeper deeplink','Quick setup, keys on remote server'],
+            ].map(([i,s,u])=>(
+              <tr key={i}><td>{i}</td><td>{s}</td><td>{u}</td></tr>
+            ))}
+          </tbody>
+        </table></div>
+        <P>The OWS adapter (<IC>ows-signer.ts</IC>) works directly with the <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">ENACT TypeScript SDK</a>. To use OWS with the <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP server</a>, run it locally and replace the <IC>secretKey</IC> signing with the OWS <IC>signer</IC> callback.</P>
 
         <H2>Security Model</H2>
         <div className="doc-table-wrapper"><table className="doc-table">

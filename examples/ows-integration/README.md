@@ -112,18 +112,17 @@ ows policy add --name enact-allowlist --executable ./enact-policy.js
 
 The policy restricts the wallet to only interact with ENACT factory contracts, with a 100 TON max per transaction and 10 transactions per hour rate limit.
 
-### 5. ENACT MCP Setup
+### 5. How It Fits with ENACT
 
-OWS is a local CLI/SDK — it does not have a built-in MCP server. Use OWS programmatically in your agent code alongside the ENACT MCP server:
+OWS works at the **SDK level** — it replaces the signing mechanism inside your agent code:
 
-```bash
-# Claude Code
-claude mcp add enact-protocol https://mcp.enact.info/mcp
+| Integration | Signing | Use Case |
+|---|---|---|
+| **ENACT SDK + OWS** | OWS vault (signer callback) | Agent code with secure local keys |
+| **Local MCP + OWS** | Modify MCP server to use OWS | Local MCP with secure signing |
+| **Remote MCP** | Server-side mnemonic or deeplink | Quick setup, no OWS needed |
 
-# Cursor — add to .cursor/mcp.json
-```
-
-Your agent uses ENACT MCP tools for job lifecycle and OWS SDK for secure transaction signing within the agent's runtime.
+OWS is **not related** to the remote MCP server at `mcp.enact.info` — that server has its own signing. OWS replaces signing in your own agent code via the `ows-signer.ts` adapter.
 
 ## How the Signer Works
 
