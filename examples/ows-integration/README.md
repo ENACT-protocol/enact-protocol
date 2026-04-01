@@ -148,6 +148,8 @@ Buffer.from(keyPair.secretKey).fill(0); // zeroed, never used
 
 **Important:** OWS uses standard BIP-39 + SLIP-10 derivation, NOT `@ton/crypto`'s `mnemonicToPrivateKey()` which uses TON-specific HMAC-based derivation. Using the wrong derivation produces a different keypair and signatures won't verify.
 
+**Note on address compatibility:** The same 12/24-word mnemonic will produce **different TON addresses** in OWS vs Tonkeeper/MyTonWallet. This is by design — OWS is a multi-chain wallet that uses a unified BIP-39/SLIP-10 derivation path (`m/44'/607'/0'`) across all chains, while TON-native wallets use TON's own HMAC-based key derivation. An OWS wallet is a separate wallet from your Tonkeeper wallet, even if they share the same mnemonic. Fund the OWS address directly.
+
 The private key is **never used for signing**. All signing goes through `ows.signMessage()`.
 
 We plan to open a feature request in the OWS repository for a `getPublicKey(walletName, chainId)` method, which would eliminate the mnemonic round-trip entirely.
