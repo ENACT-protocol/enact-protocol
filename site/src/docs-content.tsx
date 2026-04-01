@@ -1021,7 +1021,9 @@ async function main() {
 main();`}</Code>
 
         <H3>Step 6 — Run it</H3>
-        <Code label="Terminal">{`TONCENTER_API_KEY=your_key npx ts-node agent.ts`}</Code>
+        <P>Get a free API key at <a href="https://toncenter.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">toncenter.com</a> (needed to send transactions to TON), then run:</P>
+        <Code label="Terminal">{`export TONCENTER_API_KEY=your_key_here
+npx ts-node agent.ts`}</Code>
 
         <H2>How It Fits with ENACT</H2>
         <P>OWS works at the <strong className="text-white">SDK level</strong> — it replaces how your code signs transactions. It{"'"}s not related to the remote MCP server.</P>
