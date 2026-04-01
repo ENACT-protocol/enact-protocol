@@ -922,7 +922,7 @@ TONCENTER_API_KEY=your_key`}</Code>
         </P>
 
         <P>
-          ENACT Protocol is the <strong className="text-white">first TON project</strong> to integrate OWS. AI agents can create escrow jobs, lock funds, deliver work, and get paid — without the agent or the LLM ever touching a private key.
+          ENACT Protocol integrates OWS for TON. AI agents can create escrow jobs, lock funds, deliver work, and get paid — without the agent or the LLM ever touching a private key.
         </P>
 
         <H2>Without OWS vs With OWS</H2>
