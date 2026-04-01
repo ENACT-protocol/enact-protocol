@@ -917,146 +917,158 @@ TONCENTER_API_KEY=your_key`}</Code>
 
         <P>
           <a href="https://openwallet.sh" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">Open Wallet Standard</a> (OWS)
-          is a universal wallet layer by <a href="https://www.moonpay.com" target="_blank" rel="noopener noreferrer" className="underline">MoonPay</a> — backed by TON Foundation, PayPal, OKX, Solana Foundation, and 15+ partners.
-          It stores private keys in an encrypted vault (AES-256-GCM) and provides a signing API where keys never leave the secure boundary.
+          is a universal wallet layer by <a href="https://www.moonpay.com" target="_blank" rel="noopener noreferrer" className="underline">MoonPay</a>.
+          It stores private keys in an encrypted vault and provides a signing API where keys never leave the secure boundary.
         </P>
 
         <P>
           ENACT Protocol is the <strong className="text-white">first TON project</strong> to integrate OWS. AI agents can create escrow jobs, lock funds, deliver work, and get paid — without the agent or the LLM ever touching a private key.
         </P>
 
-        <H2>How It Works</H2>
-        <P>OWS handles key storage and signing. ENACT SDK handles message construction. They meet at the <IC>signer</IC> callback:</P>
-        <Code label="Architecture">{`┌──────────────┐     Cell.hash()     ┌──────────────┐
-│  ENACT SDK   │ ──── 32 bytes ────► │  OWS Vault   │
-│  constructs  │ ◄── 64-byte sig ── │  signs with  │
-│  TON messages│                     │  Ed25519 key │
-└──────┬───────┘                     └──────────────┘
-       │
-       ▼
-┌──────────────┐
-│  TON Network │
-└──────────────┘`}</Code>
+        <H2>Without OWS vs With OWS</H2>
+        <P>Normally, your agent code holds the raw private key in memory:</P>
+        <Code label="Without OWS (insecure)">{`// Private key sits in your agent's memory — any leak exposes it
+const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
+await contract.sendTransfer({
+  secretKey: keyPair.secretKey,  // ← raw key in memory
+  ...
+});`}</Code>
+        <P>With OWS, the private key stays inside an encrypted vault. Your code never sees it:</P>
+        <Code label="With OWS (secure)">{`// Private key never leaves the OWS vault
+const signer = await createOWSSigner('my-agent');
+await contract.sendTransfer({
+  signer: signer.sign,  // ← OWS signs inside the vault
+  ...
+});`}</Code>
+        <P>Same <IC>sendTransfer()</IC>, same ENACT SDK — just swap <IC>secretKey</IC> for <IC>signer</IC>.</P>
 
-        <div className="doc-table-wrapper"><table className="doc-table">
-          <thead><tr><th>Layer</th><th>OWS</th><th>ENACT</th></tr></thead>
-          <tbody>
-            {[['Purpose','Key management & signing','Escrow & commerce'],['Handles','Private keys, policies, vault','Jobs, payments, evaluation'],['Principle','Keys never leave the vault','Funds never leave the contract']].map(([l,o,e])=>(
-              <tr key={l}><td>{l}</td><td>{o}</td><td>{e}</td></tr>
-            ))}
-          </tbody>
-        </table></div>
+        <H2>Step-by-Step Setup</H2>
 
-        <H2>Quick Start</H2>
-        <H3>1. Install OWS</H3>
+        <H3>Step 1 — Install OWS</H3>
         <Code label="Terminal">{`npm install -g @open-wallet-standard/core`}</Code>
-        <P>Or install everything (CLI + Node + Python) with the installer:</P>
+        <P>Or use the installer (installs CLI + Node.js + Python bindings):</P>
         <Code label="Terminal">{`curl -fsSL https://docs.openwallet.sh/install.sh | bash`}</Code>
 
-        <H3>2. Create a Wallet</H3>
-        <Code label="Terminal">{`ows wallet create --name agent-treasury`}</Code>
-        <P>This creates a universal wallet with accounts for TON, EVM, Solana, Bitcoin, and other chains. The TON account uses derivation path <IC>{"m/44'/607'/0'"}</IC>.</P>
+        <H3>Step 2 — Create a wallet</H3>
+        <Code label="Terminal">{`ows wallet create --name my-agent`}</Code>
+        <P>The output shows your TON address (starts with <IC>UQ...</IC>). Send TON to this address to fund it.</P>
+        <Warn>This address is <strong>different</strong> from Tonkeeper even with the same mnemonic. OWS uses multi-chain derivation (BIP-39 + SLIP-10), TON wallets use their own. Fund the OWS address directly.</Warn>
 
-        <H3>3. Install the Adapter</H3>
-        <Code label="Terminal">{`npm install @open-wallet-standard/core @ton/ton @ton/core bip39 ed25519-hd-key tweetnacl`}</Code>
+        <H3>Step 3 — Set up your project</H3>
+        <Code label="Terminal">{`mkdir my-enact-agent && cd my-enact-agent
+npm init -y
+npm install @open-wallet-standard/core @ton/ton @ton/core bip39 ed25519-hd-key tweetnacl`}</Code>
 
-        <H3>4. Use OWS Signer with ENACT</H3>
-        <Code label="TypeScript">{`import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
+        <H3>Step 4 — Copy the adapter</H3>
+        <P>Download <a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/examples/ows-integration/ows-signer.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">ows-signer.ts</a> into your project. This is a single file (~140 lines) that bridges OWS with <IC>@ton/ton</IC>.</P>
+        <Code label="Terminal">{`curl -o ows-signer.ts https://raw.githubusercontent.com/ENACT-protocol/enact-protocol/master/examples/ows-integration/ows-signer.ts`}</Code>
+
+        <H3>Step 5 — Write your agent</H3>
+        <P>Here{"'"}s a complete working example — an agent that creates an ENACT escrow job:</P>
+        <Code label="agent.ts">{`import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { Address, beginCell, toNano } from '@ton/core';
 import { createOWSSigner } from './ows-signer';
 
-// Initialize OWS signer — private key stays in the vault
-const signer = await createOWSSigner('agent-treasury');
+const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 
-// Create wallet contract using OWS-derived public key
-const client = new TonClient({ endpoint: '...', apiKey: '...' });
-const wallet = WalletContractV5R1.create({
-  publicKey: signer.publicKey,
-  workchain: 0,
-});
-const contract = client.open(wallet);
+async function main() {
+  // 1. Connect to OWS wallet (key stays in vault)
+  const signer = await createOWSSigner('my-agent');
+  console.log('Agent wallet:', signer.address);
 
-// Send transaction — OWS signs via callback, key never exposed
-await contract.sendTransfer({
-  seqno: await contract.getSeqno(),
-  signer: signer.sign,  // ← OWS callback, not raw secretKey
-  sendMode: SendMode.PAY_GAS_SEPARATELY,
-  messages: [internal({
-    to: Address.parse('EQAFHodW...'),
-    value: toNano('0.03'),
-    body: beginCell().storeUint(0x10, 32).endCell(),
-    bounce: true,
-  })],
-});`}</Code>
-        <P>The key difference: <IC>signer: signer.sign</IC> replaces <IC>secretKey: rawKey</IC>. The private key never enters your agent code.</P>
+  // 2. Connect to TON
+  const client = new TonClient({
+    endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+    apiKey: process.env.TONCENTER_API_KEY || '',
+  });
 
-        <H2>OWS Signer Adapter</H2>
-        <P>The adapter (<a href="https://github.com/ENACT-protocol/enact-protocol/blob/master/examples/ows-integration/ows-signer.ts" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">ows-signer.ts</a>) bridges OWS with <IC>@ton/ton</IC>:</P>
-        <Code label="TypeScript">{`import { createOWSSigner } from './ows-signer';
+  // 3. Create wallet contract
+  const wallet = WalletContractV5R1.create({
+    publicKey: signer.publicKey,
+    workchain: 0,
+  });
+  const contract = client.open(wallet);
 
-const signer = await createOWSSigner('agent-treasury');
-// signer.publicKey  — 32-byte Ed25519 public key
-// signer.sign       — (Cell) => Promise<Buffer> callback
-// signer.address    — TON address (UQ... format)`}</Code>
+  // 4. Build the ENACT createJob message
+  const descHash = BigInt('0x' + Buffer.from('Translate document EN→FR')
+    .toString('hex').padEnd(64, '0'));
+  const body = beginCell()
+    .storeUint(0x00000010, 32)              // createJob opcode
+    .storeAddress(Address.parse(signer.address)) // evaluator (self for demo)
+    .storeCoins(toNano('0.1'))              // budget: 0.1 TON
+    .storeUint(descHash, 256)               // job description hash
+    .storeUint(86400, 32)                   // 24h timeout
+    .storeUint(86400, 32)                   // 24h eval timeout
+    .endCell();
 
-        <H3>Signing Flow</H3>
-        <ol className="list-decimal list-inside text-[var(--color-text-muted)] text-sm space-y-1.5 mb-4 ml-1">
-          <li><IC>@ton/ton</IC> constructs the unsigned message (Cell)</li>
-          <li>Signer callback receives the Cell</li>
-          <li><IC>Cell.hash()</IC> produces a 32-byte SHA-256 hash</li>
-          <li>OWS <IC>signMessage(hash)</IC> signs with Ed25519 inside the vault</li>
-          <li>64-byte signature returned to <IC>@ton/ton</IC></li>
-          <li>Signed message sent to TON network</li>
-        </ol>
+  // 5. Send — OWS signs, key never leaves the vault
+  const seqno = await contract.getSeqno();
+  await contract.sendTransfer({
+    seqno,
+    signer: signer.sign,  // ← OWS handles signing
+    sendMode: SendMode.PAY_GAS_SEPARATELY,
+    messages: [internal({
+      to: Address.parse(FACTORY),
+      value: toNano('0.03'),
+      body,
+      bounce: true,
+    })],
+  });
 
-        <H2>Key Derivation</H2>
-        <P>OWS uses <strong className="text-white">BIP-39 + SLIP-10</strong> derivation — the multi-chain standard. This is different from TON-native wallets (Tonkeeper, MyTonWallet) which use TON{"'"}s own HMAC-based derivation.</P>
-        <Warn>The same mnemonic produces <strong>different TON addresses</strong> in OWS vs Tonkeeper. This is by design — OWS uses unified derivation across all chains. An OWS wallet is a separate wallet. Fund the OWS address directly.</Warn>
-        <P>OWS v1.1 does not expose public keys via API. The adapter extracts the mnemonic at initialization, derives the public key via BIP-39/SLIP-10, then zeros all secret material immediately. A <a href="https://github.com/open-wallet-standard/core/issues" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">feature request</a> for <IC>getPublicKey()</IC> has been submitted to OWS.</P>
+  console.log('Job created! Tx seqno:', seqno);
+}
 
-        <H2>Policy Engine</H2>
-        <P>OWS policies execute <strong className="text-white">before any signing</strong>. ENACT provides a policy script that restricts wallets to only interact with ENACT contracts:</P>
-        <Code label="Terminal">{`chmod +x enact-policy.js
-ows policy create --file enact-policy.json`}</Code>
+main();`}</Code>
+
+        <H3>Step 6 — Run it</H3>
+        <Code label="Terminal">{`TONCENTER_API_KEY=your_key npx ts-node agent.ts`}</Code>
+
+        <H2>How It Fits with ENACT</H2>
+        <P>OWS works at the <strong className="text-white">SDK level</strong> — it replaces how your code signs transactions. It{"'"}s not related to the remote MCP server.</P>
         <div className="doc-table-wrapper"><table className="doc-table">
-          <thead><tr><th>Rule</th><th>Default</th><th>Description</th></tr></thead>
-          <tbody>
-            {[['Max value','100 TON','Rejects transactions above limit'],['Rate limit','10/hour','Persisted to ~/.ows/enact-rate-limit.json'],['Chain scope','ton:mainnet','Only enforces on TON chain']].map(([r,d,desc])=>(
-              <tr key={r}><td>{r}</td><td className="text-gray-300 text-xs font-mono">{d}</td><td>{desc}</td></tr>
-            ))}
-          </tbody>
-        </table></div>
-
-        <H2>Integration Options</H2>
-        <P>OWS works at the <strong className="text-white">SDK level</strong> — it replaces the signing mechanism inside your agent code. Here{"'"}s how it fits with ENACT{"'"}s integration layers:</P>
-        <div className="doc-table-wrapper"><table className="doc-table">
-          <thead><tr><th>Integration</th><th>Signing</th><th>Use Case</th></tr></thead>
+          <thead><tr><th>Integration</th><th>How signing works</th><th>When to use</th></tr></thead>
           <tbody>
             {[
-              ['ENACT SDK + OWS','OWS vault (signer callback)','Agent code with secure local key management'],
-              ['Local MCP Server + OWS','OWS vault (modify MCP server to use OWS signer)','Local MCP with secure signing'],
-              ['Remote MCP Server','Server-side mnemonic or Tonkeeper deeplink','Quick setup, keys on remote server'],
+              ['ENACT SDK + OWS','OWS vault signs via callback','You write agent code and want secure local keys'],
+              ['Remote MCP','Server-side mnemonic or Tonkeeper deeplink','Quick setup via Claude/Cursor, no local keys'],
+              ['Teleton Plugin','Mnemonic in .env','Autonomous Telegram agent'],
             ].map(([i,s,u])=>(
               <tr key={i}><td>{i}</td><td>{s}</td><td>{u}</td></tr>
             ))}
           </tbody>
         </table></div>
-        <P>The OWS adapter (<IC>ows-signer.ts</IC>) works directly with the <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">ENACT TypeScript SDK</a>. To use OWS with the <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP server</a>, run it locally and replace the <IC>secretKey</IC> signing with the OWS <IC>signer</IC> callback.</P>
 
-        <H2>Security Model</H2>
+        <H2>Policy Engine (Optional)</H2>
+        <P>OWS can enforce rules <strong className="text-white">before</strong> any signing. ENACT provides a ready-made policy:</P>
+        <Code label="Terminal">{`# Download the policy
+curl -o enact-policy.js https://raw.githubusercontent.com/ENACT-protocol/enact-protocol/master/examples/ows-integration/enact-policy.js
+chmod +x enact-policy.js
+
+# Register it
+ows policy create --file enact-policy.json`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
-          <thead><tr><th>Concern</th><th>How It{"'"}s Handled</th></tr></thead>
+          <thead><tr><th>Rule</th><th>Default</th><th>What it does</th></tr></thead>
           <tbody>
-            {[['Private key exposure','Keys stay in OWS vault (AES-256-GCM encrypted)'],['LLM context leakage','Private key never enters agent/LLM context'],['Unauthorized transactions','OWS policy engine evaluates before signing'],['Spending limits','Policy enforces max value per transaction'],['Rate limiting','Policy enforces max transactions per hour']].map(([c,h])=>(
+            {[['Max value','100 TON','Blocks transactions above this amount'],['Rate limit','10/hour','Prevents runaway agents from draining the wallet']].map(([r,d,desc])=>(
+              <tr key={r}><td>{r}</td><td className="text-gray-300 text-xs font-mono">{d}</td><td>{desc}</td></tr>
+            ))}
+          </tbody>
+        </table></div>
+
+        <H2>Security</H2>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>Risk</th><th>Protection</th></tr></thead>
+          <tbody>
+            {[['Private key leaked via logs or LLM','Key never enters agent process — OWS signs internally'],['Agent goes rogue, drains wallet','Policy engine limits per-tx value and rate'],['Mnemonic exposed in code','OWS stores keys in AES-256-GCM encrypted vault at ~/.ows/']].map(([c,h])=>(
               <tr key={c}><td>{c}</td><td>{h}</td></tr>
             ))}
           </tbody>
         </table></div>
 
-        <H2>Source Code</H2>
+        <H2>Links</H2>
         <CardGroup cols={2}>
-          <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/examples/ows-integration" icon="hgi-source-code" title="OWS Integration" desc="Adapter, demo, policy, and MCP config" />
-          <NavCard href="https://docs.openwallet.sh" icon="hgi-wallet-03" title="OWS Documentation" desc="Open Wallet Standard official docs" />
+          <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/examples/ows-integration" icon="hgi-source-code" title="Source Code" desc="Adapter, demo script, and policy" />
+          <NavCard href="https://docs.openwallet.sh" icon="hgi-wallet-03" title="OWS Docs" desc="Open Wallet Standard documentation" />
         </CardGroup>
 
         <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
