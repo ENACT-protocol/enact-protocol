@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ows": {
+      "command": "ows",
+      "args": ["serve", "--mcp"],
+      "description": "Open Wallet Standard — key management, signing, policies"
+    },
+    "enact-protocol": {
+      "url": "https://mcp.enact.info/mcp",
+      "description": "ENACT Protocol — trustless escrow for AI agent commerce on TON"
+    }
+  }
+}

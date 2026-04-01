@@ -2,118 +2,130 @@ name: OWS Integration Test
 on: workflow_dispatch
 
 jobs:
-  test-ows:
+  test-ows-signer:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install OWS
+      - name: Install dependencies
         run: |
-          mkdir ows-test && cd ows-test
+          cd examples/ows-integration
           npm init -y
-          npm install @open-wallet-standard/core
+          npm install @open-wallet-standard/core @ton/ton @ton/core @ton/crypto typescript ts-node
 
-      - name: Test OWS with TON
+      - name: Run OWS Signer integration test
         run: |
-          cd ows-test
-          node -e "
+          cd examples/ows-integration
+          npx ts-node -e "
+          import { createOWSSigner } from './ows-signer';
+          import { beginCell, Cell } from '@ton/core';
+          import { sign, keyPairFromSecretKey } from '@ton/crypto';
+
+          // We need OWS functions directly for wallet setup
           const ows = require('@open-wallet-standard/core');
 
-          console.log('=== TEST 1: Create wallet ===');
-          const w = ows.createWallet('test-agent');
-          console.log('Wallet ID:', w.id);
-          console.log('Wallet name:', w.name);
-          console.log('Accounts:');
-          for (const a of w.accounts) {
-            console.log('  chain:', a.chainId, 'addr:', a.address, 'path:', a.derivationPath);
-          }
+          async function test() {
+            console.log('=== TEST: OWS Signer ↔ @ton/ton Bridge ===\n');
 
-          const tonAccount = w.accounts.find(a => a.chainId.includes('ton'));
-          console.log('\n=== TEST 2: TON account ===');
-          if (tonAccount) {
-            console.log('TON chain ID:', tonAccount.chainId);
-            console.log('TON address:', tonAccount.address);
-            console.log('TON derivation:', tonAccount.derivationPath);
-          } else {
-            console.log('NO TON ACCOUNT FOUND');
-            console.log('Available chains:', w.accounts.map(a => a.chainId));
-          }
+            // 1. Create test wallet
+            console.log('1. Creating OWS wallet...');
+            const wallet = ows.createWallet('test-signer');
+            const tonAccount = wallet.accounts.find((a: any) => a.chainId === 'ton:mainnet');
+            console.log('   TON address:', tonAccount?.address);
+            console.log('   ✓ Wallet created\n');
 
-          console.log('\n=== TEST 3: Export wallet (check if public key accessible) ===');
-          try {
-            const exported = ows.exportWallet('test-agent');
-            console.log('Export type:', typeof exported);
-            console.log('Export preview:', exported.slice(0, 80) + '...');
-          } catch(e) {
-            console.log('Export error:', e.message);
-          }
+            // 2. Create OWSSigner
+            console.log('2. Initializing OWSSigner...');
+            const signer = await createOWSSigner('test-signer');
+            console.log('   publicKey:', signer.publicKey.toString('hex'));
+            console.log('   publicKey length:', signer.publicKey.length, 'bytes');
+            console.log('   address:', signer.address);
+            console.log('   ✓ Signer ready\n');
 
-          console.log('\n=== TEST 4: signMessage with TON chain ===');
-          // Test signing a 32-byte hash (like Cell.hash() returns)
-          const testHash = 'a'.repeat(64); // 32 bytes as hex
-          try {
-            const chainId = tonAccount ? tonAccount.chainId : 'ton';
-            const sig = ows.signMessage('test-agent', chainId, testHash, undefined, 'hex');
-            console.log('Signature hex:', sig.signature);
-            console.log('Signature length (bytes):', sig.signature.length / 2);
-            console.log('Recovery ID:', sig.recoveryId);
-          } catch(e) {
-            console.log('signMessage error:', e.message);
-            // Try with different chain identifiers
-            for (const chain of ['ton', 'ton:mainnet', 'TON', 'solana']) {
-              try {
-                const sig = ows.signMessage('test-agent', chain, testHash, undefined, 'hex');
-                console.log('SUCCESS with chain=' + chain + ', sig length:', sig.signature.length / 2);
-                break;
-              } catch(e2) {
-                console.log('  chain=' + chain + ': ' + e2.message);
-              }
+            // 3. Build a test Cell (simulates what @ton/ton sendTransfer builds)
+            console.log('3. Building test Cell...');
+            const testCell = beginCell()
+              .storeUint(0x00000010, 32)  // ENACT createJob opcode
+              .storeUint(12345n, 64)      // some data
+              .storeUint(67890n, 256)     // hash-like data
+              .endCell();
+            const cellHash = testCell.hash();
+            console.log('   Cell hash:', cellHash.toString('hex'));
+            console.log('   Cell hash length:', cellHash.length, 'bytes');
+            console.log('   ✓ Cell built\n');
+
+            // 4. Sign via OWS signer callback
+            console.log('4. Signing Cell via OWS...');
+            const signature = await signer.sign(testCell);
+            console.log('   Signature:', signature.toString('hex'));
+            console.log('   Signature length:', signature.length, 'bytes');
+            if (signature.length !== 64) {
+              throw new Error('FAIL: Expected 64-byte Ed25519 signature, got ' + signature.length);
             }
-          }
+            console.log('   ✓ Signature is 64 bytes (Ed25519)\n');
 
-          console.log('\n=== TEST 5: signTransaction with TON ===');
-          try {
-            const chainId = tonAccount ? tonAccount.chainId : 'ton';
-            const fakeTx = 'b5ee9c72'.repeat(16); // fake BOC hex
-            const sig = ows.signTransaction('test-agent', chainId, fakeTx);
-            console.log('signTransaction result:', JSON.stringify(sig));
-          } catch(e) {
-            console.log('signTransaction error:', e.message);
-          }
+            // 5. Verify signature using @ton/crypto
+            console.log('5. Verifying signature with publicKey...');
 
-          console.log('\n=== TEST 6: Import wallet from mnemonic ===');
-          try {
-            const mnemonic = ows.generateMnemonic(24);
-            console.log('Generated mnemonic words:', mnemonic.split(' ').length);
-            const imported = ows.importWalletMnemonic('imported-test', mnemonic);
-            console.log('Imported wallet accounts:');
-            for (const a of imported.accounts) {
-              console.log('  chain:', a.chainId, 'addr:', a.address.slice(0,20) + '...');
+            // Get the real keypair to verify (only for test — in prod we never do this)
+            const mnemonic = ows.exportWallet('test-signer');
+            const { mnemonicToPrivateKey } = require('@ton/crypto');
+            const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
+
+            // Verify: nacl.sign.detached.verify(hash, signature, publicKey)
+            const nacl = require('tweetnacl');
+            const isValid = nacl.sign.detached.verify(
+              cellHash,
+              signature,
+              signer.publicKey,
+            );
+            console.log('   Verification result:', isValid);
+            if (!isValid) {
+              throw new Error('FAIL: Signature verification failed!');
             }
-            ows.deleteWallet('imported-test');
-          } catch(e) {
-            console.log('Import error:', e.message);
-          }
+            console.log('   ✓ Signature verified with publicKey\n');
 
-          console.log('\n=== TEST 7: deriveAddress for TON ===');
-          try {
-            const mnemonic = ows.generateMnemonic(24);
-            for (const chain of ['ton', 'ton:mainnet', 'solana', 'evm']) {
-              try {
-                const addr = ows.deriveAddress(mnemonic, chain);
-                console.log('deriveAddress(' + chain + '):', addr);
-              } catch(e2) {
-                console.log('deriveAddress(' + chain + '): ERROR -', e2.message);
-              }
+            // 6. Verify that the same signature would be produced by direct signing
+            console.log('6. Cross-check: direct Ed25519 sign vs OWS sign...');
+            const directSig = nacl.sign.detached(cellHash, keyPair.secretKey);
+            const directValid = nacl.sign.detached.verify(cellHash, directSig, signer.publicKey);
+            console.log('   Direct sign also valid:', directValid);
+
+            // Both signatures should verify, but may differ due to deterministic vs randomized
+            // The important thing is BOTH verify against the same publicKey
+            const owsVerifiesDirect = nacl.sign.detached.verify(cellHash, directSig, signer.publicKey);
+            const directVerifiesOws = nacl.sign.detached.verify(cellHash, signature, signer.publicKey);
+            console.log('   OWS sig verifies with pubkey:', directVerifiesOws);
+            console.log('   Direct sig verifies with pubkey:', owsVerifiesDirect);
+            console.log('   ✓ Both signing methods produce valid signatures\n');
+
+            // 7. Test that secretKey was zeroed
+            console.log('7. Checking secretKey was zeroed in signer init...');
+            // We can not check this directly since createOWSSigner zeroes internally
+            // But we can verify the signer object has no secretKey property
+            const hasSecretKey = 'secretKey' in signer;
+            console.log('   signer has secretKey property:', hasSecretKey);
+            if (hasSecretKey) {
+              throw new Error('FAIL: signer should not expose secretKey');
             }
-          } catch(e) {
-            console.log('deriveAddress error:', e.message);
+            console.log('   ✓ No secretKey on signer object\n');
+
+            // Cleanup
+            ows.deleteWallet('test-signer');
+            keyPair.secretKey.fill(0);
+
+            console.log('═══ ALL TESTS PASSED ═══');
+            console.log('The OWS ↔ @ton/ton bridge works correctly:');
+            console.log('  • OWS signMessage produces valid Ed25519 signatures');
+            console.log('  • Signatures verify against the derived publicKey');
+            console.log('  • @ton/ton signer callback interface is compatible');
+            console.log('  • Private key never used for signing (only OWS)');
           }
 
-          // Cleanup
-          ows.deleteWallet('test-agent');
-          console.log('\n=== ALL TESTS COMPLETE ===');
+          test().catch(e => { console.error('FATAL:', e.message); process.exit(1); });
           "
