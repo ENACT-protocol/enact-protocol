@@ -121,7 +121,7 @@ OWS uses **BIP-39 + SLIP-10** derivation at `m/44'/607'/0'`. This is different f
 
 **Same mnemonic → different TON addresses** in OWS vs Tonkeeper. This is by design — OWS uses unified multi-chain derivation. Fund the OWS address directly.
 
-OWS v1.1 does not expose public keys via API. The adapter derives the public key from the mnemonic at init, then zeros all secret material. See [feature request](https://github.com/open-wallet-standard/core/issues) for `getPublicKey()`.
+OWS v1.1 does not expose public keys via API. The adapter derives the public key from the mnemonic at init, then zeros all secret material. See [feature request #157](https://github.com/open-wallet-standard/core/issues/157) for `getPublicKey()`.
 
 ## Compatibility
 
