@@ -43,6 +43,7 @@ const sidebar = [
     { name: 'MCP Server', slug: 'mcp-server' },
     { name: 'Telegram Bot', slug: 'telegram-bot' },
     { name: 'Teleton Plugin', slug: 'teleton' },
+    { name: 'Open Wallet Standard', slug: 'ows' },
   ]},
   { group: 'Reference', items: [
     { name: 'Environment Variables', slug: 'env-vars' },
