@@ -103,7 +103,15 @@ async function fetchTransactions(address: string): Promise<ParsedTx[]> {
             if (!res.ok) return [];
             const data = await res.json() as { ok: boolean; result?: any[] };
             if (!data.ok) return [];
-            return (data.result ?? []).map((tx: any) => {
+            return (data.result ?? [])
+                .filter((tx: any) => {
+                    // Skip bounced/failed transactions
+                    const computeOk = tx.compute_phase?.success !== false;
+                    const actionOk = tx.action_phase?.success !== false;
+                    const aborted = tx.description?.aborted === true;
+                    return computeOk && actionOk && !aborted;
+                })
+                .map((tx: any) => {
                 let opcode: number | null = null;
                 let approved: boolean | undefined;
                 try {
