@@ -317,7 +317,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 const update: Record<string, any> = {};
                 if (desc?.text) { update.description_text = desc.text; if (desc.ipfsUrl) update.description_ipfs_url = desc.ipfsUrl; if (desc.fileCid) update.description_file_cid = desc.fileCid; if (desc.fileName) update.description_file_name = desc.fileName; }
                 if (res?.text) { update.result_text = res.text; if (res.ipfsUrl) update.result_ipfs_url = res.ipfsUrl; if (res.fileCid) update.result_file_cid = res.fileCid; if (res.fileName) update.result_file_name = res.fileName; }
-                if (reas?.text) update.reason_text = reas.text;
+                if (reas?.text) { update.reason_text = reas.text; if (reas.ipfsUrl) update.reason_ipfs_url = reas.ipfsUrl; }
                 if (Object.keys(update).length > 0) {
                     await sb.from('jobs').update(update).eq('address', jobAddr);
                 }
