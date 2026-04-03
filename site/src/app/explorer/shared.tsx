@@ -267,10 +267,10 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
     <div>
       {/* Text */}
       {text && (
-        <div className={`relative ${!expanded && isLong ? 'max-h-[80px] overflow-hidden' : ''}`}>
-          <span className="text-[#A1A1AA] whitespace-pre-wrap break-words text-sm leading-relaxed" style={{ overflowWrap: 'anywhere' }}>{text}</span>
+        <div className={`relative ${!expanded && isLong ? 'max-h-[3.75rem] overflow-hidden' : ''}`}>
+          <span className="text-[#A1A1AA] whitespace-pre-wrap break-words text-sm leading-[1.25rem]" style={{ overflowWrap: 'anywhere' }}>{text}</span>
           {!expanded && isLong && (
-            <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-[rgba(9,9,11,1)] via-[rgba(9,9,11,0.8)] to-transparent pointer-events-none rounded-b-[10px]" />
+            <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-[var(--card-bg,rgba(9,9,11,1))] to-transparent pointer-events-none" />
           )}
         </div>
       )}

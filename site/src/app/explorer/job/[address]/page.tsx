@@ -346,11 +346,11 @@ function TechnicalDetails({ job }: { job: Job }) {
             <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">Content Sources</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <TechRow label="Description" value={job.description?.source || 'hash'} />
-              {job.description?.ipfsUrl && <TechRow label="Desc IPFS URL" value={job.description.ipfsUrl} copy />}
+              {job.description?.ipfsUrl && <TechRow label="Desc IPFS URL" value={job.description.ipfsUrl} copy full />}
               {job.resultContent?.source && job.resultHash && job.resultHash !== zeroHash && (
                 <TechRow label="Result" value={job.resultContent.source} />
               )}
-              {job.resultContent?.ipfsUrl && <TechRow label="Result IPFS URL" value={job.resultContent.ipfsUrl} copy />}
+              {job.resultContent?.ipfsUrl && <TechRow label="Result IPFS URL" value={job.resultContent.ipfsUrl} copy full />}
               {job.reasonContent?.source && job.reasonContent.source !== 'hash' && (
                 <TechRow label="Reason" value={job.reasonContent.source} />
               )}
@@ -388,13 +388,14 @@ function TechnicalDetails({ job }: { job: Job }) {
   );
 }
 
-function TechRow({ label, value, copy, mono }: { label: string; value: string; copy?: boolean; mono?: boolean }) {
-  const display = value.length > 50 ? value.slice(0, 24) + '…' + value.slice(-8) : value;
+function TechRow({ label, value, copy, mono, full }: { label: string; value: string; copy?: boolean; mono?: boolean; full?: boolean }) {
+  const display = full ? value : value.length > 50 ? value.slice(0, 24) + '…' + value.slice(-8) : value;
+  const isUrl = value.startsWith('http');
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${full ? 'sm:col-span-2 lg:col-span-3' : ''}`}>
       <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">{label}</div>
       <div className={`text-[11px] text-[#71717A] ${mono ? 'font-mono' : ''} break-all inline-flex items-center gap-1`}>
-        <span className="truncate">{display}</span>
+        {isUrl ? <a href={value} target="_blank" rel="noopener noreferrer" className="hover:text-[#A1A1AA] underline underline-offset-2">{display}</a> : <span>{display}</span>}
         {copy && value !== '—' && <CopyHash hash={value} />}
       </div>
     </div>
