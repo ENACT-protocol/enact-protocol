@@ -405,10 +405,8 @@ export function useExplorerData() {
           })
           .subscribe((status: string) => {
             console.log('[REALTIME] subscribe status:', status);
-            if (status === 'SUBSCRIBED') {
-              clearInterval(i);
-              i = setInterval(fetchData, 5_000); // 5s fallback when RT connected
-            }
+            // Keep polling at POLL_INTERVAL — Supabase RT has 2-5s delivery latency on free tier
+            // RT events trigger instant debouncedFetch() as bonus, poll is the reliable baseline
           });
       }).catch(() => {});
     }
