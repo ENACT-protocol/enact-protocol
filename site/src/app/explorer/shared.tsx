@@ -369,44 +369,99 @@ export function useExplorerData() {
     };
     document.addEventListener('visibilitychange', onVisibility);
 
-    // Supabase Realtime: instant updates when indexer writes to DB
+    // Supabase Realtime: apply DB changes directly to state (no API refetch)
     let channel: any = null;
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchData(), 500); // 500ms debounce
+    const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
+
+    const applyJobUpdate = (row: any) => {
+      if (!row?.address) return;
+      const stateName = row.state_name || STATE_NAMES[row.state] || 'UNKNOWN';
+      setData(prev => {
+        if (!prev) return prev;
+        const update = (j: Job): Job => {
+          if (j.address !== row.address) return j;
+          return {
+            ...j,
+            state: row.state ?? j.state,
+            stateName,
+            provider: row.provider ?? j.provider,
+            submittedAt: row.submitted_at ?? j.submittedAt,
+            budgetFormatted: row.budget_formatted ?? j.budgetFormatted,
+            pendingState: row.pending_state || null,
+            description: row.description_text ? { text: row.description_text, source: row.description_ipfs_url ? 'ipfs' : 'hex' } : j.description,
+            resultContent: row.result_text ? { text: row.result_text, source: row.result_ipfs_url ? 'ipfs' : 'hex' } : j.resultContent,
+            reasonContent: row.reason_text ? { text: row.reason_text, source: row.reason_ipfs_url ? 'ipfs' : 'hex' } : j.reasonContent,
+          };
+        };
+        return { ...prev, tonJobs: prev.tonJobs.map(update), jettonJobs: prev.jettonJobs.map(update) };
+      });
     };
+
+    const applyJobInsert = (row: any) => {
+      if (!row?.address) return;
+      const type = row.factory_type || 'ton';
+      const stateName = row.state_name || STATE_NAMES[row.state] || 'OPEN';
+      const budgetNum = type === 'usdt' ? (Number(row.budget) / 1e6).toFixed(2) : (Number(row.budget) / 1e9).toFixed(2);
+      const newJob: Job = {
+        jobId: row.job_id, address: row.address, type,
+        state: row.state ?? 0, stateName,
+        client: row.client || '', provider: row.provider || null, evaluator: row.evaluator || '',
+        budget: String(row.budget || 0), budgetFormatted: `${budgetNum} ${type === 'usdt' ? 'USDT' : 'TON'}`,
+        descHash: row.desc_hash || '', resultHash: row.result_hash || '', timeout: row.timeout || 86400,
+        createdAt: row.created_at || 0, evalTimeout: row.eval_timeout || 86400, submittedAt: row.submitted_at || 0,
+        description: row.description_text ? { text: row.description_text, source: 'ipfs' } : { text: null, source: 'hash' },
+        pendingState: row.pending_state || null, transactions: [],
+      };
+      setData(prev => {
+        if (!prev) return prev;
+        if (prev.tonJobs.some(j => j.address === row.address) || prev.jettonJobs.some(j => j.address === row.address)) return prev;
+        return type === 'ton'
+          ? { ...prev, tonJobs: [newJob, ...prev.tonJobs] }
+          : { ...prev, jettonJobs: [newJob, ...prev.jettonJobs] };
+      });
+    };
+
+    const applyActivity = (row: any) => {
+      if (!row) return;
+      setData(prev => {
+        if (!prev) return prev;
+        const ev: ActivityEvent = {
+          jobId: row.job_id, type: row.factory_type || 'ton', address: row.job_address,
+          event: row.event, status: row.status, time: row.time,
+          amount: row.amount, from: row.from_address, txHash: row.tx_hash,
+        };
+        // Dedup
+        const exists = prev.activity?.some(a => a.address === ev.address && a.event === ev.event && a.time === ev.time);
+        if (exists) return prev;
+        return { ...prev, activity: [ev, ...(prev.activity || [])] };
+      });
+    };
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (supabaseUrl && supabaseKey) {
       import('@supabase/supabase-js').then(({ createClient }) => {
         const sb = createClient(supabaseUrl, supabaseKey);
         channel = sb.channel('explorer-live')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
-            const row = payload.new;
-            console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
-            // Apply pending_state locally for instant badge
-            if (row?.address && row?.pending_state) {
-              setData(prev => {
-                if (!prev) return prev;
-                const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
-                return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
-              });
-            }
-            // Fetch on state changes (INSERT = new job, UPDATE = state/provider changed)
-            if (payload.eventType === 'INSERT' || (payload.eventType === 'UPDATE' && row?.state !== payload.old?.state)) {
-              debouncedFetch();
-            }
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, (payload: any) => {
+            console.log('[RT] new job:', payload.new?.job_id);
+            applyJobInsert(payload.new);
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs' }, (payload: any) => {
+            console.log('[RT] job update:', payload.new?.job_id, payload.new?.state_name);
+            applyJobUpdate(payload.new);
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
-            // Only fetch on real state changes (new activity = indexer finished re-indexing)
-            console.log('[REALTIME] new activity:', payload.new?.event ?? '');
-            debouncedFetch();
+            console.log('[RT] activity:', payload.new?.event);
+            applyActivity(payload.new);
           })
           .subscribe((status: string) => {
-            console.log('[REALTIME] subscribe status:', status);
-            // Keep polling at POLL_INTERVAL — Supabase RT has 2-5s delivery latency on free tier
-            // RT events trigger instant debouncedFetch() as bonus, poll is the reliable baseline
+            console.log('[RT] status:', status);
+            if (status === 'SUBSCRIBED') {
+              // RT connected — slow down poll to 15s (RT handles instant updates now)
+              clearInterval(i);
+              i = setInterval(fetchData, 15_000);
+            }
           });
       }).catch(() => {});
     }
