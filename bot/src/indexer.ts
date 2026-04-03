@@ -249,9 +249,11 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             await sb.from('transactions').upsert({ job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee, utime: tx.utime }, { onConflict: 'tx_hash' });
         }
 
-        // Activity events — rebuild from opcodes only if state/provider/submit changed
+        // Activity events — rebuild if state, provider, submit, or tx count changed
+        const { count: existingTxCount } = await sb.from('transactions').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
         const stateChanged = force || !existingContent || existingContent.state !== state
-            || existingContent.provider !== providerStr || existingContent.submitted_at !== submittedAt;
+            || existingContent.provider !== providerStr || existingContent.submitted_at !== submittedAt
+            || txs.length !== (existingTxCount ?? 0);
         if (!stateChanged) { log(`  [SKIP] Activity unchanged for ${type}#${jobId}`); return; }
 
         // Build all events first, then delete+insert in one batch (prevents race condition dupes)
