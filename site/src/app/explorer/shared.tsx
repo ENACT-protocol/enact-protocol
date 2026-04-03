@@ -257,6 +257,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   if (!hash || hash === zeroHash) return <span className="text-[#52525B]">—</span>;
 
   const text = content?.text;
+  const isLoading = !text && content?.source === 'hash';
   const isLong = !!text && text.length > 200;
   const file = content?.file;
   const isImage = file?.mimeType?.startsWith('image/');
@@ -265,6 +266,13 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
 
   return (
     <div>
+      {/* Loading state — hash exists but IPFS not resolved yet */}
+      {isLoading && (
+        <div className="flex items-center gap-2 text-[#52525B] text-sm py-1">
+          <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          <span>Loading from IPFS...</span>
+        </div>
+      )}
       {/* Text */}
       {text && (
         <div className={`relative ${!expanded && isLong ? 'max-h-[3.75rem] overflow-hidden' : ''}`}>
@@ -450,6 +458,10 @@ export function useExplorerData() {
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs' }, (payload: any) => {
             console.log('[RT] job update:', payload.new?.job_id, payload.new?.state_name);
             applyJobUpdate(payload.new);
+            // Refetch full data to get updated transactions/activity (not in RT payload)
+            if (payload.new?.state !== payload.old?.state || payload.new?.provider !== payload.old?.provider) {
+              setTimeout(() => fetchData(), 1000); // 1s delay for indexer to finish activity write
+            }
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
             console.log('[RT] activity:', payload.new?.event);
