@@ -105,11 +105,12 @@ async function fetchTransactions(address: string): Promise<ParsedTx[]> {
             if (!data.ok) return [];
             return (data.result ?? [])
                 .filter((tx: any) => {
-                    // Skip bounced/failed transactions
-                    const computeOk = tx.compute_phase?.success !== false;
-                    const actionOk = tx.action_phase?.success !== false;
-                    const aborted = tx.description?.aborted === true;
-                    return computeOk && actionOk && !aborted;
+                    // Skip bounced/failed transactions:
+                    // A bounced tx returns most of the value back (out_total ≈ in_value)
+                    const inValue = Number(tx.in_msg?.value || 0);
+                    const outTotal = (tx.out_msgs || []).reduce((s: number, m: any) => s + Number(m.value || 0), 0);
+                    if (inValue > 100_000_000 && outTotal > inValue * 0.9) return false; // bounced: >90% returned
+                    return true;
                 })
                 .map((tx: any) => {
                 let opcode: number | null = null;
@@ -307,9 +308,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 newEvents.push({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
             }
         }
-        // Upsert activity events — safe against crashes (no DELETE gap)
+        // Replace activity events atomically
+        await sb.from('activity_events').delete().eq('job_address', jobAddr);
         if (newEvents.length > 0) {
-            await sb.from('activity_events').upsert(newEvents, { onConflict: 'job_address,event,time' });
+            await sb.from('activity_events').insert(newEvents);
         }
     } catch (err: any) {
         log(`  indexJob ${type}#${jobId} err: ${err.message}`);
