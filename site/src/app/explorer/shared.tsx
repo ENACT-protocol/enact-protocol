@@ -385,14 +385,17 @@ export function useExplorerData() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, (payload: any) => {
             const row = payload.new;
             console.log('[REALTIME] jobs change:', payload.eventType, row?.job_id ?? '');
-            // Only apply pending_state locally — never fetch on jobs UPDATE
-            // (poller updates fire every 120s and destabilize pagination)
+            // Apply pending_state locally for instant badge
             if (row?.address && row?.pending_state) {
               setData(prev => {
                 if (!prev) return prev;
                 const upd = (j: Job) => j.address === row.address ? { ...j, pendingState: row.pending_state } : j;
                 return { ...prev, tonJobs: prev.tonJobs.map(upd), jettonJobs: prev.jettonJobs.map(upd) };
               });
+            }
+            // Fetch on state changes (INSERT = new job, UPDATE = state/provider changed)
+            if (payload.eventType === 'INSERT' || (payload.eventType === 'UPDATE' && row?.state !== payload.old?.state)) {
+              debouncedFetch();
             }
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
@@ -404,7 +407,7 @@ export function useExplorerData() {
             console.log('[REALTIME] subscribe status:', status);
             if (status === 'SUBSCRIBED') {
               clearInterval(i);
-              i = setInterval(fetchData, 15_000); // 15s fallback when RT connected
+              i = setInterval(fetchData, 5_000); // 5s fallback when RT connected
             }
           });
       }).catch(() => {});

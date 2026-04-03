@@ -148,9 +148,15 @@ function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─── Job Indexing ───
 
+const indexLocks = new Set<string>();
+
 async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt', force = false) {
+    const lockKey = `${type}#${jobId}`;
+    if (indexLocks.has(lockKey)) return; // already indexing this job
+    indexLocks.add(lockKey);
+
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) { indexLocks.delete(lockKey); return; }
 
     try {
         const t0 = Date.now();
@@ -320,6 +326,8 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         }
     } catch (err: any) {
         log(`  indexJob ${type}#${jobId} err: ${err.message}`);
+    } finally {
+        indexLocks.delete(lockKey);
     }
 }
 
