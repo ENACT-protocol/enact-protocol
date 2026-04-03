@@ -196,30 +196,23 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const resultHashHex = resultHash.toString(16).padStart(64, '0');
         const reasonHashHex = reason.toString(16).padStart(64, '0');
 
-        // Only resolve IPFS if text is not already in Supabase
+        // Fetch transactions FIRST (fast, non-blocking)
+        const txT0 = Date.now();
+        const txs = await fetchTransactions(jobAddr);
+        log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${txs.length} txs)`);
+
+        // Check existing content to skip unnecessary IPFS
         const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, reason_text, state, provider, submitted_at').eq('address', jobAddr).single();
         const needDesc = !existingContent?.description_text && descHashHex !== ZERO_HASH;
         const needResult = !existingContent?.result_text && resultHashHex !== ZERO_HASH;
         const needReason = !existingContent?.reason_text && reasonHashHex !== ZERO_HASH && state >= 3;
-
-        const ipfsT0 = Date.now();
-        const [descContent, resultContent, reasonContent] = await Promise.all([
-            needDesc ? resolveContent(descHashHex) : Promise.resolve({ text: existingContent?.description_text, ipfsUrl: null, fileCid: null, fileName: null }),
-            needResult ? resolveContent(resultHashHex) : Promise.resolve({ text: existingContent?.result_text, ipfsUrl: null, fileCid: null, fileName: null }),
-            needReason ? resolveContent(reasonHashHex) : Promise.resolve({ text: existingContent?.reason_text, ipfsUrl: null, fileCid: null, fileName: null }),
-        ]);
-        if (needDesc || needResult || needReason) log(`  [IPFS] Resolve +${Date.now()-ipfsT0}ms (desc=${needDesc} res=${needResult} reason=${needReason})`);
-
-        const txT0 = Date.now();
-        const txs = await fetchTransactions(jobAddr);
-        log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${txs.length} txs)`);
 
         const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
         const clientStr = clientAddr.toString(uf);
         const providerStr = providerAddr?.toString(uf) ?? null;
         const evaluatorStr = evaluatorAddr.toString(uf);
 
-        // Build upsert — never overwrite content with null
+        // STEP 1: Upsert job data + transactions IMMEDIATELY (no IPFS wait)
         const jobData: Record<string, any> = {
             job_id: jobId, factory_type: type, address: jobAddr, factory_address: factory,
             state, state_name: stateName,
@@ -230,15 +223,6 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             submitted_at: submittedAt, result_type: resultType,
             updated_at: new Date().toISOString(),
         };
-        if (descContent.text !== null) jobData.description_text = descContent.text;
-        if (descContent.ipfsUrl !== null) jobData.description_ipfs_url = descContent.ipfsUrl;
-        if (descContent.fileCid !== null) jobData.description_file_cid = descContent.fileCid;
-        if (descContent.fileName !== null) jobData.description_file_name = descContent.fileName;
-        if (resultContent.text !== null) jobData.result_text = resultContent.text;
-        if (resultContent.ipfsUrl !== null) jobData.result_ipfs_url = resultContent.ipfsUrl;
-        if (resultContent.fileCid !== null) jobData.result_file_cid = resultContent.fileCid;
-        if (resultContent.fileName !== null) jobData.result_file_name = resultContent.fileName;
-        if (reasonContent.text !== null) jobData.reason_text = reasonContent.text;
 
         await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
         log(`  [DB] Upserted job +${Date.now()-t0}ms`);
@@ -314,6 +298,25 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         await sb.from('activity_events').delete().eq('job_address', jobAddr);
         if (newEvents.length > 0) {
             await sb.from('activity_events').insert(newEvents);
+        }
+
+        // STEP 3: Resolve IPFS content async (does NOT block job/activity)
+        if (needDesc || needResult || needReason) {
+            const ipfsT0 = Date.now();
+            Promise.all([
+                needDesc ? resolveContent(descHashHex) : Promise.resolve(null),
+                needResult ? resolveContent(resultHashHex) : Promise.resolve(null),
+                needReason ? resolveContent(reasonHashHex) : Promise.resolve(null),
+            ]).then(async ([desc, res, reas]) => {
+                const update: Record<string, any> = {};
+                if (desc?.text) { update.description_text = desc.text; if (desc.ipfsUrl) update.description_ipfs_url = desc.ipfsUrl; if (desc.fileCid) update.description_file_cid = desc.fileCid; if (desc.fileName) update.description_file_name = desc.fileName; }
+                if (res?.text) { update.result_text = res.text; if (res.ipfsUrl) update.result_ipfs_url = res.ipfsUrl; if (res.fileCid) update.result_file_cid = res.fileCid; if (res.fileName) update.result_file_name = res.fileName; }
+                if (reas?.text) update.reason_text = reas.text;
+                if (Object.keys(update).length > 0) {
+                    await sb.from('jobs').update(update).eq('address', jobAddr);
+                }
+                log(`  [IPFS] Resolved async +${Date.now()-ipfsT0}ms (desc=${!!desc?.text} res=${!!res?.text} reason=${!!reas?.text})`);
+            }).catch(() => {});
         }
     } catch (err: any) {
         log(`  indexJob ${type}#${jobId} err: ${err.message}`);
