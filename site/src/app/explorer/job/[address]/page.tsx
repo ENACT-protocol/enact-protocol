@@ -305,27 +305,83 @@ function TechnicalDetails({ job }: { job: Job }) {
         </svg>
       </button>
       {open && (
-        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-[rgba(255,255,255,0.03)] pt-3">
-          <TechRow label="Contract Address" value={job.address} copy mono />
-          <TechRow label="State (raw)" value={`${job.state}`} />
-          <TechRow label="Budget (raw)" value={job.budget} mono />
-          <TechRow label="Description Hash" value={job.descHash || '—'} copy={!!job.descHash} mono />
-          <TechRow label="Result Hash" value={job.resultHash && job.resultHash !== zeroHash ? job.resultHash : '—'} copy={!!job.resultHash && job.resultHash !== zeroHash} mono />
-          <TechRow label="Timeout (seconds)" value={`${job.timeout}`} />
-          <TechRow label="Eval Timeout (seconds)" value={`${job.evalTimeout}`} />
-          <TechRow label="Created (unix)" value={job.createdAt ? String(job.createdAt) : '—'} />
-          {job.submittedAt > 0 && <TechRow label="Submitted (unix)" value={String(job.submittedAt)} />}
-          {job.resultType != null && <TechRow label="Result Type" value={String(job.resultType)} />}
-          {job.pendingState && <TechRow label="Pending State" value={job.pendingState} />}
-          <TechRow label="Has File" value={job.hasFile ? 'Yes' : 'No'} />
-          <TechRow label="Tx Count" value={String(job.transactions?.length || txCount(job))} />
-          {job.description?.source && <TechRow label="Desc Source" value={job.description.source} />}
-          {job.description?.ipfsUrl && <TechRow label="Desc IPFS" value={job.description.ipfsUrl} copy />}
-          {job.resultContent?.source && job.resultHash && job.resultHash !== '0'.repeat(64) && <TechRow label="Result Source" value={job.resultContent.source} />}
-          {job.resultContent?.ipfsUrl && <TechRow label="Result IPFS" value={job.resultContent.ipfsUrl} copy />}
-          {job.reasonContent?.source && job.reasonContent.source !== 'hash' && <TechRow label="Reason Source" value={job.reasonContent.source} />}
-          {job.description?.file && <TechRow label="Desc File" value={job.description.file.filename} />}
-          {job.resultContent?.file && <TechRow label="Result File" value={job.resultContent.file.filename} />}
+        <div className="px-5 pb-4 border-t border-[rgba(255,255,255,0.03)] pt-3 space-y-4">
+          {/* On-Chain Data */}
+          <div>
+            <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">On-Chain</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <TechRow label="Job Contract" value={job.address} copy mono />
+              <TechRow label="Factory" value={job.type === 'usdt' ? 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB…' : 'EQAFHodWCzrYJTbrbJp1lMDQLfyp…'} />
+              <TechRow label="State (int)" value={`${job.state} (${job.stateName})`} />
+              <TechRow label="Job ID" value={`${job.jobId}`} />
+              <TechRow label="Type" value={job.type.toUpperCase()} />
+              <TechRow label="Budget (nanoton)" value={job.budget} mono />
+            </div>
+          </div>
+
+          {/* Participants */}
+          <div>
+            <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">Participants</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <TechRow label="Client" value={job.client} copy mono />
+              <TechRow label="Provider" value={job.provider || '—'} copy={!!job.provider} mono />
+              <TechRow label="Evaluator" value={job.evaluator} copy mono />
+            </div>
+          </div>
+
+          {/* Hashes */}
+          <div>
+            <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">Content Hashes (SHA-256, on-chain)</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <TechRow label="Description Hash" value={job.descHash || '—'} copy={!!job.descHash} mono />
+              <TechRow label="Result Hash" value={job.resultHash && job.resultHash !== zeroHash ? job.resultHash : '—'} copy={!!job.resultHash && job.resultHash !== zeroHash} mono />
+              {(job as any).reasonHash && (job as any).reasonHash !== zeroHash && (
+                <TechRow label="Reason Hash" value={(job as any).reasonHash} copy mono />
+              )}
+            </div>
+          </div>
+
+          {/* IPFS Sources */}
+          <div>
+            <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">Content Sources</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <TechRow label="Description" value={job.description?.source || 'hash'} />
+              {job.description?.ipfsUrl && <TechRow label="Desc IPFS URL" value={job.description.ipfsUrl} copy />}
+              {job.resultContent?.source && job.resultHash && job.resultHash !== zeroHash && (
+                <TechRow label="Result" value={job.resultContent.source} />
+              )}
+              {job.resultContent?.ipfsUrl && <TechRow label="Result IPFS URL" value={job.resultContent.ipfsUrl} copy />}
+              {job.reasonContent?.source && job.reasonContent.source !== 'hash' && (
+                <TechRow label="Reason" value={job.reasonContent.source} />
+              )}
+              {job.description?.file && <TechRow label="Desc File" value={`${job.description.file.filename} (${job.description.file.mimeType})`} />}
+              {job.resultContent?.file && <TechRow label="Result File" value={`${job.resultContent.file.filename} (${job.resultContent.file.mimeType})`} />}
+            </div>
+          </div>
+
+          {/* Timing */}
+          <div>
+            <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">Timing</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <TechRow label="Created At" value={job.createdAt ? `${job.createdAt} (${new Date(job.createdAt * 1000).toISOString()})` : '—'} />
+              {job.submittedAt > 0 && <TechRow label="Submitted At" value={`${job.submittedAt} (${new Date(job.submittedAt * 1000).toISOString()})`} />}
+              <TechRow label="Timeout" value={`${job.timeout}s (${Math.round(job.timeout / 3600)}h)`} />
+              <TechRow label="Eval Timeout" value={`${job.evalTimeout}s (${Math.round(job.evalTimeout / 3600)}h)`} />
+              {job.createdAt > 0 && <TechRow label="Deadline" value={new Date((job.createdAt + job.timeout) * 1000).toISOString()} />}
+              {job.submittedAt > 0 && <TechRow label="Eval Deadline" value={new Date((job.submittedAt + job.evalTimeout) * 1000).toISOString()} />}
+            </div>
+          </div>
+
+          {/* Transactions */}
+          <div>
+            <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-2 font-medium">Transactions ({job.transactions?.length || txCount(job)})</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <TechRow label="Tx Count" value={String(job.transactions?.length || txCount(job))} />
+              {job.resultType != null && <TechRow label="Result Type" value={String(job.resultType)} />}
+              <TechRow label="Has File Attachment" value={job.hasFile ? 'Yes' : 'No'} />
+              {job.pendingState && <TechRow label="Pending State" value={job.pendingState} />}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -333,11 +389,12 @@ function TechnicalDetails({ job }: { job: Job }) {
 }
 
 function TechRow({ label, value, copy, mono }: { label: string; value: string; copy?: boolean; mono?: boolean }) {
+  const display = value.length > 50 ? value.slice(0, 24) + '…' + value.slice(-8) : value;
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">{label}</div>
-      <div className={`text-[11px] text-[#636370] ${mono ? 'font-mono' : ''} break-all inline-flex items-center gap-1`}>
-        {value.length > 20 ? value.slice(0, 16) + '…' : value}
+      <div className={`text-[11px] text-[#71717A] ${mono ? 'font-mono' : ''} break-all inline-flex items-center gap-1`}>
+        <span className="truncate">{display}</span>
         {copy && value !== '—' && <CopyHash hash={value} />}
       </div>
     </div>
