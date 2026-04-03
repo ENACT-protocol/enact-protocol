@@ -312,7 +312,7 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
 async function resolveFileFromCID(cid: string | null): Promise<{ url: string; filename: string } | null> {
     if (!cid) return null;
     try {
-        const res = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(3000) });
         if (!res.ok) return null;
         const data = await res.json();
         if (data.file?.cid) {
@@ -363,7 +363,7 @@ async function findCID(hash: string): Promise<string | null> {
     if (!jwt) return null;
     try {
         const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${jwt}` }, signal: AbortSignal.timeout(4000) });
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${jwt}` }, signal: AbortSignal.timeout(3000) });
         if (res.ok) {
             const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
             if (pins.rows?.length > 0) return pins.rows[0].ipfs_pin_hash;
@@ -415,7 +415,7 @@ async function decodeDesc(hash: string): Promise<string | null> {
             const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
             const res = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${jwt}` },
-                signal: AbortSignal.timeout(5000),
+                signal: AbortSignal.timeout(3000),
             });
             if (res.ok) {
                 const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
@@ -428,7 +428,7 @@ async function decodeDesc(hash: string): Promise<string | null> {
                         // Try to fetch JSON content
                         try {
                             const cid = pin.ipfs_pin_hash;
-                            const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(5000) });
+                            const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(3000) });
                             if (ipfsRes.ok) {
                                 const data = await ipfsRes.json();
                                 const content = data.description ?? data.result ?? null;
@@ -1042,8 +1042,8 @@ bot.command('create', async (ctx) => {
 
         // Wait for factory to process and deploy our job contract
         let jobAddr: any = null;
-        for (let retry = 0; retry < 10; retry++) {
-            await new Promise(r => setTimeout(r, 3000));
+        for (let retry = 0; retry < 20; retry++) {
+            await new Promise(r => setTimeout(r, 500));
             try {
                 const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
                 jobAddr = addrResult.stack.readAddress();
@@ -1060,7 +1060,7 @@ bot.command('create', async (ctx) => {
             await new Promise(r => setTimeout(r, 2000)); // Brief pause before fund
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
-            await new Promise(r => setTimeout(r, 10000));
+            await new Promise(r => setTimeout(r, 2000));
             // Verify fund actually went through
             const status = await getJobStatus(client, jobAddr.toString());
             funded = status.state >= 1; // FUNDED or higher
@@ -2044,7 +2044,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
             let takeAttempts = 0;
             const takeTimer = setInterval(async () => {
                 takeAttempts++;
-                if (takeAttempts > 40) { clearInterval(takeTimer); tcWatchers.delete(userId); return; }
+                if (takeAttempts > 60) { clearInterval(takeTimer); tcWatchers.delete(userId); return; }
                 try {
                     const c = await createClient();
                     const s = await getJobStatus(c, jobAddr.toString());
@@ -2058,7 +2058,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
                             { parse_mode: 'HTML', reply_markup: tkb });
                     }
                 } catch {}
-            }, 3000);
+            }, 500);
             tcWatchers.set(userId, takeTimer);
             return;
         }
@@ -2067,7 +2067,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
-        await new Promise(r => setTimeout(r, 12000));
+        await new Promise(r => setTimeout(r, 2000));
 
         const newStatus = await getJobStatus(client, jobAddr.toString());
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
@@ -2549,7 +2549,7 @@ function watchJobState(userId: number, chatId: number, jobId: number, jobAddress
     let attempts = 0;
     const timer = setInterval(async () => {
         attempts++;
-        if (attempts > 40) { // ~2 min
+        if (attempts > 60) { // ~30s
             clearInterval(timer);
             tcWatchers.delete(userId);
             return;
@@ -2586,7 +2586,7 @@ function watchJobState(userId: number, chatId: number, jobId: number, jobAddress
                 );
             }
         } catch {}
-    }, 3000);
+    }, 500);
 
     tcWatchers.set(userId, timer);
 }

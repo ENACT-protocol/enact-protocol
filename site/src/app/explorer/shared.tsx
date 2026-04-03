@@ -267,13 +267,17 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
     <div>
       {/* Text */}
       {text && (
-        <div className={`${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
-          <span className="text-[#A1A1AA] whitespace-pre-wrap text-sm">{text}</span>
+        <div className={`relative ${!expanded && isLong ? 'max-h-[72px] overflow-hidden' : ''}`}>
+          <span className="text-[#A1A1AA] whitespace-pre-wrap break-words text-sm" style={{ overflowWrap: 'anywhere' }}>{text}</span>
+          {!expanded && isLong && (
+            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[rgba(5,5,8,0.95)] to-transparent pointer-events-none" />
+          )}
         </div>
       )}
       {isLong && (
-        <button onClick={() => setExpanded(!expanded)} className="text-[#52525B] hover:text-white transition-colors cursor-pointer mt-1">
+        <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="flex items-center gap-1 text-[#52525B] hover:text-white transition-colors cursor-pointer mt-2 text-xs">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+          <span>{expanded ? 'Collapse' : 'Expand'}</span>
         </button>
       )}
 
@@ -327,7 +331,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 3_000; // Poll every 3s for near-realtime
+const POLL_INTERVAL = 2_000; // Poll every 2s (Catchain 2.0: 800ms blocks)
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);
@@ -400,7 +404,7 @@ export function useExplorerData() {
             console.log('[REALTIME] subscribe status:', status);
             if (status === 'SUBSCRIBED') {
               clearInterval(i);
-              i = setInterval(fetchData, 60_000); // 60s fallback when RT connected
+              i = setInterval(fetchData, 15_000); // 15s fallback when RT connected
             }
           });
       }).catch(() => {});

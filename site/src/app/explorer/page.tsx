@@ -229,7 +229,7 @@ function ExplorerInner() {
                       <tr key={`act-${ev.address}-${ev.event}-${ev.time}`} onClick={() => router.push(`/explorer/job/${ev.address}`)}
                         className="border-b border-[rgba(255,255,255,0.03)] last:border-0 cursor-pointer hover:bg-[rgba(255,255,255,0.03)] transition-colors explorer-row">
                         <td className="px-5 py-2 whitespace-nowrap"><span className="text-white">#{ev.jobId}</span> <TypeIcon type={ev.type} size={14} /></td>
-                        <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: ev.txStatus === 'pending' ? '#F59E0B' : (EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555') }} className={`mr-2${ev.txStatus === 'pending' ? ' animate-pulse' : ''}`}>●</span> {ev.event}</td>
+                        <td className="px-3 py-2 whitespace-nowrap"><span style={{ color: ev.txStatus === 'pending' ? '#F59E0B' : ev.txStatus === 'confirmed' ? '#3B82F6' : (EVENT_DOT_COLORS[ev.event] || STATUS_COLORS[ev.status] || '#555') }} className={`mr-2${ev.txStatus === 'pending' ? ' animate-pulse' : ''}`}>●</span> {ev.event}{ev.txStatus === 'confirmed' ? ' ✓' : ''}</td>
                         <td className="px-3 py-2 hidden xl:table-cell">{ev.txHash ? <a href={`https://tonscan.org/tx/${ev.txHash}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-mono text-xs text-[#A1A1AA] hover:text-white cursor-pointer">{truncAddr(ev.txHash)}</a> : <span className="text-[#52525B]">—</span>}</td>
                         <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>

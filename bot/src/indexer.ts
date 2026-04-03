@@ -299,9 +299,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 newEvents.push({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
             }
         }
-        // Atomic: delete then batch insert (minimizes race window)
-        await sb.from('activity_events').delete().eq('job_address', jobAddr);
-        if (newEvents.length > 0) await sb.from('activity_events').insert(newEvents);
+        // Upsert activity events — safe against crashes (no DELETE gap)
+        if (newEvents.length > 0) {
+            await sb.from('activity_events').upsert(newEvents, { onConflict: 'job_address,event,time' });
+        }
     } catch (err: any) {
         log(`  indexJob ${type}#${jobId} err: ${err.message}`);
     }
@@ -351,7 +352,7 @@ let wsReconnectDelay = 1000;
 let trackedAddresses: string[] = [];
 // Track finalized accounts to skip stale pending/confirmed events
 const finalizedRecently = new Set<string>();
-setInterval(() => finalizedRecently.clear(), 300_000); // Clear every 5 min
+setInterval(() => finalizedRecently.clear(), 60_000); // Clear every 60s (Catchain 2.0)
 
 async function refreshTrackedAddresses() {
     const sb = getSupabase();
@@ -506,7 +507,7 @@ async function poller() {
     if (!sb) return;
 
     while (true) {
-        await sleep(120_000);
+        await sleep(30_000);
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },

@@ -106,12 +106,12 @@ export class EnactClient {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             messages: [internal({ to, value, body, bounce: true })],
         });
-        for (let i = 0; i < 30; i++) {
-            await new Promise(r => setTimeout(r, 2000));
+        for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 200));
             const newSeqno = await opened.getSeqno();
             if (newSeqno > seqno) return;
         }
-        throw new Error('Transaction not confirmed after 60s');
+        throw new Error('Transaction not confirmed after 4s');
     }
 
     private async _uploadToIPFS(content: object): Promise<bigint> {

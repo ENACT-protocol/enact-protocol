@@ -26,7 +26,7 @@ const API_KEY = process.env.TONCENTER_API_KEY ?? '';
 const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const PINATA_JWT = process.env.PINATA_JWT ?? '';
 const DRY_RUN = process.argv.includes('--dry-run');
-const INTERVAL = 60_000; // 60 seconds
+const INTERVAL = 15_000; // 15 seconds (Catchain 2.0: ~1s finality)
 
 const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
@@ -232,14 +232,14 @@ async function main() {
                     if (evaluated.has(jobKey)) continue;
 
                     try {
-                        await sleep(1500); // rate limit
+                        await sleep(400); // rate limit
                         const addrRes = await client.runMethod(Address.parse(factory.addr), 'get_job_address', [
                             { type: 'int', value: BigInt(i) },
                         ]);
                         const jobAddr = addrRes.stack.readAddress();
                         const jobAddrStr = jobAddr.toString();
 
-                        await sleep(1500);
+                        await sleep(400);
                         const status = await getJobStatus(client, jobAddrStr);
 
                         if (status.stateName !== 'SUBMITTED') continue;
@@ -262,7 +262,32 @@ async function main() {
                         log(`📝 Result: "${result.slice(0, 80)}"`);
 
                         // Ask Gemini
-                        const prompt = `You are a job evaluator for an escrow protocol. You receive a job description and a submitted result. Evaluate if the result satisfies the job requirements. Respond ONLY with JSON, no markdown, no code blocks: {"approved": true or false, "reason": "brief reason"}
+                        const prompt = `You are a job evaluator for an on-chain escrow protocol on TON blockchain.
+
+APPROVE if:
+- Result addresses the task described in the job description
+- Available data is presented accurately with source citations
+- Agent honestly states when specific data is unavailable from APIs
+- Analysis is based on real API data, not invented numbers
+
+REJECT only if:
+- Result does not address the task at all
+- Result contains obviously fabricated data (fake addresses, invented TVL numbers)
+- Result is empty or just a few generic sentences with no substance
+- Critical data that IS available was ignored (e.g. STONfi API returns APY but agent wrote "not available")
+
+Do NOT reject for:
+- Missing data from APIs that genuinely don't provide it (DeDust detailed APY, Tonco pool data, Hipo TVL on DefiLlama)
+- Partial results when some APIs timed out — if agent noted the timeout, that is honest work
+- Not covering every single protocol — if the main question was answered with available data
+- Writing "Data not available from API" — this is correct behavior, not a failure
+
+CRITICAL FACTS about TON DeFi:
+- DEXes: STONfi, DeDust, Tonco. ONLY these three.
+- tonstakers, Bemo, Hipo = LIQUID STAKING, NOT DEXes. Never penalize for correctly categorizing them.
+- There is no "wTON" token on TON.
+
+Respond ONLY with JSON, no markdown, no code blocks: {"approved": true or false, "reason": "brief reason"}
 
 Job description: ${description}
 Submitted result: ${result}`;
@@ -330,7 +355,7 @@ Submitted result: ${result}`;
                                 .storeUint(reasonHash, 256)
                                 .endCell();
 
-                            await sleep(3000);
+                            await sleep(1000);
                             const seqno = await walletContract.getSeqno();
                             await walletContract.sendTransfer({
                                 seqno,
@@ -345,7 +370,7 @@ Submitted result: ${result}`;
                             });
 
                             log(`📦 Tx sent (seqno=${seqno}). Waiting confirmation...`);
-                            await sleep(15000);
+                            await sleep(2000);
 
                             const newStatus = await getJobStatus(client, jobAddrStr);
                             if (newStatus.stateName === 'COMPLETED' || newStatus.stateName === 'DISPUTED') {
