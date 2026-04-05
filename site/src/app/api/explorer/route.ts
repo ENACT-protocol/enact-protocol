@@ -285,6 +285,11 @@ async function fetchFromRPC() {
   };
 }
 
+// ─── In-memory cache to reduce Supabase egress ───
+
+let responseCache: { data: any; fetchedAt: number } | null = null;
+const CACHE_TTL = 5_000; // 5 seconds — Realtime handles instant updates
+
 // ─── API Handler ───
 
 export const dynamic = 'force-dynamic';
@@ -292,6 +297,13 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
+    const now = Date.now();
+    if (responseCache && now - responseCache.fetchedAt < CACHE_TTL) {
+      return NextResponse.json(responseCache.data, {
+        headers: { 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' },
+      });
+    }
+
     let data;
     try {
       data = await fetchFromSupabase();
@@ -299,8 +311,10 @@ export async function GET() {
       data = await fetchFromRPC();
     }
 
+    responseCache = { data, fetchedAt: now };
+
     return NextResponse.json(data, {
-      headers: { 'Cache-Control': 'no-store, max-age=0' },
+      headers: { 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' },
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
