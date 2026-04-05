@@ -339,7 +339,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 2_000; // Poll every 2s (Catchain 2.0: 800ms blocks)
+const POLL_INTERVAL = 10_000; // Poll every 10s (reduced to save Supabase egress)
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);
