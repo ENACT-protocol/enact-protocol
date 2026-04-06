@@ -389,8 +389,13 @@ async function decodeDesc(hash: string): Promise<string | null> {
                 descCache.set(hash, result);
                 return result;
             }
-            // Then result_hash
-            const { data: resMatch } = await sb.from('jobs').select('result_text').eq('result_hash', hash).limit(1).single();
+            // Then result_hash (check encrypted first)
+            const { data: resMatch } = await sb.from('jobs').select('result_text, result_encrypted').eq('result_hash', hash).limit(1).single();
+            if (resMatch?.result_encrypted) {
+                const r = '🔒 Encrypted — only client and evaluator can decrypt';
+                descCache.set(hash, r);
+                return r;
+            }
             if (resMatch?.result_text) {
                 const result = escapeHtml(resMatch.result_text);
                 descCache.set(hash, result);
@@ -1060,10 +1065,11 @@ bot.command('create', async (ctx) => {
             await new Promise(r => setTimeout(r, 2000)); // Brief pause before fund
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
-            await new Promise(r => setTimeout(r, 2000));
-            // Verify fund actually went through
-            const status = await getJobStatus(client, jobAddr.toString());
-            funded = status.state >= 1; // FUNDED or higher
+            // Retry status check until confirmed
+            for (let fa = 0; fa < 5; fa++) {
+                await new Promise(r => setTimeout(r, 2000));
+                try { const s = await getJobStatus(client, jobAddr.toString()); if (s.state >= 1) { funded = true; break; } } catch {}
+            }
         } catch (fundErr: any) {
             console.error('Fund failed:', fundErr.message);
         }
@@ -2067,13 +2073,19 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
-        await new Promise(r => setTimeout(r, 2000));
-
-        const newStatus = await getJobStatus(client, jobAddr.toString());
+        // Wait for finalization (~4s on Catchain 2.0) + RPC sync
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
         const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        if (newStatus.provider !== 'none') {
+        let confirmed = false;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+                const s = await getJobStatus(client, jobAddr.toString());
+                if (s.provider !== 'none') { confirmed = true; break; }
+            } catch {}
+        }
+        if (confirmed) {
             await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${prefix}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
         } else {
             await ctx.reply(`${e('⚠️')} Transaction sent but not confirmed yet. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
