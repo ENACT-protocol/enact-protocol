@@ -267,8 +267,17 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             jobData.pending_state = null;
         }
 
-        await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
-        log(`  [DB] Upserted job +${Date.now()-t0}ms`);
+        // Skip upsert if nothing changed (prevents noisy RT updates from poller)
+        if (!force && existingContent &&
+            existingContent.state === state &&
+            existingContent.provider === providerStr &&
+            existingContent.submitted_at === submittedAt) {
+            // State unchanged — skip job upsert, still check activity below
+            log(`  [SKIP] Job unchanged for ${type}#${jobId} +${Date.now()-t0}ms`);
+        } else {
+            await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
+            log(`  [DB] Upserted job +${Date.now()-t0}ms`);
+        }
 
         // Transactions table
         for (const tx of txs) {
@@ -547,9 +556,10 @@ function connectWebSocket() {
                                 await sleep(500);
                             }
                             if (count > lastCount) {
+                                // Wait for v3 API to index the new transactions
+                                await sleep(2000);
                                 for (let i = lastCount; i < count; i++) {
                                     log(`[IDX] indexJob start ${type}#${i} (+${Date.now()-t0}ms)`);
-                                    // Force=true for new jobs to ensure full indexing
                                     await indexJob(c, factory, i, type, true);
                                     log(`[IDX] indexJob done ${type}#${i} (+${Date.now()-t0}ms)`);
                                 }
