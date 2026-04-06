@@ -161,6 +161,10 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
               const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
               if (cr.ok) {
                 const d = await cr.json() as Record<string, any>;
+                // Detect encrypted results
+                if (d.type === 'job_result_encrypted') {
+                  return { text: null, source: 'ipfs', ipfsUrl, encrypted: true } as any;
+                }
                 const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
                 if (d.file?.cid) {
                   const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;

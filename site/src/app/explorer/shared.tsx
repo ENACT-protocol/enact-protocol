@@ -29,7 +29,7 @@ export const EVENT_DOT_COLORS: Record<string, string> = {
 };
 
 
-export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number; ipfsUrl?: string } };
+export type ResolvedContent = { text: string | null; source: 'hex' | 'ipfs' | 'hash'; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number; ipfsUrl?: string }; encrypted?: boolean };
 
 export type Job = {
   jobId: number; address: string; type: 'ton' | 'usdt'; state: number; stateName: string;

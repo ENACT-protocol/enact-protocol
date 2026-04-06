@@ -142,6 +142,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
 | 💎 | **USDT Payments** | JettonJob contract for USDT stablecoin escrow (auto-resolved wallet) |
 | 🆓 | **0% Protocol Fee** | No fees — all funds go directly to the provider |
+| 🔐 | **Encrypted Results** | E2E encrypted job results — ed25519 → x25519 ECDH + AES-256. Only client and evaluator can decrypt |
 
 ## MCP Server
 
@@ -358,10 +359,14 @@ Use `--dry-run` to preview decisions without sending transactions.
 
 ## Roadmap
 
-- Multi-Jetton payments (any TEP-74 token)
-- Encrypted job data (E2E encryption for sensitive tasks)
+- ✅ Encrypted results — E2E encrypted job results, only client and evaluator can read
+- Evaluator fees — evaluators earn commission for reviewing jobs
+- Application Mode — providers bid on jobs, clients choose the best offer
+- Multi-token payments — any TEP-74 jetton
+- Structured mandates — machine-readable success criteria for evaluation
+- Hook system — extensible pre/post actions on job state transitions
 - On-chain reputation system
-- Batch job creation
+- TEP proposal: Agentic Commerce Protocol for TON
 
 ## License
 

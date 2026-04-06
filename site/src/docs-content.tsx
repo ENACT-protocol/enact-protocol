@@ -1259,4 +1259,85 @@ await client.fundJettonJob(job)`}</Code>
       </>
     ),
   },
+
+  /* ─────────────── ENCRYPTED RESULTS ─────────────── */
+  'encrypted-results': {
+    title: 'Encrypted Results',
+    content: (
+      <>
+        <PageHeader
+          label="TypeScript SDK"
+          title="Encrypted Results"
+          desc="E2E encrypted job results using TON-native cryptography. Only the job client and evaluator can decrypt submitted work."
+        />
+
+        <H2>How It Works</H2>
+        <P>
+          ENACT stores job data as hashes on-chain, with actual content on IPFS. By default, anyone can read IPFS content.
+          Encrypted Results wraps the IPFS content layer with E2E encryption — the on-chain contract is completely unchanged.
+        </P>
+        <P>
+          When a provider submits an encrypted result, only the job client and evaluator can decrypt it.
+          Third parties see the IPFS hash but cannot read the content. The Explorer shows a lock icon with
+          &quot;E2E Encrypted&quot; badge instead of the result text.
+        </P>
+        <Info>The on-chain contract stores the same uint256 hash. No opcodes, storage, or gas costs change.</Info>
+
+        <H2>Encryption Flow</H2>
+        <P>When the provider calls <code>submitEncryptedResult()</code>:</P>
+        <ol className="list-decimal ml-6 text-[var(--color-text-muted)] text-sm leading-relaxed space-y-1 mb-4">
+          <li>SDK fetches client and evaluator ed25519 public keys from their wallet contracts on-chain</li>
+          <li>Generates a random AES-256 key</li>
+          <li>Encrypts the result with AES-256-CBC</li>
+          <li>For each recipient (client, evaluator): converts ed25519 → x25519, computes ECDH shared secret, encrypts the AES key</li>
+          <li>Uploads the encrypted envelope to IPFS</li>
+          <li>Hash of the envelope goes on-chain via the standard <code>submitResult</code> opcode</li>
+        </ol>
+
+        <H2>SDK Usage</H2>
+        <H3>Submitting encrypted result (provider)</H3>
+        <Code lang="typescript">{`const client = new EnactClient({ mnemonic, apiKey, pinataJwt });
+
+// Get public keys from on-chain wallet state
+const clientPubKey = await client.getWalletPublicKey(jobStatus.client);
+const evaluatorPubKey = await client.getWalletPublicKey(jobStatus.evaluator);
+
+// Submit encrypted result
+await client.submitEncryptedResult(jobAddress, "Sensitive analysis result...", {
+  client: clientPubKey,
+  evaluator: evaluatorPubKey,
+});`}</Code>
+
+        <H2>Decrypting Results</H2>
+        <H3>Reading encrypted result (client or evaluator)</H3>
+        <Code lang="typescript">{`// Fetch the encrypted envelope from IPFS
+const envelope = await fetchFromIPFS(resultHash);
+
+// Decrypt with your role
+const plaintext = await client.decryptJobResult(envelope, 'client');
+// or: await client.decryptJobResult(envelope, 'evaluator');
+
+console.log(plaintext); // "Sensitive analysis result..."`}</Code>
+
+        <H2>Explorer Display</H2>
+        <P>
+          When the Explorer detects an encrypted result (<code>type: &apos;job_result_encrypted&apos;</code> in the IPFS JSON),
+          it displays a purple lock badge and the message: &quot;This result is end-to-end encrypted. Only the job
+          client and evaluator can decrypt it.&quot;
+        </P>
+
+        <H2>Security Model</H2>
+        <ul className="list-disc ml-6 text-[var(--color-text-muted)] text-sm leading-relaxed space-y-1 mb-4">
+          <li><strong>Cryptography:</strong> ed25519 → x25519 (curve25519) key conversion → ECDH shared secret → AES-256-CBC. Same math as TON Encrypted Comments.</li>
+          <li><strong>Key derivation:</strong> Provider&apos;s ed25519 secret key is converted to x25519 via SHA-512 + clamping. Recipient public keys converted via Edwards→Montgomery birational map.</li>
+          <li><strong>No contract changes:</strong> The contract stores a SHA-256 hash of the encrypted envelope. It cannot distinguish encrypted from unencrypted content.</li>
+          <li><strong>Description stays public:</strong> Only results are encrypted. Job descriptions remain readable so providers can decide whether to take the job.</li>
+          <li><strong>Provider identity:</strong> The provider&apos;s ed25519 public key is included in the envelope. Recipients can verify who encrypted the result.</li>
+        </ul>
+        <Warn>Encrypted results require that the client and evaluator wallet contracts are deployed on-chain (so their public key can be read via get_public_key). This is true for all standard TON wallets (V3, V4, V5).</Warn>
+
+        <DocNav prev={{ slug: 'sdk-jetton', title: 'JettonJob Wrapper' }} next={{ slug: 'mcp-server', title: 'MCP Server' }} />
+      </>
+    ),
+  },
 };

@@ -2,6 +2,7 @@ import { TonClient, WalletContractV5R1 } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Address, beginCell, Cell, toNano, SendMode, internal } from '@ton/core';
 import { createHash } from 'crypto';
+import { encryptResult, decryptResult as decryptEnvelope, EncryptedEnvelope } from './crypto';
 
 const FACTORY_ADDRESS = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY_ADDRESS = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
@@ -297,6 +298,66 @@ export class EnactClient {
             .storeUint(0, 8) // resultType
             .endCell();
         await this._send(Address.parse(jobAddress), toNano('0.01'), body);
+    }
+
+    /**
+     * Submit an encrypted result. Only client and evaluator can decrypt.
+     * Uses ed25519 → x25519 ECDH + AES-256-CBC. Contract unchanged.
+     */
+    async submitEncryptedResult(
+        jobAddress: string,
+        result: string,
+        recipientPublicKeys: { client: Buffer; evaluator: Buffer },
+        file?: { buffer: Buffer; filename: string },
+    ): Promise<void> {
+        const wallet = await this._ensureWallet();
+
+        // Build result content (same as unencrypted)
+        let resultContent: string = result;
+        if (file && this.pinataJwt) {
+            const f = await this._uploadFileToIPFS(file.buffer, file.filename);
+            resultContent = JSON.stringify({
+                result,
+                file: { cid: f.cid, filename: f.filename, mimeType: f.mimeType, size: f.size },
+            });
+        }
+
+        // Encrypt result for client + evaluator
+        const senderPublicKey = wallet.secretKey.subarray(32); // last 32 bytes = public key
+        const envelope = encryptResult(resultContent, wallet.secretKey, senderPublicKey, recipientPublicKeys);
+
+        // Upload encrypted envelope to IPFS
+        const resultHash = await this._uploadToIPFS(envelope);
+
+        const body = beginCell()
+            .storeUint(JobOp.submitResult, 32)
+            .storeUint(resultHash, 256)
+            .storeUint(1, 8) // resultType = 1 (encrypted)
+            .endCell();
+        await this._send(Address.parse(jobAddress), toNano('0.01'), body);
+    }
+
+    /**
+     * Decrypt an encrypted result from IPFS.
+     * @param envelope - the encrypted envelope JSON from IPFS
+     * @param role - 'client' or 'evaluator'
+     */
+    async decryptJobResult(
+        envelope: EncryptedEnvelope,
+        role: 'client' | 'evaluator',
+    ): Promise<string> {
+        const wallet = await this._ensureWallet();
+        return decryptEnvelope(envelope, role, wallet.secretKey);
+    }
+
+    /**
+     * Get the ed25519 public key from a TON wallet address (reads on-chain state).
+     * Works for wallet V3R1, V3R2, V4R2, V5R1.
+     */
+    async getWalletPublicKey(address: string): Promise<Buffer> {
+        const result = await this.client.runMethod(Address.parse(address), 'get_public_key');
+        const pubKeyInt = result.stack.readBigNumber();
+        return Buffer.from(pubKeyInt.toString(16).padStart(64, '0'), 'hex');
     }
 
     /** Evaluate a job (approve or reject). */

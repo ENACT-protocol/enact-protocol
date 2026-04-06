@@ -38,6 +38,7 @@ const sidebar = [
     { name: 'Job Wrapper', slug: 'sdk-job' },
     { name: 'JobFactory Wrapper', slug: 'sdk-factory' },
     { name: 'JettonJob Wrapper', slug: 'sdk-jetton' },
+    { name: 'Encrypted Results', slug: 'encrypted-results' },
   ]},
   { group: 'Integrations', items: [
     { name: 'MCP Server', slug: 'mcp-server' },
@@ -55,6 +56,14 @@ const sidebar = [
 
 /* ── Static "On this page" headings per slug ─────────── */
 const tocMap: Record<string, { label: string; anchor: string }[]> = {
+  'encrypted-results': [
+    { label: 'How It Works', anchor: 'how-it-works' },
+    { label: 'Encryption Flow', anchor: 'encryption-flow' },
+    { label: 'SDK Usage', anchor: 'sdk-usage' },
+    { label: 'Decrypting Results', anchor: 'decrypting-results' },
+    { label: 'Explorer Display', anchor: 'explorer-display' },
+    { label: 'Security Model', anchor: 'security-model' },
+  ],
   'what-is-enact': [
     { label: 'How It Works', anchor: 'how-it-works' },
     { label: 'Example: Agent Commerce', anchor: 'example-agent-commerce-in-action' },

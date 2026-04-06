@@ -199,11 +199,21 @@ export default function JobPage() {
                 {/* Result card */}
                 {wasSubmitted && (
                   <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
-                    <div className="mb-3">
+                    <div className="mb-3 flex items-center gap-2">
                       <span className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider">Result</span>
+                      {job.resultContent?.encrypted && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-[#A78BFA] bg-[rgba(167,139,250,0.1)] border border-[rgba(167,139,250,0.2)] px-1.5 py-0.5 rounded">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                          E2E Encrypted
+                        </span>
+                      )}
                     </div>
                     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] rounded-[10px] p-4">
-                      <ContentBlock content={job.resultContent} hash={job.resultHash} />
+                      {job.resultContent?.encrypted ? (
+                        <p className="text-[#A78BFA] text-sm italic">This result is end-to-end encrypted. Only the job client and evaluator can decrypt it.</p>
+                      ) : (
+                        <ContentBlock content={job.resultContent} hash={job.resultHash} />
+                      )}
                     </div>
                   </div>
                 )}
