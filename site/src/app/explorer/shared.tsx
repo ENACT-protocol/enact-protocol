@@ -447,10 +447,25 @@ export function useExplorerData() {
           event: row.event, status: row.status, time: row.time,
           amount: row.amount, from: row.from_address, txHash: row.tx_hash,
         };
-        // Dedup
+        // Dedup in global activity
         const exists = prev.activity?.some(a => a.address === ev.address && a.event === ev.event && a.time === ev.time);
-        if (exists) return prev;
-        return { ...prev, activity: [ev, ...(prev.activity || [])] };
+        const newActivity = exists ? prev.activity : [ev, ...(prev.activity || [])];
+
+        // Also add to job.transactions for job detail pages
+        const addTxToJob = (j: Job): Job => {
+          if (j.address !== row.job_address) return j;
+          const tx = { hash: row.tx_hash || '', fee: '0', utime: row.time };
+          const txExists = j.transactions?.some(t => t.hash === tx.hash || (t.utime === tx.utime));
+          if (txExists) return j;
+          return { ...j, transactions: [...(j.transactions || []), tx] };
+        };
+
+        return {
+          ...prev,
+          activity: newActivity,
+          tonJobs: prev.tonJobs.map(addTxToJob),
+          jettonJobs: prev.jettonJobs.map(addTxToJob),
+        };
       });
     };
 
@@ -472,8 +487,6 @@ export function useExplorerData() {
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
             console.log('[RT] activity:', payload.new?.event);
             applyActivity(payload.new);
-            // Refetch to update job.transactions on job detail pages
-            setTimeout(() => fetchData(), 500);
           })
           .subscribe((status: string) => {
             console.log('[RT] status:', status);
