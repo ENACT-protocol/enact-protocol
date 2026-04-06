@@ -241,6 +241,8 @@ export default function JobPage() {
                             <CopyHash hash={job.reasonHash || (job.reasonContent.source === 'hex' ? Array.from(new TextEncoder().encode(job.reasonContent.text!)).map(b => b.toString(16).padStart(2, '0')).join('') : job.reasonContent.text!)} />
                           </div>
                         </div>
+                      ) : job.reasonHash && job.reasonHash !== '0'.repeat(64) ? (
+                        <p className="text-[#52525B] text-sm italic">Loading from IPFS...</p>
                       ) : (
                         <p className="text-[#52525B] text-sm">No reason provided</p>
                       )}

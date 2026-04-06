@@ -319,9 +319,12 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             }
         }
         // Replace activity events atomically
-        await sb.from('activity_events').delete().eq('job_address', jobAddr);
+        log(`  [ACTIVITY] ${type}#${jobId}: ${newEvents.length} events from ${txs.length} txs (opcodes: ${txs.map(t=>t.opcode).join(',')})`);
+        const { error: delErr } = await sb.from('activity_events').delete().eq('job_address', jobAddr);
+        if (delErr) log(`  [ACTIVITY] DELETE error: ${delErr.message}`);
         if (newEvents.length > 0) {
-            await sb.from('activity_events').insert(newEvents);
+            const { error: insErr } = await sb.from('activity_events').insert(newEvents);
+            if (insErr) log(`  [ACTIVITY] INSERT error: ${insErr.message}`);
         }
 
         // STEP 3: Resolve IPFS content async (does NOT block job/activity)
