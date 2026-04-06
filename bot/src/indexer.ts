@@ -499,14 +499,14 @@ function connectWebSocket() {
                             }
                         } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
                     } else {
-                        // Job transaction — fast state update from on-chain (no REST fetchTransactions)
+                        // Job transaction — update state + insert activity event
                         let friendlyAddr: string;
                         try { friendlyAddr = Address.parse(account).toString(); } catch { continue; }
                         const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', friendlyAddr).single();
                         if (job) {
-                            log(`[WS] Fast state update ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
+                            log(`[WS] Processing ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                             try {
-                                // Read current state directly from on-chain
+                                // 1. Read current state from on-chain
                                 const result = await c.runMethod(Address.parse(friendlyAddr), 'get_job_data');
                                 const jid = result.stack.readNumber();
                                 const clientAddr = result.stack.readAddress();
@@ -527,20 +527,85 @@ function connectWebSocket() {
                                 const stateName = STATE_NAMES[state] ?? 'UNKNOWN';
                                 const budgetNum = Number(budget);
                                 const budgetFormatted = job.factory_type === 'usdt' ? `${(budgetNum / 1e6).toFixed(2)} USDT` : `${(budgetNum / 1e9).toFixed(2)} TON`;
+                                const clientStr = clientAddr.toString(uf);
+                                const providerStr = providerAddr?.toString(uf) ?? null;
+                                const evaluatorStr = evaluatorAddr.toString(uf);
 
-                                // Update job state in Supabase (NO activity rebuild, NO fetchTransactions)
+                                // 2. Update job state in Supabase
                                 await sb.from('jobs').update({
                                     state, state_name: stateName,
-                                    provider: providerAddr?.toString(uf) ?? null,
+                                    provider: providerStr,
                                     result_hash: resultHash.toString(16).padStart(64, '0'),
                                     submitted_at: submittedAt,
                                     result_type: resultType,
                                     pending_state: null,
                                     updated_at: new Date().toISOString(),
                                 }).eq('address', friendlyAddr);
-                                log(`[WS] State updated: ${job.factory_type}#${job.job_id} → ${stateName} (+${Date.now()-t0}ms)`);
 
-                                // If terminal state, resolve IPFS content async
+                                // 3. Parse WS tx to build activity event and INSERT (no DELETE)
+                                let opcode: number | null = null;
+                                let approved: boolean | undefined;
+                                try {
+                                    // WS Streaming API v2: in_msg.body is hex (or base64)
+                                    const bodyHex = tx.in_msg?.body || tx.in_msg?.msg_data?.body;
+                                    if (bodyHex) {
+                                        // Try hex first, then base64
+                                        let buf: Buffer;
+                                        try { buf = Buffer.from(bodyHex, 'hex'); if (buf.length < 4) throw 0; } catch { buf = Buffer.from(bodyHex, 'base64'); }
+                                        const cell = Cell.fromBoc(buf)[0];
+                                        const slice = cell.beginParse();
+                                        if (slice.remainingBits >= 32) {
+                                            opcode = slice.loadUint(32);
+                                            if (opcode === OP.EVALUATE && slice.remainingBits >= 8) {
+                                                approved = slice.loadUint(8) === 1;
+                                            }
+                                        }
+                                    }
+                                } catch {}
+
+                                // Determine event from opcode or from state change
+                                let event: string | null = null;
+                                let evStatus = stateName;
+                                let amount: string | null = null;
+                                let fromAddr: string | null = null;
+                                const txHash = tx.hash || '';
+                                const txTime = tx.now || Math.floor(Date.now() / 1000);
+
+                                if (opcode) {
+                                    switch (opcode) {
+                                        case OP.INIT_JOB: event = 'Created'; evStatus = 'OPEN'; amount = budgetFormatted; fromAddr = clientStr; break;
+                                        case OP.FUND: case OP.JETTON_NOTIFY: event = 'Funded'; evStatus = 'FUNDED'; amount = budgetFormatted; fromAddr = clientStr; break;
+                                        case OP.TAKE: event = 'Taken'; evStatus = 'FUNDED'; fromAddr = providerStr; break;
+                                        case OP.SUBMIT: event = 'Submitted'; evStatus = 'SUBMITTED'; amount = budgetFormatted; fromAddr = providerStr; break;
+                                        case OP.EVALUATE: {
+                                            const isApproved = approved !== undefined ? approved : (state === 3);
+                                            event = isApproved ? 'Approved' : 'Rejected';
+                                            evStatus = isApproved ? 'COMPLETED' : 'DISPUTED';
+                                            amount = `${budgetFormatted} → Provider`;
+                                            fromAddr = evaluatorStr;
+                                            break;
+                                        }
+                                        case OP.CANCEL: event = 'Cancelled'; evStatus = 'CANCELLED'; amount = `${budgetFormatted} → Client`; fromAddr = clientStr; break;
+                                        case OP.CLAIM: event = 'Claimed'; evStatus = 'COMPLETED'; amount = `${budgetFormatted} → Provider`; fromAddr = providerStr; break;
+                                        case OP.QUIT: event = 'Quit'; evStatus = 'FUNDED'; fromAddr = providerStr; break;
+                                    }
+                                } else {
+                                    // No opcode parsed — derive from state
+                                    const stateEvents: Record<number, string> = { 0: 'Created', 1: 'Funded', 2: 'Submitted', 3: 'Completed', 4: 'Disputed', 5: 'Cancelled' };
+                                    event = stateEvents[state] ?? null;
+                                }
+
+                                if (event && txHash) {
+                                    await sb.from('activity_events').upsert({
+                                        job_id: job.job_id, factory_type: job.factory_type, job_address: friendlyAddr,
+                                        event, status: evStatus, time: txTime, amount, from_address: fromAddr, tx_hash: txHash,
+                                    }, { onConflict: 'tx_hash' });
+                                    log(`[WS] Activity: ${event} ${job.factory_type}#${job.job_id} → ${stateName} (+${Date.now()-t0}ms)`);
+                                } else {
+                                    log(`[WS] State updated: ${job.factory_type}#${job.job_id} → ${stateName} (no activity event) (+${Date.now()-t0}ms)`);
+                                }
+
+                                // 4. Resolve IPFS content async for new hashes
                                 const resultHashHex = resultHash.toString(16).padStart(64, '0');
                                 const reasonHashHex = reason.toString(16).padStart(64, '0');
                                 if (resultHashHex !== ZERO_HASH || reasonHashHex !== ZERO_HASH) {
@@ -557,7 +622,7 @@ function connectWebSocket() {
                                     }
                                 }
                             } catch (err: any) {
-                                log(`[WS] State update err: ${err.message}, falling back to full indexJob`);
+                                log(`[WS] err: ${err.message}, falling back to full indexJob`);
                                 await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
                             }
                         }
