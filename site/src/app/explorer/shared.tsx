@@ -86,6 +86,15 @@ export function timeAgo(ts: number) {
   return `${Math.floor(diff / 86400)}d ${Math.floor((diff % 86400) / 3600)}h ago`;
 }
 
+export function LiveTimeAgo({ ts }: { ts: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => tick(v => v + 1), 1000);
+    return () => clearInterval(i);
+  }, []);
+  return <>{timeAgo(ts)}</>;
+}
+
 export function txCount(j: Job): number {
   // Use real tx count if available
   if (j.transactions && j.transactions.length > 0) return j.transactions.length;
@@ -339,7 +348,7 @@ export function ContentBlock({ content, hash }: { content?: ResolvedContent; has
   );
 }
 
-const POLL_INTERVAL = 10_000; // Poll every 10s (reduced to save Supabase egress)
+const POLL_INTERVAL = 60_000; // Poll every 60s — backup only, Realtime handles instant updates
 
 export function useExplorerData() {
   const [data, setData] = useState<ExplorerData | null>(null);

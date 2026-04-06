@@ -8,7 +8,7 @@ import Footer from '../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
   Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge, FileClip,
-  BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, EVENT_DOT_COLORS, timeAgo,
+  BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, EVENT_DOT_COLORS, timeAgo, LiveTimeAgo,
 } from './shared';
 import { MiniAreaSparkline, MiniBarSparkline, useSparklineData } from './Charts';
 
@@ -234,7 +234,7 @@ function ExplorerInner() {
                         <td className="px-3 py-2 hidden lg:table-cell"><Badge status={ev.status} /></td>
                         <td className="px-3 py-2 hidden md:table-cell">{ev.from ? <ClickAddr addr={ev.from} truncate /> : '—'}</td>
                         <td className="px-3 py-2 text-white hidden sm:table-cell whitespace-nowrap">{ev.amount ? <AmountWithIcon amount={ev.amount} type={ev.type} /> : '—'}</td>
-                        <td className="px-5 py-2 text-[#636370] text-xs whitespace-nowrap text-right">{timeAgo(ev.time)}</td>
+                        <td className="px-5 py-2 text-[#636370] text-xs whitespace-nowrap text-right"><LiveTimeAgo ts={ev.time} /></td>
                       </tr>
                     ))}
                   </tbody>
