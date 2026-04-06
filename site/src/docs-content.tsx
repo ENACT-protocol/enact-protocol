@@ -262,10 +262,12 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <P>Current release covers the full escrow lifecycle with TON and USDT payments, including file and image support.</P>
         <div className="space-y-4 mb-6">
           {[
-            ['Multi-Jetton Support', 'Pay in any TEP-74 Jetton, not just USDT. Token selection in bot and MCP with automatic metadata resolution.'],
-            ['Encrypted Job Data', 'End-to-end encryption for job descriptions and results. Only client, provider, and evaluator can decrypt.'],
-            ['Reputation System', 'On-chain track record for providers and evaluators. Job completion rate, average evaluation time, dispute history.'],
-            ['Batch Jobs', 'Create multiple jobs in one transaction. Useful for parallel task distribution across agent swarms.'],
+            ['✅ Encrypted Results', 'E2E encrypted job results using TON-native cryptography. Only client and evaluator can decrypt submitted work.'],
+            ['Evaluator Fees', 'Evaluators earn commission for reviewing jobs.'],
+            ['Application Mode', 'Providers bid on jobs, clients choose the best offer.'],
+            ['Multi-Token Payments', 'Pay in any TEP-74 Jetton, not just USDT.'],
+            ['Structured Mandates', 'Machine-readable success criteria for automated evaluation.'],
+            ['On-chain Reputation', 'Track record for providers and evaluators. Completion rate, dispute history.'],
           ].map(([title, desc]) => (
             <div key={title} className="flex gap-3">
               <span className="text-[var(--color-accent)] mt-1">&rarr;</span>
