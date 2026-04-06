@@ -1454,7 +1454,7 @@ bot.command('submit', async (ctx) => {
             .text('🏠 Menu', 'menu_main');
 
         let confirmed = false;
-        for (let attempt = 0; attempt < 5; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
             await new Promise(r => setTimeout(r, 2000));
             try {
                 const s = await getJobStatus(client, jobAddr.toString());
@@ -2088,7 +2088,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
         let confirmed = false;
-        for (let attempt = 0; attempt < 5; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
             await new Promise(r => setTimeout(r, 2000));
             try {
                 const s = await getJobStatus(client, jobAddr.toString());
@@ -2236,7 +2236,7 @@ async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         // Wait for confirmation
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
         let confirmed = false;
-        for (let attempt = 0; attempt < 5; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
             await new Promise(r => setTimeout(r, 2000));
             try {
                 // Force RPC (not Supabase) to get latest state
