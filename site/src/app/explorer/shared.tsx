@@ -500,9 +500,9 @@ export function useExplorerData() {
           .subscribe((status: string) => {
             console.log('[RT] status:', status);
             if (status === 'SUBSCRIBED') {
-              // RT connected — slow down poll to 15s (RT handles instant updates now)
+              // RT connected — slow poll to 2min (RT handles all updates instantly)
               clearInterval(i);
-              i = setInterval(fetchData, 15_000);
+              i = setInterval(fetchData, 120_000);
             }
           });
       }).catch(() => {});
