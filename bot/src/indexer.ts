@@ -614,8 +614,8 @@ function connectWebSocket() {
                                 log(`[WS] RPC state err: ${err.message}`);
                             }
 
-                            // Wait for v3 REST API to index, then full re-index for activity
-                            await sleep(2500);
+                            // Brief wait for v3 REST API to index the new TX
+                            await sleep(1000);
                             log(`[WS] Full re-index ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                             await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true);
                             log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
