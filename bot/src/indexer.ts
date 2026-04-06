@@ -554,19 +554,16 @@ function connectWebSocket() {
                                 let opcode: number | null = null;
                                 let approved: boolean | undefined;
                                 try {
-                                    // WS Streaming API v2: in_msg.body is hex (or base64)
-                                    const bodyHex = tx.in_msg?.body || tx.in_msg?.msg_data?.body;
-                                    if (bodyHex) {
-                                        // Try hex first, then base64
-                                        let buf: Buffer;
-                                        try { buf = Buffer.from(bodyHex, 'hex'); if (buf.length < 4) throw 0; } catch { buf = Buffer.from(bodyHex, 'base64'); }
-                                        const cell = Cell.fromBoc(buf)[0];
-                                        const slice = cell.beginParse();
-                                        if (slice.remainingBits >= 32) {
-                                            opcode = slice.loadUint(32);
-                                            if (opcode === OP.EVALUATE && slice.remainingBits >= 8) {
-                                                approved = slice.loadUint(8) === 1;
-                                            }
+                                    // v3 schema: opcode is hex string directly
+                                    const opcodeHex = tx.in_msg?.opcode;
+                                    if (opcodeHex) opcode = parseInt(opcodeHex, 16);
+                                    // For EVALUATE, parse body for approved flag
+                                    if (opcode === OP.EVALUATE) {
+                                        const bodyB64 = tx.in_msg?.message_content?.body || tx.in_msg?.body;
+                                        if (bodyB64) {
+                                            const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
+                                            const slice = cell.beginParse();
+                                            if (slice.remainingBits >= 40) { slice.loadUint(32); approved = slice.loadUint(8) === 1; }
                                         }
                                     }
                                 } catch {}
@@ -576,8 +573,10 @@ function connectWebSocket() {
                                 let evStatus = stateName;
                                 let amount: string | null = null;
                                 let fromAddr: string | null = null;
-                                const txHash = tx.hash || '';
+                                // v3 schema: tx.hash is base64, convert to hex
+                                const txHash = tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : `ws-${account.slice(0,16)}-${Date.now()}`;
                                 const txTime = tx.now || Math.floor(Date.now() / 1000);
+                                log(`[WS] TX fields: hash=${!!tx.hash} now=${tx.now} opcode=${tx.in_msg?.opcode} account=${account.slice(0,16)}`);
 
                                 if (opcode) {
                                     switch (opcode) {
