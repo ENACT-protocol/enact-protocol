@@ -576,9 +576,47 @@ function connectWebSocket() {
                         // Clear pending_state immediately so badge disappears fast
                         await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
 
-                        const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', friendlyAddr).single();
+                        const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type, state').eq('address', friendlyAddr).single();
                         if (job) {
-                            log(`[WS] Re-indexing ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
+                            // Update state from on-chain IMMEDIATELY (no REST delay)
+                            try {
+                                const result = await c.runMethod(Address.parse(friendlyAddr), 'get_job_data');
+                                const jid = result.stack.readNumber();
+                                const clientAddr2 = result.stack.readAddress();
+                                const providerAddr2 = result.stack.readAddressOpt();
+                                result.stack.readAddress(); // evaluator
+                                result.stack.readBigNumber(); // budget
+                                result.stack.readBigNumber(); // descHash
+                                const resultHash2 = result.stack.readBigNumber();
+                                result.stack.readNumber(); // timeout
+                                result.stack.readNumber(); // createdAt
+                                result.stack.readNumber(); // evalTimeout
+                                const submittedAt2 = result.stack.readNumber();
+                                result.stack.readNumber(); // resultType
+                                result.stack.readBigNumber(); // reason
+                                const onChainState = result.stack.readNumber();
+                                const newStateName = STATE_NAMES[onChainState] ?? 'UNKNOWN';
+                                const uf2 = { bounceable: false };
+
+                                // Instant state update — visible in explorer within 1-2s
+                                if (onChainState !== job.state) {
+                                    await sb.from('jobs').update({
+                                        state: onChainState, state_name: newStateName,
+                                        provider: providerAddr2?.toString(uf2) ?? null,
+                                        submitted_at: submittedAt2,
+                                        result_hash: resultHash2.toString(16).padStart(64, '0'),
+                                        pending_state: null,
+                                        updated_at: new Date().toISOString(),
+                                    }).eq('address', friendlyAddr);
+                                    log(`[WS] State: ${job.factory_type}#${job.job_id} → ${newStateName} (+${Date.now()-t0}ms)`);
+                                }
+                            } catch (err: any) {
+                                log(`[WS] RPC state err: ${err.message}`);
+                            }
+
+                            // Wait for v3 REST API to index, then full re-index for activity
+                            await sleep(2500);
+                            log(`[WS] Full re-index ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                             await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true);
                             log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                         } else {
