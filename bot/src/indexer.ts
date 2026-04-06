@@ -97,49 +97,57 @@ interface ParsedTx { hash: string; fee: string; utime: number; opcode: number | 
 async function fetchTransactions(address: string): Promise<ParsedTx[]> {
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(address)}&limit=20&archival=true${API_KEY ? `&api_key=${API_KEY}` : ''}`;
-            const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            // TonCenter v3 API — has exit_code, aborted for filtering failed TX
+            const url = `https://toncenter.com/api/v3/transactions?account=${encodeURIComponent(address)}&limit=20&sort=desc`;
+            const headers: Record<string, string> = {};
+            if (API_KEY) headers['X-API-Key'] = API_KEY;
+            const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
             if (res.status === 429) { await sleep(2000 * (attempt + 1)); continue; }
             if (!res.ok) return [];
-            const data = await res.json() as { ok: boolean; result?: any[] };
-            if (!data.ok) return [];
-            return (data.result ?? [])
+            const data = await res.json() as { transactions?: any[] };
+            return (data.transactions ?? [])
                 .filter((tx: any) => {
-                    // Skip failed transactions (exit_code != 0)
-                    const exitCode = tx.description?.compute_ph?.exit_code ?? tx.description?.action?.result_code ?? 0;
+                    // Skip failed/aborted transactions
+                    if (tx.description?.aborted === true) return false;
+                    const exitCode = tx.description?.compute_ph?.exit_code ?? 0;
                     if (exitCode !== 0) return false;
-                    // Skip bounced transactions (out_total ≈ in_value)
-                    const inValue = Number(tx.in_msg?.value || 0);
-                    const outTotal = (tx.out_msgs || []).reduce((s: number, m: any) => s + Number(m.value || 0), 0);
-                    if (inValue > 100_000_000 && outTotal > inValue * 0.9) return false;
                     return true;
                 })
                 .map((tx: any) => {
+                // v3 gives opcode directly as hex string (e.g. "0x00000002")
                 let opcode: number | null = null;
                 let approved: boolean | undefined;
                 try {
-                    const body = tx.in_msg?.msg_data?.body;
-                    if (body) {
-                        const cell = Cell.fromBoc(Buffer.from(body, 'base64'))[0];
-                        const slice = cell.beginParse();
-                        if (slice.remainingBits >= 32) {
-                            opcode = slice.loadUint(32);
-                            if (opcode === OP.EVALUATE && slice.remainingBits >= 8) {
+                    const opcodeHex = tx.in_msg?.opcode;
+                    if (opcodeHex) opcode = parseInt(opcodeHex, 16);
+                    // For EVALUATE, parse body to get approved flag
+                    if (opcode === OP.EVALUATE) {
+                        const bodyB64 = tx.in_msg?.message_content?.body;
+                        if (bodyB64) {
+                            const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
+                            const slice = cell.beginParse();
+                            if (slice.remainingBits >= 40) { // 32 opcode + 8 approved
+                                slice.loadUint(32); // skip opcode
                                 approved = slice.loadUint(8) === 1;
                             }
                         }
                     }
                 } catch {}
+                // v3 hash is base64 — convert to hex for consistency
+                const hashHex = tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : '';
+                // v3 source is raw format (0:abc...) — convert to friendly
+                let from: string | null = null;
+                try { from = tx.in_msg?.source ? Address.parse(tx.in_msg.source).toString({ bounceable: false }) : null; } catch { from = tx.in_msg?.source || null; }
                 return {
-                    hash: tx.transaction_id?.hash ? Buffer.from(tx.transaction_id.hash, 'base64').toString('hex') : '',
-                    fee: (Number(tx.fee || 0) / 1e9).toFixed(4),
-                    utime: tx.utime || 0,
+                    hash: hashHex,
+                    fee: (Number(tx.total_fees || 0) / 1e9).toFixed(4),
+                    utime: tx.now || 0,
                     opcode,
-                    from: tx.in_msg?.source || null,
+                    from,
                     approved,
                 };
             });
-        } catch {
+        } catch (err: any) {
             if (attempt < 2) await sleep(1000 * (attempt + 1));
         }
     }
