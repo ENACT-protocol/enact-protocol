@@ -276,12 +276,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             await sb.from('transactions').upsert({ job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee, utime: tx.utime }, { onConflict: 'tx_hash' });
         }
 
-        // Activity events — rebuild if force, state changed, or data changed
-        const { count: existingTxCount } = await sb.from('transactions').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
-        const stateChanged = force || !existingContent || existingContent.state !== state
-            || existingContent.provider !== providerStr || existingContent.submitted_at !== submittedAt
-            || txs.length !== (existingTxCount ?? 0);
-        if (!stateChanged) { log(`  [SKIP] Activity unchanged for ${type}#${jobId}`); return; }
+        // Activity events — build and compare with existing count
 
         // Build all events first, then delete+insert in one batch (prevents race condition dupes)
         const newEvents: Array<Record<string, any>> = [];
@@ -337,13 +332,18 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 newEvents.push({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
             }
         }
-        // Replace activity events atomically
-        log(`  [ACTIVITY] ${type}#${jobId}: ${newEvents.length} events from ${txs.length} txs (opcodes: ${txs.map(t=>t.opcode).join(',')})`);
-        const { error: delErr } = await sb.from('activity_events').delete().eq('job_address', jobAddr);
-        if (delErr) log(`  [ACTIVITY] DELETE error: ${delErr.message}`);
-        if (newEvents.length > 0) {
+        // Activity events: check existing count first, only rebuild if different
+        const { count: existingActivityCount } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
+        if (newEvents.length > 0 && newEvents.length !== (existingActivityCount ?? 0)) {
+            log(`  [ACTIVITY] ${type}#${jobId}: ${newEvents.length} events from ${txs.length} txs (opcodes: ${txs.map(t=>t.opcode).join(',')}) [was ${existingActivityCount}]`);
+            const { error: delErr } = await sb.from('activity_events').delete().eq('job_address', jobAddr);
+            if (delErr) log(`  [ACTIVITY] DELETE error: ${delErr.message}`);
             const { error: insErr } = await sb.from('activity_events').insert(newEvents);
             if (insErr) log(`  [ACTIVITY] INSERT error: ${insErr.message}`);
+        } else if (newEvents.length > 0) {
+            log(`  [SKIP] Activity unchanged for ${type}#${jobId}`);
+        } else {
+            log(`  [ACTIVITY] ${type}#${jobId}: 0 events from ${txs.length} txs`);
         }
 
         // STEP 3: Resolve IPFS content async (does NOT block job/activity)
@@ -431,7 +431,7 @@ let trackedAddresses: string[] = [];
 let activeWs: WebSocket | null = null;
 // Track finalized accounts to skip stale pending/confirmed events
 const finalizedRecently = new Set<string>();
-setInterval(() => finalizedRecently.clear(), 60_000); // Clear every 60s
+setInterval(() => finalizedRecently.clear(), 300_000); // Clear every 5 min — longer to suppress stale pending
 
 async function refreshTrackedAddresses() {
     const sb = getSupabase();
@@ -498,7 +498,7 @@ function connectWebSocket() {
 
                     // Handle pending/confirmed: write pending_state to Supabase
                     if (finality === 'pending' || finality === 'confirmed') {
-                        if (finalizedRecently.has(acctLower)) continue; // Skip stale events
+                        if (finalizedRecently.has(acctLower)) continue; // Already finalized — skip
                         try {
                             const friendlyAddr = Address.parse(account).toString();
                             const { data: job } = await sb.from('jobs').select('job_id, factory_type').eq('address', friendlyAddr).single();
