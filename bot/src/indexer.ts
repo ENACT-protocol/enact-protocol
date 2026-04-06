@@ -341,13 +341,13 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
                 newEvents.push({ job_id: jobId, factory_type: type, job_address: jobAddr, event, status: evStatus, time: tx.utime, amount, from_address: from, tx_hash: tx.hash });
             }
         }
-        // Activity events: check existing count first, only rebuild if different
-        const { count: existingActivityCount } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
-        if (newEvents.length > 0 && newEvents.length !== (existingActivityCount ?? 0)) {
-            log(`  [ACTIVITY] ${type}#${jobId}: ${newEvents.length} events from ${txs.length} txs (opcodes: ${txs.map(t=>t.opcode).join(',')}) [was ${existingActivityCount}]`);
-            const { error: delErr } = await sb.from('activity_events').delete().eq('job_address', jobAddr);
-            if (delErr) log(`  [ACTIVITY] DELETE error: ${delErr.message}`);
-            const { error: insErr } = await sb.from('activity_events').insert(newEvents);
+        // Activity events: only INSERT new events (never DELETE — prevents flicker)
+        const { data: existingEvents } = await sb.from('activity_events').select('tx_hash').eq('job_address', jobAddr);
+        const existingHashes = new Set((existingEvents ?? []).map((e: any) => e.tx_hash));
+        const toInsert = newEvents.filter(e => e.tx_hash && !existingHashes.has(e.tx_hash));
+        if (toInsert.length > 0) {
+            log(`  [ACTIVITY] ${type}#${jobId}: +${toInsert.length} new events (total ${existingHashes.size + toInsert.length}) (opcodes: ${txs.map(t=>t.opcode).join(',')})`);
+            const { error: insErr } = await sb.from('activity_events').insert(toInsert);
             if (insErr) log(`  [ACTIVITY] INSERT error: ${insErr.message}`);
         } else if (newEvents.length > 0) {
             log(`  [SKIP] Activity unchanged for ${type}#${jobId}`);
