@@ -294,7 +294,7 @@ async function fetchFromRPC() {
 // ─── In-memory cache to reduce Supabase egress ───
 
 let responseCache: { data: any; fetchedAt: number } | null = null;
-const CACHE_TTL = 3_000; // 3 seconds — short cache, RT handles state updates instantly
+const CACHE_TTL = 1_000; // 1 second — minimal cache, RT triggers refetch on activity
 
 // ─── API Handler ───
 

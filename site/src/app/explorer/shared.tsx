@@ -472,6 +472,8 @@ export function useExplorerData() {
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
             console.log('[RT] activity:', payload.new?.event);
             applyActivity(payload.new);
+            // Refetch to update job.transactions on job detail pages
+            setTimeout(() => fetchData(), 500);
           })
           .subscribe((status: string) => {
             console.log('[RT] status:', status);
