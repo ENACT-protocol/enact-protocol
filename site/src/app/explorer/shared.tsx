@@ -406,7 +406,7 @@ export function useExplorerData() {
             budgetFormatted: row.budget_formatted ?? j.budgetFormatted,
             pendingState: row.pending_state || null,
             description: row.description_text ? { text: row.description_text, source: row.description_ipfs_url ? 'ipfs' : 'hex' } : j.description,
-            resultContent: row.result_text ? { text: row.result_text, source: row.result_ipfs_url ? 'ipfs' : 'hex' } : j.resultContent,
+            resultContent: row.result_encrypted ? { text: null, source: 'ipfs', encrypted: true } : row.result_text ? { text: row.result_text, source: row.result_ipfs_url ? 'ipfs' : 'hex' } : j.resultContent,
             reasonContent: row.reason_text ? { text: row.reason_text, source: row.reason_ipfs_url ? 'ipfs' : 'hex' } : j.reasonContent,
           };
         };
@@ -467,10 +467,7 @@ export function useExplorerData() {
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs' }, (payload: any) => {
             console.log('[RT] job update:', payload.new?.job_id, payload.new?.state_name);
             applyJobUpdate(payload.new);
-            // Refetch full data to get updated transactions/activity (not in RT payload)
-            if (payload.new?.state !== payload.old?.state || payload.new?.provider !== payload.old?.provider) {
-              setTimeout(() => fetchData(), 1000); // 1s delay for indexer to finish activity write
-            }
+            // No refetch needed — RT applyJobUpdate handles state, applyActivity handles events
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
             console.log('[RT] activity:', payload.new?.event);

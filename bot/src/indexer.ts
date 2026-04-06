@@ -691,11 +691,8 @@ async function poller() {
                     resubscribeWs();
                 }
 
-                // Active jobs re-index
-                const { data: activeJobs } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('factory_address', factory).in('state_name', ['OPEN', 'FUNDED', 'SUBMITTED']);
-                if (activeJobs) {
-                    for (const aj of activeJobs) await indexJob(c, aj.factory_address, aj.job_id, aj.factory_type as 'ton' | 'usdt');
-                }
+                // NO active jobs re-index — WS handles all state changes in real-time.
+                // Poller only catches new jobs and rebuilds incomplete terminal jobs.
 
                 // Terminal jobs missing activity — rebuild once
                 const { data: incompleteJobs } = await sb.from('jobs').select('job_id, address, factory_address, factory_type, state_name').eq('factory_address', factory).in('state_name', ['COMPLETED', 'DISPUTED', 'CANCELLED']);
