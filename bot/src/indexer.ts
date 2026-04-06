@@ -512,131 +512,15 @@ function connectWebSocket() {
                             }
                         } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
                     } else {
-                        // Job transaction — update state + insert activity event
+                        // Job transaction — full re-index (proven to work in 2-7s)
                         let friendlyAddr: string;
                         try { friendlyAddr = Address.parse(account).toString(); } catch { continue; }
                         const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', friendlyAddr).single();
                         if (job) {
-                            log(`[WS] Processing ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
-                            try {
-                                // 1. Read current state from on-chain
-                                const result = await c.runMethod(Address.parse(friendlyAddr), 'get_job_data');
-                                const jid = result.stack.readNumber();
-                                const clientAddr = result.stack.readAddress();
-                                const providerAddr = result.stack.readAddressOpt();
-                                const evaluatorAddr = result.stack.readAddress();
-                                const budget = result.stack.readBigNumber();
-                                const descHash = result.stack.readBigNumber();
-                                const resultHash = result.stack.readBigNumber();
-                                const timeout = result.stack.readNumber();
-                                const createdAt = result.stack.readNumber();
-                                const evalTimeout = result.stack.readNumber();
-                                const submittedAt = result.stack.readNumber();
-                                const resultType = result.stack.readNumber();
-                                const reason = result.stack.readBigNumber();
-                                const state = result.stack.readNumber();
-
-                                const uf = { bounceable: false };
-                                const stateName = STATE_NAMES[state] ?? 'UNKNOWN';
-                                const budgetNum = Number(budget);
-                                const budgetFormatted = job.factory_type === 'usdt' ? `${(budgetNum / 1e6).toFixed(2)} USDT` : `${(budgetNum / 1e9).toFixed(2)} TON`;
-                                const clientStr = clientAddr.toString(uf);
-                                const providerStr = providerAddr?.toString(uf) ?? null;
-                                const evaluatorStr = evaluatorAddr.toString(uf);
-
-                                // 2. Update job state in Supabase
-                                await sb.from('jobs').update({
-                                    state, state_name: stateName,
-                                    provider: providerStr,
-                                    result_hash: resultHash.toString(16).padStart(64, '0'),
-                                    submitted_at: submittedAt,
-                                    result_type: resultType,
-                                    pending_state: null,
-                                    updated_at: new Date().toISOString(),
-                                }).eq('address', friendlyAddr);
-
-                                // 3. Parse WS tx to build activity event and INSERT (no DELETE)
-                                let opcode: number | null = null;
-                                let approved: boolean | undefined;
-                                try {
-                                    // v3 schema: opcode is hex string directly
-                                    const opcodeHex = tx.in_msg?.opcode;
-                                    if (opcodeHex) opcode = parseInt(opcodeHex, 16);
-                                    // For EVALUATE, parse body for approved flag
-                                    if (opcode === OP.EVALUATE) {
-                                        const bodyB64 = tx.in_msg?.message_content?.body || tx.in_msg?.body;
-                                        if (bodyB64) {
-                                            const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
-                                            const slice = cell.beginParse();
-                                            if (slice.remainingBits >= 40) { slice.loadUint(32); approved = slice.loadUint(8) === 1; }
-                                        }
-                                    }
-                                } catch {}
-
-                                // Determine event from opcode or from state change
-                                let event: string | null = null;
-                                let evStatus = stateName;
-                                let amount: string | null = null;
-                                let fromAddr: string | null = null;
-                                // v3 schema: tx.hash is base64, convert to hex
-                                const txHash = tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : `ws-${account.slice(0,16)}-${Date.now()}`;
-                                const txTime = tx.now || Math.floor(Date.now() / 1000);
-                                log(`[WS] TX fields: hash=${!!tx.hash} now=${tx.now} opcode=${tx.in_msg?.opcode} account=${account.slice(0,16)}`);
-
-                                if (opcode) {
-                                    switch (opcode) {
-                                        case OP.INIT_JOB: event = 'Created'; evStatus = 'OPEN'; amount = budgetFormatted; fromAddr = clientStr; break;
-                                        case OP.FUND: case OP.JETTON_NOTIFY: event = 'Funded'; evStatus = 'FUNDED'; amount = budgetFormatted; fromAddr = clientStr; break;
-                                        case OP.TAKE: event = 'Taken'; evStatus = 'FUNDED'; fromAddr = providerStr; break;
-                                        case OP.SUBMIT: event = 'Submitted'; evStatus = 'SUBMITTED'; amount = budgetFormatted; fromAddr = providerStr; break;
-                                        case OP.EVALUATE: {
-                                            const isApproved = approved !== undefined ? approved : (state === 3);
-                                            event = isApproved ? 'Approved' : 'Rejected';
-                                            evStatus = isApproved ? 'COMPLETED' : 'DISPUTED';
-                                            amount = `${budgetFormatted} → Provider`;
-                                            fromAddr = evaluatorStr;
-                                            break;
-                                        }
-                                        case OP.CANCEL: event = 'Cancelled'; evStatus = 'CANCELLED'; amount = `${budgetFormatted} → Client`; fromAddr = clientStr; break;
-                                        case OP.CLAIM: event = 'Claimed'; evStatus = 'COMPLETED'; amount = `${budgetFormatted} → Provider`; fromAddr = providerStr; break;
-                                        case OP.QUIT: event = 'Quit'; evStatus = 'FUNDED'; fromAddr = providerStr; break;
-                                    }
-                                } else {
-                                    // No opcode parsed — derive from state
-                                    const stateEvents: Record<number, string> = { 0: 'Created', 1: 'Funded', 2: 'Submitted', 3: 'Completed', 4: 'Disputed', 5: 'Cancelled' };
-                                    event = stateEvents[state] ?? null;
-                                }
-
-                                if (event && txHash) {
-                                    await sb.from('activity_events').upsert({
-                                        job_id: job.job_id, factory_type: job.factory_type, job_address: friendlyAddr,
-                                        event, status: evStatus, time: txTime, amount, from_address: fromAddr, tx_hash: txHash,
-                                    }, { onConflict: 'tx_hash' });
-                                    log(`[WS] Activity: ${event} ${job.factory_type}#${job.job_id} → ${stateName} (+${Date.now()-t0}ms)`);
-                                } else {
-                                    log(`[WS] State updated: ${job.factory_type}#${job.job_id} → ${stateName} (no activity event) (+${Date.now()-t0}ms)`);
-                                }
-
-                                // 4. Resolve IPFS content async for new hashes
-                                const resultHashHex = resultHash.toString(16).padStart(64, '0');
-                                const reasonHashHex = reason.toString(16).padStart(64, '0');
-                                if (resultHashHex !== ZERO_HASH || reasonHashHex !== ZERO_HASH) {
-                                    const { data: existing } = await sb.from('jobs').select('result_text, reason_text').eq('address', friendlyAddr).single();
-                                    if (!existing?.result_text && resultHashHex !== ZERO_HASH) {
-                                        resolveContent(resultHashHex).then(async (res) => {
-                                            if (res?.text) await sb.from('jobs').update({ result_text: res.text, result_ipfs_url: res.ipfsUrl, result_file_cid: res.fileCid, result_file_name: res.fileName }).eq('address', friendlyAddr);
-                                        }).catch(() => {});
-                                    }
-                                    if (!existing?.reason_text && reasonHashHex !== ZERO_HASH) {
-                                        resolveContent(reasonHashHex).then(async (reas) => {
-                                            if (reas?.text) await sb.from('jobs').update({ reason_text: reas.text, reason_ipfs_url: reas.ipfsUrl }).eq('address', friendlyAddr);
-                                        }).catch(() => {});
-                                    }
-                                }
-                            } catch (err: any) {
-                                log(`[WS] err: ${err.message}, falling back to full indexJob`);
-                                await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt');
-                            }
+                            log(`[WS] Re-indexing ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
+                            await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true);
+                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
+                            log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                         }
                     }
                 }
