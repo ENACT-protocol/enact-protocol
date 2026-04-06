@@ -212,7 +212,10 @@ export default function JobPage() {
                       {job.resultContent?.encrypted ? (
                         <div>
                           <p className="text-[#A78BFA] text-sm italic">This result is end-to-end encrypted. Only the job client and evaluator can decrypt it.</p>
-                          {job.resultHash && <div className="mt-2 flex items-center gap-1.5"><span className="text-[#3F3F46] text-xs font-mono">Hash:</span> <CopyHash hash={job.resultHash} /></div>}
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className="flex-1" />
+                            <CopyHash hash={job.resultHash} />
+                          </div>
                         </div>
                       ) : (
                         <ContentBlock content={job.resultContent} hash={job.resultHash} />
