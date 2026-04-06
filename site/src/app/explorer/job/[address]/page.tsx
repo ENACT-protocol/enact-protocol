@@ -214,6 +214,11 @@ export default function JobPage() {
                           <p className="text-[#A78BFA] text-sm italic">This result is end-to-end encrypted. Only the job client and evaluator can decrypt it.</p>
                           <div className="flex items-center gap-1.5 mt-1.5">
                             <span className="flex-1" />
+                            {job.resultContent?.ipfsUrl && (
+                              <a href={job.resultContent.ipfsUrl} target="_blank" rel="noopener noreferrer" className="text-[#52525B] hover:text-white transition-colors cursor-pointer inline-flex items-center" title="View encrypted envelope on IPFS">
+                                <img src="/logos/pinata.jpeg" alt="IPFS" width={14} height={14} className="rounded-sm align-middle" />
+                              </a>
+                            )}
                             <CopyHash hash={job.resultHash} />
                           </div>
                         </div>
