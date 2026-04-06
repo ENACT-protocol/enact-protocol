@@ -192,6 +192,15 @@ export function FileClip() {
   return <Paperclip size={14} className="inline-block text-[#52525B] align-middle" />;
 }
 
+export function EncryptedLock() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="inline-block text-[#52525B] align-middle">
+      <rect x="3" y="11" width="18" height="11" rx="2"/>
+      <path d="M7 11V7a5 5 0 0110 0v4"/>
+    </svg>
+  );
+}
+
 export function AIBadge({ addr }: { addr?: string }) {
   return (
     <span className="inline-flex items-center gap-1">

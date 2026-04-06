@@ -7,7 +7,7 @@ import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
-  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge, FileClip,
+  Badge, Shimmer, TypeIcon, TonIcon, UsdtIcon, TonscanLink, ClickAddr, AIBadge, FileClip, EncryptedLock,
   BudgetDisplay, truncAddr, fmtDateShort, STATUS_COLORS, EVENT_DOT_COLORS, timeAgo, LiveTimeAgo,
 } from './shared';
 import { MiniAreaSparkline, MiniBarSparkline, useSparklineData } from './Charts';
@@ -322,7 +322,7 @@ function ExplorerInner() {
                     {jobsOnPage.map(job => (
                       <tr key={`${job.type}-${job.jobId}`} onClick={() => router.push(`/explorer/job/${job.address}`)}
                         className="border-b border-[rgba(255,255,255,0.03)] cursor-pointer hover:bg-[rgba(255,255,255,0.03)] transition-colors">
-                        <td className="px-5 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} />{job.hasFile && <FileClip />}</span></td>
+                        <td className="px-5 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} />{job.hasFile && <FileClip />}{job.resultContent?.encrypted && <EncryptedLock />}</span></td>
                         <td className="px-3 py-2.5 hidden sm:table-cell [&_.break-all]:text-white" onClick={e => e.stopPropagation()}><ClickAddr addr={job.address} truncate /></td>
                         <td className="px-3 py-2.5"><Badge status={job.stateName} pending={job.pendingState} /></td>
                         <td className="px-3 py-2.5 hidden md:table-cell"><ClickAddr addr={job.client} truncate /></td>
