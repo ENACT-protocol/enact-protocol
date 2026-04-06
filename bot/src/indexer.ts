@@ -185,8 +185,13 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         if (!force) {
             const { data: existing } = await sb.from('jobs').select('state, description_text').eq('address', jobAddr).single();
             if (existing && [3, 4, 5].includes(existing.state)) {
-                indexLocks.delete(lockKey);
-                return; // Terminal state — skip
+                // Terminal state — but only skip if activity events exist
+                const { count } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
+                if ((count ?? 0) >= 3) { // At minimum: Created + Funded + terminal event
+                    indexLocks.delete(lockKey);
+                    return;
+                }
+                // Terminal but missing activity — fall through to rebuild
             }
         }
 
@@ -682,6 +687,18 @@ async function poller() {
                 const { data: activeJobs } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('factory_address', factory).in('state_name', ['OPEN', 'FUNDED', 'SUBMITTED']);
                 if (activeJobs) {
                     for (const aj of activeJobs) await indexJob(c, aj.factory_address, aj.job_id, aj.factory_type as 'ton' | 'usdt');
+                }
+
+                // Terminal jobs missing activity — rebuild once
+                const { data: incompleteJobs } = await sb.from('jobs').select('job_id, address, factory_address, factory_type').eq('factory_address', factory).in('state_name', ['COMPLETED', 'DISPUTED', 'CANCELLED']);
+                if (incompleteJobs) {
+                    for (const ij of incompleteJobs) {
+                        const { count } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', ij.address);
+                        if ((count ?? 0) < 3) {
+                            log(`Poll: rebuilding activity for terminal ${ij.factory_type}#${ij.job_id} (${count} events)`);
+                            await indexJob(c, ij.factory_address, ij.job_id, ij.factory_type as 'ton' | 'usdt', true);
+                        }
+                    }
                 }
             }
         } catch (err: any) {
