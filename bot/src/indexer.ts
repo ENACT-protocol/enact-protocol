@@ -185,9 +185,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         if (!force) {
             const { data: existing } = await sb.from('jobs').select('state, description_text').eq('address', jobAddr).single();
             if (existing && [3, 4, 5].includes(existing.state)) {
-                // Terminal state — but only skip if activity events exist
+                // Terminal state — only skip if activity is complete
                 const { count } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
-                if ((count ?? 0) >= 3) { // At minimum: Created + Funded + terminal event
+                const minEvents = existing.state === 5 ? 3 : 5; // CANCELLED=3, COMPLETED/DISPUTED=5
+                if ((count ?? 0) >= minEvents) {
                     indexLocks.delete(lockKey);
                     return;
                 }
@@ -375,7 +376,11 @@ async function backfill() {
                 const { data: existing } = await sb.from('jobs').select('state, description_text').eq('address', jobAddr).single();
 
                 if (existing && [3, 4, 5].includes(existing.state) && existing.description_text) {
-                    continue; // Terminal + has content = skip
+                    // Terminal + has content — but check activity completeness
+                    const { count: actCount } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
+                    const minEvents = existing.state === 5 ? 3 : 5; // CANCELLED=3, COMPLETED/DISPUTED=5
+                    if ((actCount ?? 0) >= minEvents) continue; // Fully indexed
+                    log(`Backfill: rebuilding ${type}#${i} (${actCount} events, need ${minEvents})`);
                 }
 
                 await indexJob(c, factory, i, type, true);
@@ -577,12 +582,13 @@ async function poller() {
                 }
 
                 // Terminal jobs missing activity — rebuild once
-                const { data: incompleteJobs } = await sb.from('jobs').select('job_id, address, factory_address, factory_type').eq('factory_address', factory).in('state_name', ['COMPLETED', 'DISPUTED', 'CANCELLED']);
+                const { data: incompleteJobs } = await sb.from('jobs').select('job_id, address, factory_address, factory_type, state_name').eq('factory_address', factory).in('state_name', ['COMPLETED', 'DISPUTED', 'CANCELLED']);
                 if (incompleteJobs) {
                     for (const ij of incompleteJobs) {
                         const { count } = await sb.from('activity_events').select('*', { count: 'exact', head: true }).eq('job_address', ij.address);
-                        if ((count ?? 0) < 3) {
-                            log(`Poll: rebuilding activity for terminal ${ij.factory_type}#${ij.job_id} (${count} events)`);
+                        const minEv = ij.state_name === 'CANCELLED' ? 3 : 5;
+                        if ((count ?? 0) < minEv) {
+                            log(`Poll: rebuilding activity for terminal ${ij.factory_type}#${ij.job_id} (${count}/${minEv} events)`);
                             await indexJob(c, ij.factory_address, ij.job_id, ij.factory_type as 'ton' | 'usdt', true);
                         }
                     }
