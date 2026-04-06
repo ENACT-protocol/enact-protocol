@@ -66,7 +66,7 @@ Use SINGLE backticks (inline code), NOT triple backticks (code block). No "=" si
 Gas: TON jobs 0.01 TON, Jetton/USDT jobs 0.06 TON, Job creation ~0.05 TON
 Protocol fee: 0% — all funds go to provider
 Timeout: 1h to 30 days. After eval timeout, PROVIDER (not client) auto-claims.
-SDK: @enact-protocol/sdk v0.3.1. NO API keys — uses wallet mnemonic for writes, toncenter endpoint for reads. Supports encrypted results.
+SDK: @enact-protocol/sdk v0.3.2. NO API keys — uses wallet mnemonic for writes, toncenter endpoint for reads. Supports encrypted results.
 MCP Server: [mcp.enact.info/mcp](https://mcp.enact.info/mcp) (15 tools). Remote: read + unsigned tx with Tonkeeper deeplinks. Local: full wallet control.
 Connecting MCP (DO NOT MIX instructions for different clients):
 - Claude Desktop: Settings → Connectors → Add Custom Connector → Name: ENACT → URL: https://mcp.enact.info/mcp → Save. This is remote MCP.
@@ -86,7 +86,7 @@ AI Evaluator: Model Groq llama-3.3-70b. Runs 24/7 autonomously on mainnet. Addre
 OWS (Open Wallet Standard): ENACT integrates OWS by MoonPay. OWS stores private keys in encrypted vault (AES-256-GCM), AI agents sign transactions without touching keys. Use signer callback: contract.sendTransfer({ signer: owsSigner.sign }) instead of secretKey. OWS uses BIP-39 + SLIP-10 derivation — same mnemonic gives DIFFERENT addresses vs Tonkeeper (by design). Install: npm i -g @open-wallet-standard/core. OWS works at the SDK level — replaces signing in agent code. NOT related to remote MCP server (which has its own signing). For OWS you use ENACT SDK directly with the OWS signer adapter. Docs: /docs/ows. Source: examples/ows-integration/. GitHub: github.com/open-wallet-standard/core.
 ENACT is TON-only. NOT cross-chain. ERC-8183 first implementation on TON.
 File support: IPFS via Pinata, SHA-256 hash on-chain. Tests: 56 contract tests + CI. No formal audit.
-Encrypted Results: E2E encryption for job results using TON-native cryptography (ed25519 → x25519 ECDH + xsalsa20-poly1305 via tweetnacl). Provider encrypts result for client + evaluator at submit time. Contract unchanged — encryption wraps IPFS content layer. SDK methods: submitEncryptedResult(jobAddress, result, { client: pubKey, evaluator: pubKey }), decryptJobResult(envelope, role), getWalletPublicKey(address). Description stays public. Explorer shows lock icon 🔒 "E2E Encrypted" for encrypted results. Docs: /docs/encrypted-results.
+Encrypted Results: E2E encryption for job results using TON-native cryptography (ed25519 → x25519 ECDH + xsalsa20-poly1305 via tweetnacl). Provider encrypts result for client + evaluator at submit time. Contract unchanged — encryption wraps IPFS content layer. SDK methods: submitEncryptedResult(jobAddress, result, { client: pubKey, evaluator: pubKey }), decryptJobResult(envelope, role), getWalletPublicKey(address). Description stays public. Explorer shows lock icon 🔒 "E2E Encrypted" for encrypted results. When mentioning this feature, link to the docs page as: [Encrypted Results](https://www.enact.info/docs/encrypted-results).
 
 SDK CODE (use these, NOT invented ones):
 Reading: import { EnactClient } from "@enact-protocol/sdk"; const client = new EnactClient({ endpoint: "https://toncenter.com/api/v2/jsonRPC", apiKey: "toncenter_key" }); const status = await client.getJobStatus(addr);
