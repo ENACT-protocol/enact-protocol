@@ -1296,7 +1296,7 @@ await client.fundJettonJob(job)`}</Code>
 
         <H2>SDK Usage</H2>
         <H3>Submitting encrypted result (provider)</H3>
-        <Code lang="typescript">{`const client = new EnactClient({ mnemonic, apiKey, pinataJwt });
+        <Code label="typescript">{`const client = new EnactClient({ mnemonic, apiKey, pinataJwt });
 
 // Get public keys from on-chain wallet state
 const clientPubKey = await client.getWalletPublicKey(jobStatus.client);
@@ -1310,7 +1310,7 @@ await client.submitEncryptedResult(jobAddress, "Sensitive analysis result...", {
 
         <H2>Decrypting Results</H2>
         <H3>Reading encrypted result (client or evaluator)</H3>
-        <Code lang="typescript">{`// Fetch the encrypted envelope from IPFS
+        <Code label="typescript">{`// Fetch the encrypted envelope from IPFS
 const envelope = await fetchFromIPFS(resultHash);
 
 // Decrypt with your role
