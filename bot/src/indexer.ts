@@ -55,7 +55,15 @@ async function fetchFromIPFS(cid: string): Promise<any> {
     return null;
 }
 
-async function resolveContent(hash: string): Promise<{ text: string | null; ipfsUrl: string | null; fileCid: string | null; fileName: string | null }> {
+interface ResolvedContent {
+    text: string | null;
+    ipfsUrl: string | null;
+    fileCid: string | null;
+    fileName: string | null;
+    encrypted?: boolean;
+}
+
+async function resolveContent(hash: string): Promise<ResolvedContent> {
     if (!hash || hash === ZERO_HASH) return { text: null, ipfsUrl: null, fileCid: null, fileName: null };
     try {
         const clean = hash.replace(/0+$/, '');
@@ -76,6 +84,10 @@ async function resolveContent(hash: string): Promise<{ text: string | null; ipfs
                     if (kv?.type === 'file') { fileFallback = { cid: pin.ipfs_pin_hash, filename: kv.filename || 'file' }; continue; }
                     const data = await fetchFromIPFS(pin.ipfs_pin_hash);
                     if (data) {
+                        // Detect encrypted results (type: 'job_result_encrypted')
+                        if (data.type === 'job_result_encrypted') {
+                            return { text: null, ipfsUrl: `${IPFS_GW}/${pin.ipfs_pin_hash}`, fileCid: null, fileName: null, encrypted: true };
+                        }
                         return { text: data.description ?? data.result ?? data.reason ?? null, ipfsUrl: `${IPFS_GW}/${pin.ipfs_pin_hash}`, fileCid: data.file?.cid || null, fileName: data.file?.filename || null };
                     }
                 }
@@ -227,9 +239,9 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${txs.length} txs)`);
 
         // Check existing content to skip unnecessary IPFS
-        const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, reason_text, state, provider, submitted_at').eq('address', jobAddr).single();
+        const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, result_encrypted, reason_text, state, provider, submitted_at').eq('address', jobAddr).single();
         const needDesc = !existingContent?.description_text && descHashHex !== ZERO_HASH;
-        const needResult = !existingContent?.result_text && resultHashHex !== ZERO_HASH;
+        const needResult = !existingContent?.result_text && !existingContent?.result_encrypted && resultHashHex !== ZERO_HASH;
         const needReason = !existingContent?.reason_text && reasonHashHex !== ZERO_HASH && state >= 3;
 
         const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
@@ -238,16 +250,22 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const evaluatorStr = evaluatorAddr.toString(uf);
 
         // STEP 1: Upsert job data + transactions IMMEDIATELY (no IPFS wait)
+        // Always clear pending_state on force (WS finalized) to remove stale badges
         const jobData: Record<string, any> = {
             job_id: jobId, factory_type: type, address: jobAddr, factory_address: factory,
             state, state_name: stateName,
             client: clientStr, provider: providerStr,
             evaluator: evaluatorStr, budget: budgetNum, budget_formatted: budgetFormatted,
-            desc_hash: descHashHex, result_hash: resultHashHex,
+            desc_hash: descHashHex, result_hash: resultHashHex, reason_hash: reasonHashHex,
             timeout, created_at: effectiveCreatedAt, eval_timeout: evalTimeout,
             submitted_at: submittedAt, result_type: resultType,
             updated_at: new Date().toISOString(),
         };
+
+        // On force (WS finalized), clear pending_state immediately
+        if (force) {
+            jobData.pending_state = null;
+        }
 
         await sb.from('jobs').upsert(jobData, { onConflict: 'address' });
         log(`  [DB] Upserted job +${Date.now()-t0}ms`);
@@ -258,7 +276,7 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             await sb.from('transactions').upsert({ job_address: jobAddr, tx_hash: tx.hash, fee: tx.fee, utime: tx.utime }, { onConflict: 'tx_hash' });
         }
 
-        // Activity events — rebuild if state, provider, submit, or tx count changed
+        // Activity events — rebuild if force, state changed, or data changed
         const { count: existingTxCount } = await sb.from('transactions').select('*', { count: 'exact', head: true }).eq('job_address', jobAddr);
         const stateChanged = force || !existingContent || existingContent.state !== state
             || existingContent.provider !== providerStr || existingContent.submitted_at !== submittedAt
@@ -338,12 +356,23 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             ]).then(async ([desc, res, reas]) => {
                 const update: Record<string, any> = {};
                 if (desc?.text) { update.description_text = desc.text; if (desc.ipfsUrl) update.description_ipfs_url = desc.ipfsUrl; if (desc.fileCid) update.description_file_cid = desc.fileCid; if (desc.fileName) update.description_file_name = desc.fileName; }
-                if (res?.text) { update.result_text = res.text; if (res.ipfsUrl) update.result_ipfs_url = res.ipfsUrl; if (res.fileCid) update.result_file_cid = res.fileCid; if (res.fileName) update.result_file_name = res.fileName; }
+                if (res) {
+                    if (res.encrypted) {
+                        // Mark result as encrypted so frontend shows proper badge instead of "Loading from IPFS..."
+                        update.result_encrypted = true;
+                        if (res.ipfsUrl) update.result_ipfs_url = res.ipfsUrl;
+                    } else if (res.text) {
+                        update.result_text = res.text;
+                        if (res.ipfsUrl) update.result_ipfs_url = res.ipfsUrl;
+                        if (res.fileCid) update.result_file_cid = res.fileCid;
+                        if (res.fileName) update.result_file_name = res.fileName;
+                    }
+                }
                 if (reas?.text) { update.reason_text = reas.text; if (reas.ipfsUrl) update.reason_ipfs_url = reas.ipfsUrl; }
                 if (Object.keys(update).length > 0) {
                     await sb.from('jobs').update(update).eq('address', jobAddr);
                 }
-                log(`  [IPFS] Resolved async +${Date.now()-ipfsT0}ms (desc=${!!desc?.text} res=${!!res?.text} reason=${!!reas?.text})`);
+                log(`  [IPFS] Resolved async +${Date.now()-ipfsT0}ms (desc=${!!desc?.text} res=${res?.encrypted ? 'encrypted' : !!res?.text} reason=${!!reas?.text})`);
             }).catch(() => {});
         }
     } catch (err: any) {
@@ -399,9 +428,10 @@ async function backfill() {
 
 let wsReconnectDelay = 1000;
 let trackedAddresses: string[] = [];
+let activeWs: WebSocket | null = null;
 // Track finalized accounts to skip stale pending/confirmed events
 const finalizedRecently = new Set<string>();
-setInterval(() => finalizedRecently.clear(), 60_000); // Clear every 60s (Catchain 2.0)
+setInterval(() => finalizedRecently.clear(), 60_000); // Clear every 60s
 
 async function refreshTrackedAddresses() {
     const sb = getSupabase();
@@ -412,6 +442,7 @@ async function refreshTrackedAddresses() {
     addrs.add(Address.parse(FACTORY).toRawString());
     addrs.add(Address.parse(JETTON_FACTORY).toRawString());
 
+    // Track ALL non-terminal jobs (OPEN, FUNDED, SUBMITTED) — these can still change
     const { data: jobs } = await sb.from('jobs').select('address').in('state_name', ['OPEN', 'FUNDED', 'SUBMITTED']);
     if (jobs) {
         for (const j of jobs) {
@@ -422,12 +453,25 @@ async function refreshTrackedAddresses() {
     trackedAddresses = [...addrs];
 }
 
+/** Resubscribe the active WS to current tracked addresses */
+function resubscribeWs() {
+    if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+    activeWs.send(JSON.stringify({
+        operation: 'subscribe', id: 'enact-idx',
+        addresses: trackedAddresses,
+        types: ['transactions'],
+        min_finality: 'pending',
+    }));
+    log(`[WS] Resubscribed to ${trackedAddresses.length} addresses`);
+}
+
 function connectWebSocket() {
     const sb = getSupabase();
     const c = getClient();
     if (!sb) return;
 
     const ws = new WebSocket(WS_URL);
+    activeWs = ws;
     let pingInterval: NodeJS.Timeout | null = null;
 
     ws.on('open', async () => {
@@ -436,13 +480,7 @@ function connectWebSocket() {
         pingInterval = setInterval(() => ws.ping(), 15000);
 
         await refreshTrackedAddresses();
-        ws.send(JSON.stringify({
-            operation: 'subscribe', id: 'enact-idx',
-            addresses: trackedAddresses,
-            types: ['transactions'],
-            min_finality: 'pending',
-        }));
-        log(`WS subscribed to ${trackedAddresses.length} addresses (pending→finalized)`);
+        resubscribeWs();
     });
 
     ws.on('message', async (raw: Buffer) => {
@@ -486,7 +524,7 @@ function connectWebSocket() {
                     // finalized — full processing
                     finalizedRecently.add(acctLower);
                     const t0 = Date.now();
-                    log(`[WS] Event received (${finality}): account=${account.slice(0, 16)}... t=${t0}`);
+                    log(`[WS] Finalized: account=${account.slice(0, 16)}... t=${t0}`);
 
                     const rawFactory = Address.parse(FACTORY).toRawString().toLowerCase();
                     const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString().toLowerCase();
@@ -494,41 +532,69 @@ function connectWebSocket() {
                     if (acctLower === rawFactory || acctLower === rawJettonFactory) {
                         const type = acctLower === rawFactory ? 'ton' : 'usdt';
                         const factory = acctLower === rawFactory ? FACTORY : JETTON_FACTORY;
-                        log(`[WS] Factory tx (${type}) — checking new jobs t=${Date.now()} (+${Date.now()-t0}ms)`);
+                        log(`[WS] Factory tx (${type}) — checking new jobs (+${Date.now()-t0}ms)`);
                         try {
                             const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
                             const lastCount = state?.last_job_count ?? 0;
                             // Retry — factory needs time to deploy job contract
+                            // Use shorter delays (500ms) for faster response, max 5 retries
                             let count = lastCount;
-                            for (let r = 0; r < 10; r++) {
+                            for (let r = 0; r < 5; r++) {
                                 const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
                                 count = countResult.stack.readNumber();
                                 if (count > lastCount) break;
-                                log(`[WS] Count unchanged (${count}), retry ${r+1}/10 in 1s... (+${Date.now()-t0}ms)`);
-                                await sleep(1000);
+                                log(`[WS] Count unchanged (${count}), retry ${r+1}/5 in 500ms... (+${Date.now()-t0}ms)`);
+                                await sleep(500);
                             }
                             if (count > lastCount) {
                                 for (let i = lastCount; i < count; i++) {
-                                    log(`[IDX] indexJob start ${type}#${i} t=${Date.now()} (+${Date.now()-t0}ms)`);
-                                    await indexJob(c, factory, i, type);
-                                    log(`[IDX] indexJob done ${type}#${i} t=${Date.now()} (+${Date.now()-t0}ms)`);
+                                    log(`[IDX] indexJob start ${type}#${i} (+${Date.now()-t0}ms)`);
+                                    // Force=true for new jobs to ensure full indexing
+                                    await indexJob(c, factory, i, type, true);
+                                    log(`[IDX] indexJob done ${type}#${i} (+${Date.now()-t0}ms)`);
                                 }
                                 await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
                                 await refreshTrackedAddresses();
-                                ws.send(JSON.stringify({ operation: 'subscribe', id: 'enact-idx-update', addresses: trackedAddresses, types: ['transactions'], min_finality: 'pending' }));
-                                log(`[WS] Resubscribed ${trackedAddresses.length} addrs t=${Date.now()} (+${Date.now()-t0}ms)`);
+                                resubscribeWs();
                             }
                         } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
                     } else {
-                        // Job transaction — full re-index (proven to work in 2-7s)
+                        // Job transaction — clear pending_state FIRST, then re-index
                         let friendlyAddr: string;
                         try { friendlyAddr = Address.parse(account).toString(); } catch { continue; }
+
+                        // Clear pending_state immediately so badge disappears fast
+                        await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
+
                         const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('address', friendlyAddr).single();
                         if (job) {
                             log(`[WS] Re-indexing ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                             await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true);
-                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
                             log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
+                        } else {
+                            // Job not in DB yet — might be a just-created job that factory handler missed
+                            // Try to find which factory this job belongs to and index it
+                            log(`[WS] Unknown job ${friendlyAddr.slice(0, 16)} — trying discovery`);
+                            for (const { factory, ftype } of [
+                                { factory: FACTORY, ftype: 'ton' as const },
+                                { factory: JETTON_FACTORY, ftype: 'usdt' as const },
+                            ]) {
+                                try {
+                                    const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
+                                    const count = countResult.stack.readNumber();
+                                    const { data: stateRow } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
+                                    const lastCount = stateRow?.last_job_count ?? 0;
+                                    if (count > lastCount) {
+                                        log(`[WS] Discovery: ${ftype} has ${count - lastCount} new job(s)`);
+                                        for (let i = lastCount; i < count; i++) {
+                                            await indexJob(c, factory, i, ftype, true);
+                                        }
+                                        await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
+                                        await refreshTrackedAddresses();
+                                        resubscribeWs();
+                                    }
+                                } catch {}
+                            }
                         }
                     }
                 }
@@ -542,6 +608,7 @@ function connectWebSocket() {
 
     ws.on('close', (code: number) => {
         if (pingInterval) clearInterval(pingInterval);
+        activeWs = null;
         log(`WS closed (${code}). Reconnecting in ${wsReconnectDelay / 1000}s...`);
         setTimeout(connectWebSocket, wsReconnectDelay);
         wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000); // Exponential backoff, max 30s
@@ -569,10 +636,11 @@ async function poller() {
                 const lastCount = state?.last_job_count ?? 0;
                 if (count > lastCount) {
                     log(`Poll: ${type.toUpperCase()} ${count - lastCount} new job(s)`);
-                    for (let i = lastCount; i < count; i++) await indexJob(c, factory, i, type);
+                    for (let i = lastCount; i < count; i++) await indexJob(c, factory, i, type, true);
                     await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
                     // Refresh WS subscriptions for new job addresses
                     await refreshTrackedAddresses();
+                    resubscribeWs();
                 }
 
                 // Active jobs re-index
@@ -591,6 +659,19 @@ async function poller() {
                             log(`Poll: rebuilding activity for terminal ${ij.factory_type}#${ij.job_id} (${count}/${minEv} events)`);
                             await indexJob(c, ij.factory_address, ij.job_id, ij.factory_type as 'ton' | 'usdt', true);
                         }
+                    }
+                }
+
+                // Clean up stale pending_state — any pending_state older than 2 minutes is stale
+                const twoMinAgo = new Date(Date.now() - 120_000).toISOString();
+                const { data: staleJobs } = await sb.from('jobs')
+                    .select('address, pending_state, updated_at')
+                    .not('pending_state', 'is', null)
+                    .lt('updated_at', twoMinAgo);
+                if (staleJobs && staleJobs.length > 0) {
+                    log(`Poll: clearing ${staleJobs.length} stale pending_state badges`);
+                    for (const sj of staleJobs) {
+                        await sb.from('jobs').update({ pending_state: null }).eq('address', sj.address);
                     }
                 }
             }

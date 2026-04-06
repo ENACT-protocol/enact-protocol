@@ -48,9 +48,11 @@ async function fetchFromSupabase() {
       descContent.file = { filename: j.description_file_name || 'file', mimeType: imgExts.includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream', size: 0, ipfsUrl: `${PINATA_GW}/${j.description_file_cid}` };
     }
 
-    const resContent: any = j.result_text
-      ? { text: j.result_text, source: j.result_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.result_ipfs_url }
-      : { text: null, source: 'hash' };
+    const resContent: any = j.result_encrypted
+      ? { text: null, source: 'ipfs', ipfsUrl: j.result_ipfs_url, encrypted: true }
+      : j.result_text
+        ? { text: j.result_text, source: j.result_ipfs_url ? 'ipfs' : 'hex', ipfsUrl: j.result_ipfs_url }
+        : { text: null, source: 'hash' };
     if (j.result_file_cid) {
       const ext = (j.result_file_name || '').split('.').pop()?.toLowerCase() || '';
       const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
