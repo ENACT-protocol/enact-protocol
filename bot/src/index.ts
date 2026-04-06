@@ -1453,11 +1453,21 @@ bot.command('submit', async (ctx) => {
             .text('🔭 Status', statusCb)
             .text('🏠 Menu', 'menu_main');
 
+        let confirmed = false;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+                const s = await getJobStatus(client, jobAddr.toString());
+                if (s.state >= 2) { confirmed = true; break; } // SUBMITTED or higher
+            } catch {}
+        }
+
         await ctx.reply(
-            `${e('📨')} <b>Result Submitted!</b>\n\n` +
-            `${e('🆔')} Job: #${jobId}\n` +
-            (fileUrl ? `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` : '') +
-            `Awaiting evaluation from the evaluator.`,
+            confirmed
+                ? `${e('📨')} <b>Result Submitted!</b>\n\n${e('🆔')} Job: #${jobId}\n` +
+                  (fileUrl ? `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` : '') +
+                  `Awaiting evaluation from the evaluator.`
+                : `${e('⚠️')} Transaction sent. Check status in a few seconds.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
 
@@ -2223,8 +2233,26 @@ async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         await ctx.reply(`${e('⏳')} Quitting job ${isJetton ? 'J#' : '#'}${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, gas, body);
 
+        // Wait for confirmation
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
+        let confirmed = false;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+                // Force RPC (not Supabase) to get latest state
+                const addr = Address.parse(jobAddr.toString());
+                const result = await client.runMethod(addr, 'get_job_data');
+                result.stack.readNumber(); // jobId
+                result.stack.readAddress(); // client
+                const prov = result.stack.readAddressOpt(); // provider
+                if (!prov) { confirmed = true; break; }
+            } catch {}
+        }
+        if (confirmed) {
+            await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
+        } else {
+            await ctx.reply(`${e('⚠️')} Transaction sent. Provider will be removed shortly.`, { parse_mode: 'HTML', reply_markup: kb });
+        }
     } catch (err: any) {
         const msg = err.message || '';
         if (msg.includes('500') || msg.includes('504') || msg.includes('timeout')) {
