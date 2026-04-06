@@ -556,8 +556,8 @@ function connectWebSocket() {
                                 await sleep(500);
                             }
                             if (count > lastCount) {
-                                // Wait for v3 API to index the new transactions
-                                await sleep(2000);
+                                // Wait for v3 API to index the new transactions (v3 lags 2-4s)
+                                await sleep(3000);
                                 for (let i = lastCount; i < count; i++) {
                                     log(`[IDX] indexJob start ${type}#${i} (+${Date.now()-t0}ms)`);
                                     await indexJob(c, factory, i, type, true);
@@ -614,8 +614,8 @@ function connectWebSocket() {
                                 log(`[WS] RPC state err: ${err.message}`);
                             }
 
-                            // Brief wait for v3 REST API to index the new TX
-                            await sleep(1000);
+                            // Wait for v3 REST API to index the new TX (v3 lags 2-4s behind WS)
+                            await sleep(3000);
                             log(`[WS] Full re-index ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
                             await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true);
                             log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
