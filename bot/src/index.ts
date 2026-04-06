@@ -1065,11 +1065,9 @@ bot.command('create', async (ctx) => {
             await new Promise(r => setTimeout(r, 2000)); // Brief pause before fund
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
-            // Retry status check until confirmed
-            for (let fa = 0; fa < 5; fa++) {
-                await new Promise(r => setTimeout(r, 2000));
-                try { const s = await getJobStatus(client, jobAddr.toString()); if (s.state >= 1) { funded = true; break; } } catch {}
-            }
+            // Wait for indexer to update Supabase
+            await new Promise(r => setTimeout(r, 8000));
+            try { const s = await getJobStatus(client, jobAddr.toString()); if (s.state >= 1) funded = true; } catch {}
         } catch (fundErr: any) {
             console.error('Fund failed:', fundErr.message);
         }
@@ -1453,14 +1451,10 @@ bot.command('submit', async (ctx) => {
             .text('🔭 Status', statusCb)
             .text('🏠 Menu', 'menu_main');
 
-        let confirmed = false;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-                const s = await getJobStatus(client, jobAddr.toString());
-                if (s.state >= 2) { confirmed = true; break; } // SUBMITTED or higher
-            } catch {}
-        }
+        // Wait for indexer to update Supabase
+        await new Promise(r => setTimeout(r, 8000));
+        const s2 = await getJobStatus(client, jobAddr.toString());
+        const confirmed = s2.state >= 2;
 
         await ctx.reply(
             confirmed
@@ -2083,22 +2077,16 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
-        // Wait for finalization (~4s on Catchain 2.0) + RPC sync
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
         const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        let confirmed = false;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-                const s = await getJobStatus(client, jobAddr.toString());
-                if (s.provider !== 'none') { confirmed = true; break; }
-            } catch {}
-        }
-        if (confirmed) {
+        // Wait for indexer to update Supabase (~8s: 4s finalization + 3s v3 API + 1s write)
+        await new Promise(r => setTimeout(r, 8000));
+        const s = await getJobStatus(client, jobAddr.toString());
+        if (s.provider !== 'none') {
             await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${prefix}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
         } else {
-            await ctx.reply(`${e('⚠️')} Transaction sent but not confirmed yet. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('⚠️')} Transaction sent. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
         }
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
@@ -2233,25 +2221,14 @@ async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         await ctx.reply(`${e('⏳')} Quitting job ${isJetton ? 'J#' : '#'}${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, gas, body);
 
-        // Wait for confirmation
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        let confirmed = false;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-                // Force RPC (not Supabase) to get latest state
-                const addr = Address.parse(jobAddr.toString());
-                const result = await client.runMethod(addr, 'get_job_data');
-                result.stack.readNumber(); // jobId
-                result.stack.readAddress(); // client
-                const prov = result.stack.readAddressOpt(); // provider
-                if (!prov) { confirmed = true; break; }
-            } catch {}
-        }
-        if (confirmed) {
+        // Wait for indexer to update Supabase
+        await new Promise(r => setTimeout(r, 8000));
+        const s = await getJobStatus(client, jobAddr.toString());
+        if (s.provider === 'none') {
             await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
         } else {
-            await ctx.reply(`${e('⚠️')} Transaction sent. Provider will be removed shortly.`, { parse_mode: 'HTML', reply_markup: kb });
+            await ctx.reply(`${e('⚠️')} Transaction sent. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
         }
     } catch (err: any) {
         const msg = err.message || '';
