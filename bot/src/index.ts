@@ -8,7 +8,7 @@ import TonConnect, { IStorage } from '@tonconnect/sdk';
 import {
     createClient, createWalletFromMnemonic, sendTx,
     getJobStatus, getFactoryJobCount, getJobAddress,
-    FactoryOpcodes, JobOpcodes, fmtTon, fmtUsdt, explorerLink,
+    FactoryOpcodes, JobOpcodes, fmtTon, fmtUsdt, explorerLink, explorerFactoryLink,
     FACTORY_ADDRESS, JETTON_FACTORY_ADDRESS,
 } from './utils';
 
@@ -1657,8 +1657,8 @@ async function handleWallet(ctx: any) {
 
 async function handleFactory(ctx: any) {
     const kb = new InlineKeyboard()
-        .url('💎 JobFactory', explorerLink(FACTORY_ADDRESS))
-        .url('💵 JettonJobFactory', explorerLink(JETTON_FACTORY_ADDRESS)).row()
+        .url('💎 JobFactory', explorerFactoryLink(FACTORY_ADDRESS))
+        .url('💵 JettonJobFactory', explorerFactoryLink(JETTON_FACTORY_ADDRESS)).row()
         .text('🏠 Main Menu', 'menu_main');
 
     await respond(ctx,

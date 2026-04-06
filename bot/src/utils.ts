@@ -188,5 +188,9 @@ export function fmtUsdt(units: bigint | string): string {
 }
 
 export function explorerLink(addr: string): string {
-    return `https://enact.info/explorer/job/${addr}`;
+    return `https://www.enact.info/explorer/job/${addr}`;
+}
+
+export function explorerFactoryLink(addr: string): string {
+    return `https://www.enact.info/explorer/factory/${addr}`;
 }
