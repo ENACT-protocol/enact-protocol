@@ -92,6 +92,9 @@ const OP = { FUND: 1, TAKE: 2, SUBMIT: 3, EVALUATE: 4, CANCEL: 5, INIT_JOB: 6, C
 
 interface ParsedTx { hash: string; fee: string; utime: number; opcode: number | null; from: string | null; approved?: boolean; }
 
+// ─── State cache for poller (skip re-indexing unchanged jobs) ───
+const pollerStateCache = new Map<string, number>(); // jobAddr → last known state
+
 // ─── Transaction Fetching (with retry + backoff + opcode parsing) ───
 
 async function fetchTransactions(address: string): Promise<ParsedTx[]> {
@@ -174,7 +177,10 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
 
         if (!force) {
             const { data: existing } = await sb.from('jobs').select('state, description_text').eq('address', jobAddr).single();
-            if (existing && [3, 4, 5].includes(existing.state)) return;
+            if (existing && [3, 4, 5].includes(existing.state)) {
+                indexLocks.delete(lockKey);
+                return; // Terminal state — skip
+            }
         }
 
         const result = await c.runMethod(Address.parse(jobAddr), 'get_job_data');
@@ -530,7 +536,7 @@ async function poller() {
     if (!sb) return;
 
     while (true) {
-        await sleep(30_000);
+        await sleep(300_000); // 5 min — WS handles real-time, poller is backup only
         try {
             for (const { factory, type } of [
                 { factory: FACTORY, type: 'ton' as const },
@@ -547,10 +553,21 @@ async function poller() {
                     await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
                 }
 
-                // Active jobs only
-                const { data: activeJobs } = await sb.from('jobs').select('job_id, factory_address, factory_type').eq('factory_address', factory).in('state_name', ['OPEN', 'FUNDED', 'SUBMITTED']);
+                // Active jobs — only re-index if on-chain state changed
+                const { data: activeJobs } = await sb.from('jobs').select('job_id, address, factory_address, factory_type, state').eq('factory_address', factory).in('state_name', ['OPEN', 'FUNDED', 'SUBMITTED']);
                 if (activeJobs) {
-                    for (const aj of activeJobs) await indexJob(c, aj.factory_address, aj.job_id, aj.factory_type as 'ton' | 'usdt');
+                    for (const aj of activeJobs) {
+                        try {
+                            const stateResult = await c.runMethod(Address.parse(aj.address), 'get_job_data');
+                            // Skip first 9 fields to reach state (field #10)
+                            for (let s = 0; s < 9; s++) stateResult.stack.pop();
+                            const onChainState = stateResult.stack.readNumber();
+                            const cachedState = pollerStateCache.get(aj.address);
+                            if (cachedState === onChainState && onChainState === aj.state) continue; // No change
+                            pollerStateCache.set(aj.address, onChainState);
+                        } catch {}
+                        await indexJob(c, aj.factory_address, aj.job_id, aj.factory_type as 'ton' | 'usdt');
+                    }
                 }
             }
         } catch (err: any) {
