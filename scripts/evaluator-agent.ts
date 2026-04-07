@@ -19,6 +19,8 @@ import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Address, beginCell, toNano } from '@ton/core';
 import { createServer } from 'http';
+import nacl from 'tweetnacl';
+import ed2curve from 'ed2curve';
 // ─── Config ───
 const MNEMONIC = process.env.WALLET_MNEMONIC ?? '';
 const LLM_API_KEY = process.env.GROQ_API_KEY ?? '';
@@ -117,6 +119,29 @@ async function fetchFromPinata(hash: string, label: string = 'content'): Promise
         log(`  ❌ ${label}: fetch error: ${err.message}`);
     }
     return null;
+}
+
+/** Decrypt an encrypted result envelope using evaluator's secret key */
+function decryptEnvelope(envelope: any, secretKey: Buffer): string | null {
+    if (envelope?.type !== 'job_result_encrypted') return null;
+    try {
+        const recipient = envelope.recipients?.find((r: any) => r.role === 'evaluator');
+        if (!recipient) return null;
+        const recipientX25519Sec = ed2curve.convertSecretKey(new Uint8Array(secretKey));
+        const senderX25519Pub = ed2curve.convertPublicKey(new Uint8Array(Buffer.from(envelope.senderPublicKey, 'hex')));
+        if (!senderX25519Pub) return null;
+        const encKey = new Uint8Array(Buffer.from(recipient.encryptedKey, 'base64'));
+        const boxNonce = new Uint8Array(Buffer.from(recipient.nonce, 'base64'));
+        const symKey = nacl.box.open(encKey, boxNonce, senderX25519Pub, recipientX25519Sec);
+        if (!symKey) return null;
+        const ciphertext = new Uint8Array(Buffer.from(envelope.ciphertext, 'base64'));
+        const nonce = new Uint8Array(Buffer.from(envelope.nonce, 'base64'));
+        const plaintext = nacl.secretbox.open(ciphertext, nonce, symKey);
+        if (!plaintext) return null;
+        return new TextDecoder().decode(plaintext);
+    } catch {
+        return null;
+    }
 }
 
 async function getJobStatus(client: TonClient, jobAddress: string) {
@@ -256,10 +281,27 @@ async function main() {
 
                         // Load description and result from IPFS
                         const description = await fetchFromPinata(status.descHash, 'description') ?? '(no description)';
-                        const result = await fetchFromPinata(status.resultHash, 'result') ?? '(no result)';
+                        let result = await fetchFromPinata(status.resultHash, 'result') ?? '(no result)';
+
+                        // Detect and decrypt encrypted results
+                        let wasEncrypted = false;
+                        try {
+                            const parsed = JSON.parse(result);
+                            if (parsed?.type === 'job_result_encrypted') {
+                                log(`🔐 Result is E2E encrypted — decrypting as evaluator...`);
+                                const decrypted = decryptEnvelope(parsed, keyPair.secretKey);
+                                if (decrypted) {
+                                    result = decrypted;
+                                    wasEncrypted = true;
+                                    log(`🔓 Decrypted successfully (${result.length} chars)`);
+                                } else {
+                                    log(`⚠️ Decryption failed — evaluating encrypted envelope as-is`);
+                                }
+                            }
+                        } catch { /* not JSON or not encrypted — use as-is */ }
 
                         log(`📄 Description: "${description.slice(0, 80)}"`);
-                        log(`📝 Result: "${result.slice(0, 80)}"`);
+                        log(`📝 Result${wasEncrypted ? ' (decrypted)' : ''}: "${result.slice(0, 80)}"`);
 
                         // Ask Gemini
                         const prompt = `You are a job evaluator for an on-chain escrow protocol on TON blockchain.

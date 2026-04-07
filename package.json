@@ -13,7 +13,11 @@
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
-        "@ton/core": "~0"
+        "@supabase/supabase-js": "^2.99.3",
+        "@ton/core": "~0",
+        "ed2curve": "^0.3.0",
+        "playwright": "^1.58.2",
+        "ws": "^8.20.0"
     },
     "devDependencies": {
         "@tact-lang/compiler": ">=1.6.13 <2.0.0",
