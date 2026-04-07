@@ -1375,7 +1375,7 @@ console.log(plaintext); // "Sensitive analysis result..."`}</Code>
 
         <H2>Remote MCP (No Wallet)</H2>
         <P>
-          Remote MCP (https://mcp.enact.info/mcp) has no wallet — it cannot encrypt or decrypt.
+          Remote MCP (<a href="https://mcp.enact.info/mcp" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">mcp.enact.info/mcp</a>) has no wallet — it cannot encrypt or decrypt.
           However, <IC>get_job_status</IC> will show <IC>result_encrypted: true</IC> so the agent
           knows the result is encrypted. Decryption requires a local MCP with <IC>WALLET_MNEMONIC</IC>.
         </P>
