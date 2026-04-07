@@ -7,6 +7,8 @@ import { createHash } from 'crypto';
 import { Address, beginCell, Cell, toNano, TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { config } from './config.js';
+import nacl from 'tweetnacl';
+import ed2curve from 'ed2curve';
 
 const FactoryOpcodes = { createJob: 0x00000010 };
 const JobOpcodes = {
@@ -20,6 +22,62 @@ const JobOpcodes = {
     setBudget: 0x00000009,
     setJettonWallet: 0x0000000a,
 };
+
+// ─── Encrypted Result types ───
+
+interface EncryptedEnvelope {
+    type: 'job_result_encrypted';
+    version: 1;
+    senderPublicKey: string;
+    recipients: { role: 'client' | 'evaluator'; encryptedKey: string; nonce: string }[];
+    ciphertext: string;
+    nonce: string;
+    submittedAt: string;
+}
+
+function encryptResult(
+    result: string,
+    senderSecretKey: Buffer,
+    senderPublicKey: Buffer,
+    recipientPublicKeys: { client: Buffer; evaluator: Buffer },
+): EncryptedEnvelope {
+    const senderX25519Sec = ed2curve.convertSecretKey(new Uint8Array(senderSecretKey));
+    const secretKey = nacl.randomBytes(nacl.secretbox.keyLength);
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const ciphertext = nacl.secretbox(new TextEncoder().encode(result), nonce, secretKey);
+    const recipients: EncryptedEnvelope['recipients'] = [];
+    for (const [role, pubKey] of [['client', recipientPublicKeys.client], ['evaluator', recipientPublicKeys.evaluator]] as const) {
+        const recipientX25519Pub = ed2curve.convertPublicKey(new Uint8Array(pubKey));
+        if (!recipientX25519Pub) throw new Error(`Failed to convert ${role} public key to x25519`);
+        const boxNonce = nacl.randomBytes(nacl.box.nonceLength);
+        const encryptedKey = nacl.box(secretKey, boxNonce, recipientX25519Pub, senderX25519Sec);
+        recipients.push({ role, encryptedKey: Buffer.from(encryptedKey).toString('base64'), nonce: Buffer.from(boxNonce).toString('base64') });
+    }
+    return { type: 'job_result_encrypted', version: 1, senderPublicKey: senderPublicKey.toString('hex'), recipients, ciphertext: Buffer.from(ciphertext).toString('base64'), nonce: Buffer.from(nonce).toString('base64'), submittedAt: new Date().toISOString() };
+}
+
+function decryptResultEnvelope(envelope: EncryptedEnvelope, role: 'client' | 'evaluator', recipientSecretKey: Buffer): string {
+    const recipient = envelope.recipients.find(r => r.role === role);
+    if (!recipient) throw new Error(`No encrypted key for role: ${role}`);
+    const recipientX25519Sec = ed2curve.convertSecretKey(new Uint8Array(recipientSecretKey));
+    const senderX25519Pub = ed2curve.convertPublicKey(new Uint8Array(Buffer.from(envelope.senderPublicKey, 'hex')));
+    if (!senderX25519Pub) throw new Error('Failed to convert sender public key');
+    const encKey = new Uint8Array(Buffer.from(recipient.encryptedKey, 'base64'));
+    const boxNonce = new Uint8Array(Buffer.from(recipient.nonce, 'base64'));
+    const secretKey = nacl.box.open(encKey, boxNonce, senderX25519Pub, recipientX25519Sec);
+    if (!secretKey) throw new Error('Decryption failed — wrong key or corrupted data');
+    const ciphertext = new Uint8Array(Buffer.from(envelope.ciphertext, 'base64'));
+    const nonce = new Uint8Array(Buffer.from(envelope.nonce, 'base64'));
+    const plaintext = nacl.secretbox.open(ciphertext, nonce, secretKey);
+    if (!plaintext) throw new Error('Decryption failed — corrupted ciphertext');
+    return new TextDecoder().decode(plaintext);
+}
+
+async function getWalletPublicKey(address: string): Promise<Buffer> {
+    const result = await client.runMethod(Address.parse(address), 'get_public_key');
+    const pubKeyInt = result.stack.readBigNumber();
+    return Buffer.from(pubKeyInt.toString(16).padStart(64, '0'), 'hex');
+}
 
 let client: TonClient;
 let wallet: WalletContractV5R1 | undefined;
@@ -271,20 +329,44 @@ server.tool(
 
 server.tool(
     'submit_result',
-    'Submit a result for a job you have taken. Result text or file is uploaded to IPFS, hash stored on-chain.',
+    'Submit a result for a job you have taken. Result text or file is uploaded to IPFS, hash stored on-chain. Set encrypted=true for E2E encryption (only client and evaluator can decrypt).',
     {
         job_address: z.string().describe('Job contract address'),
         result_text: z.string().describe('Full result text. Will be uploaded to IPFS.'),
         file_path: z.string().optional().describe('Optional: path to a file to submit as result (image, document, etc.)'),
+        encrypted: z.boolean().default(false).describe('If true, encrypt the result so only client and evaluator can read it'),
     },
-    async ({ job_address, result_text, file_path }) => {
+    async ({ job_address, result_text, file_path, encrypted }) => {
         let cid: string, hash: string;
         let fileInfo: any = null;
 
-        if (file_path) {
+        if (encrypted) {
+            if (!keyPair) throw new Error('Encryption requires a wallet (WALLET_MNEMONIC must be set)');
+            // Read client and evaluator public keys from on-chain
+            const addr = Address.parse(job_address);
+            const jobData = await client.runMethod(addr, 'get_job_data');
+            jobData.stack.readNumber(); // jobId
+            const clientAddr = jobData.stack.readAddress();
+            jobData.stack.readAddressOpt(); // provider
+            const evaluatorAddr = jobData.stack.readAddress();
+
+            const clientPubKey = await getWalletPublicKey(clientAddr.toString());
+            const evaluatorPubKey = await getWalletPublicKey(evaluatorAddr.toString());
+
+            // Build plaintext (with file if present)
+            let plaintext = result_text;
+            if (file_path) {
+                const f = await uploadFileToIPFS(file_path);
+                fileInfo = { filename: f.filename, mimeType: f.mimeType, size: f.size, ipfsUrl: `${IPFS_GW}/${f.cid}` };
+                plaintext = JSON.stringify({ result: result_text, file: { cid: f.cid, ...fileInfo } });
+            }
+
+            const envelope = encryptResult(plaintext, keyPair.secretKey, keyPair.publicKey, { client: clientPubKey, evaluator: evaluatorPubKey });
+            const uploaded = await uploadToIPFS(envelope);
+            cid = uploaded.cid; hash = uploaded.hash;
+        } else if (file_path) {
             const f = await uploadFileToIPFS(file_path);
             fileInfo = { filename: f.filename, mimeType: f.mimeType, size: f.size, ipfsUrl: `${IPFS_GW}/${f.cid}` };
-            // JSON with text + file reference → hash goes to contract
             const textResult = await uploadToIPFS({ type: 'job_result', result: result_text, file: { cid: f.cid, ...fileInfo }, submittedAt: new Date().toISOString() });
             cid = textResult.cid; hash = textResult.hash;
         } else {
@@ -299,7 +381,7 @@ server.tool(
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
         const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash, encrypted, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
 
@@ -364,6 +446,48 @@ server.tool(
 );
 
 server.tool(
+    'decrypt_result',
+    'Decrypt an encrypted job result. Only works if your wallet is the client or evaluator of the job.',
+    {
+        job_address: z.string().describe('Job contract address'),
+    },
+    async ({ job_address }) => {
+        if (!keyPair) throw new Error('Decryption requires a wallet (WALLET_MNEMONIC must be set)');
+
+        const addr = Address.parse(job_address);
+        const jobData = await client.runMethod(addr, 'get_job_data');
+        const jobId = jobData.stack.readNumber();
+        const clientAddr = jobData.stack.readAddress();
+        jobData.stack.readAddressOpt(); // provider
+        const evaluatorAddr = jobData.stack.readAddress();
+        jobData.stack.readBigNumber(); // budget
+        jobData.stack.readBigNumber(); // descHash
+        const resultHash = jobData.stack.readBigNumber();
+
+        if (resultHash === 0n) throw new Error('No result submitted yet');
+
+        const resultHashHex = resultHash.toString(16).padStart(64, '0');
+        const resCid = await resolveCID(resultHashHex);
+        if (!resCid) throw new Error('Could not resolve IPFS CID for result hash');
+
+        const envelope = await fetchFromIPFS(resCid) as EncryptedEnvelope;
+        if (envelope.type !== 'job_result_encrypted') {
+            return { content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Result is not encrypted', content: envelope }) }] };
+        }
+
+        // Determine role
+        const myAddr = wallet!.address.toString();
+        let role: 'client' | 'evaluator';
+        if (myAddr === clientAddr.toString()) role = 'client';
+        else if (myAddr === evaluatorAddr.toString()) role = 'evaluator';
+        else throw new Error('Your wallet is neither client nor evaluator of this job');
+
+        const decrypted = decryptResultEnvelope(envelope, role, keyPair.secretKey);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ jobId, role, decrypted_result: decrypted }) }] };
+    }
+);
+
+server.tool(
     'set_budget',
     'Set or update the budget for a job in OPEN state. Only client can call.',
     {
@@ -404,7 +528,8 @@ server.tool(
                         budget: String(j.budget), descriptionHash: j.desc_hash,
                         description: j.description_text,
                         ...(j.description_file_cid ? { descriptionFile: { type: 'file', filename: j.description_file_name, ipfsUrl: `${IPFS_GW}/${j.description_file_cid}` } } : {}),
-                        resultHash: j.result_hash, resultContent: j.result_text,
+                        resultHash: j.result_hash, resultContent: j.result_encrypted ? '🔒 E2E Encrypted (use decrypt_result to read)' : j.result_text,
+                        result_encrypted: j.result_encrypted ?? false,
                         ...(j.result_file_cid ? { resultFile: { type: 'file', filename: j.result_file_name, ipfsUrl: `${IPFS_GW}/${j.result_file_cid}` } } : {}),
                         resultType: ['hash', 'ton_storage', 'ipfs'][j.result_type] ?? 'unknown',
                         timeout: j.timeout, createdAt: j.created_at, evaluationTimeout: j.eval_timeout,
@@ -457,6 +582,7 @@ server.tool(
             // Resolve result (text or file)
             let resultContent: string | null = null;
             let resultFile: any = null;
+            let resultEncrypted = false;
             if (resultHash > 0n) {
                 const resCid = await resolveCID(resultHashHex);
                 if (resCid) {
@@ -466,7 +592,12 @@ server.tool(
                             resultFile = { ...pinMeta, ipfsUrl: `${IPFS_GW}/${resCid}` };
                         }
                         const content = await fetchFromIPFS(resCid);
-                        resultContent = content.result ?? (typeof content === 'string' ? content : JSON.stringify(content));
+                        if (content?.type === 'job_result_encrypted') {
+                            resultEncrypted = true;
+                            resultContent = '🔒 E2E Encrypted (use decrypt_result to read)';
+                        } else {
+                            resultContent = content.result ?? (typeof content === 'string' ? content : JSON.stringify(content));
+                        }
                     } catch { /* IPFS fetch failed */ }
                 }
             }
@@ -484,6 +615,7 @@ server.tool(
                 ...(descriptionFile ? { descriptionFile } : {}),
                 resultHash: resultHashHex,
                 resultContent,
+                result_encrypted: resultEncrypted,
                 ...(resultFile ? { resultFile } : {}),
                 resultType: resultTypeNames[resultType] ?? `unknown(${resultType})`,
                 timeout,

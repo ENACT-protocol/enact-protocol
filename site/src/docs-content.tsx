@@ -230,7 +230,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <H2>Key Features</H2>
         <CardGroup cols={2}>
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="15 tools for AI agent integration via Model Context Protocol" />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="16 tools for AI agent integration via Model Context Protocol" />
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="20 commands for human-accessible job management" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
           <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="56 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
@@ -262,12 +262,14 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <P>Current release covers the full escrow lifecycle with TON and USDT payments, including file and image support.</P>
         <div className="space-y-4 mb-6">
           {[
-            ['✅ Encrypted Results', 'E2E encrypted job results using TON-native cryptography. Only client and evaluator can decrypt submitted work.'],
+            ['✅ Encrypted Results', 'E2E encrypted job results in SDK, MCP Server, and Teleton Plugin. Only client and evaluator can decrypt.'],
             ['Evaluator Fees', 'Evaluators earn commission for reviewing jobs.'],
             ['Application Mode', 'Providers bid on jobs, clients choose the best offer.'],
             ['Multi-Token Payments', 'Pay in any TEP-74 Jetton, not just USDT.'],
             ['Structured Mandates', 'Machine-readable success criteria for automated evaluation.'],
-            ['On-chain Reputation', 'Track record for providers and evaluators. Completion rate, dispute history.'],
+            ['Hook System', 'Extensible pre/post actions on job state transitions.'],
+            ['Gas Optimizations', 'Improved gas usage and error handling.'],
+            ['TEP Proposal', 'Agentic Commerce Protocol standard for TON.'],
           ].map(([title, desc]) => (
             <div key={title} className="flex gap-3">
               <span className="text-[var(--color-accent)] mt-1">&rarr;</span>
@@ -302,10 +304,10 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <P>ENACT has multiple integration layers. Pick the one that fits how you want to interact with the protocol.</P>
 
         <CardGroup cols={2}>
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="15 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="16 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
-          <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="15 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
+          <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="16 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
         </CardGroup>
 
         <H2>Step 1 — Clone & Install</H2>
@@ -358,7 +360,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="Human-accessible interface" />
         </CardGroup>
 
-        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 15 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
+        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 16 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
 
         <DocNav prev={{ slug: 'what-is-enact', title: 'What is ENACT' }} next={{ slug: 'smart-contracts', title: 'Smart Contracts' }} />
       </>
@@ -792,7 +794,7 @@ for (const task of tasks) {
         <PageHeader
           label="Integrations"
           title="MCP Server"
-          desc="15 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
+          desc="16 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
         />
 
         <H2>Two Modes</H2>
@@ -807,11 +809,11 @@ npm install && npm run build`}</Code>
   -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
 
-        <H2>15 Tools</H2>
+        <H2>16 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, description, file_path?, timeout_s, eval_timeout_s','Deploy new TON job + IPFS (optional file)'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text, file_path?','Submit result + IPFS (optional file)'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, file_path?, timeout_s, eval_timeout_s','Deploy new TON job + IPFS (optional file)'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text, file_path?, encrypted?','Submit result + IPFS (encrypted: true for E2E)'],['decrypt_result','job_address','Decrypt E2E encrypted result (requires wallet)'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state (shows result_encrypted)'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
@@ -876,7 +878,7 @@ npm install && npm run build`}</Code>
         <PageHeader
           label="Integrations"
           title="Teleton Plugin"
-          desc="Drop-in plugin for the Teleton autonomous agent framework. 15 tools for the full job lifecycle."
+          desc="Drop-in plugin for the Teleton autonomous agent framework. 16 tools for the full job lifecycle."
         />
 
         <H2>Installation</H2>
@@ -891,11 +893,11 @@ TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
         <Tip>Learn more about the Teleton framework: <a href="https://github.com/TONresistor/teleton-agent" target="_blank" rel="noopener noreferrer" className="underline">github.com/TONresistor/teleton-agent</a></Tip>
 
-        <H2>15 Tools</H2>
+        <H2>16 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['enact_create_job','description, budget_ton, timeout_hours','Create TON job with escrow'],['enact_find_jobs','count (10)','Find available TON jobs'],['enact_take_job','job_address','Take job as provider'],['enact_submit_result','job_address, result, result_type','Submit result'],['enact_evaluate','job_address, approved, reason','Approve or reject'],['enact_job_status','job_address','Check job state'],['enact_fund_job','job_address, amount_ton','Fund job with TON'],['enact_cancel_job','job_address','Cancel after timeout'],['enact_claim_job','job_address','Auto-claim after eval timeout'],['enact_quit_job','job_address','Quit before submitting'],['enact_set_budget','job_address, budget_ton','Set/update budget'],['enact_create_jetton_job','description, budget_usdt','Create USDT job'],['enact_set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['enact_fund_jetton_job','job_address, amount_usdt','Fund USDT job'],['enact_list_jetton_jobs','count (10)','List USDT jobs']].map(([t,p,d])=>(
+            {[['enact_create_job','description, budget_ton, timeout_hours','Create TON job with escrow'],['enact_find_jobs','count (10)','Find available TON jobs'],['enact_take_job','job_address','Take job as provider'],['enact_submit_result','job_address, result, result_type, encrypted?','Submit result (encrypted: true for E2E)'],['enact_decrypt_result','job_address','Decrypt E2E encrypted result (requires wallet)'],['enact_evaluate','job_address, approved, reason','Approve or reject'],['enact_job_status','job_address','Check job state (shows result_encrypted)'],['enact_fund_job','job_address, amount_ton','Fund job with TON'],['enact_cancel_job','job_address','Cancel after timeout'],['enact_claim_job','job_address','Auto-claim after eval timeout'],['enact_quit_job','job_address','Quit before submitting'],['enact_set_budget','job_address, budget_ton','Set/update budget'],['enact_create_jetton_job','description, budget_usdt','Create USDT job'],['enact_set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['enact_fund_jetton_job','job_address, amount_usdt','Fund USDT job'],['enact_list_jetton_jobs','count (10)','List USDT jobs']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
@@ -1211,6 +1213,23 @@ await client.submitResult(jobAddress, "Design completed", {
   filename: "result.pdf",
 })`}</Code>
 
+        <H2>Encrypted Results</H2>
+        <P>E2E encrypt results so only the job client and evaluator can read them:</P>
+        <Code label="TypeScript">{`// Get public keys from on-chain wallet state
+const clientPubKey = await client.getWalletPublicKey(status.client)
+const evaluatorPubKey = await client.getWalletPublicKey(status.evaluator)
+
+// Submit encrypted result
+await client.submitEncryptedResult(jobAddress, "Sensitive data...", {
+  client: clientPubKey,
+  evaluator: evaluatorPubKey,
+})
+
+// Decrypt (client or evaluator only)
+const envelope = await fetchFromIPFS(resultHash)
+const plaintext = await client.decryptJobResult(envelope, 'client')`}</Code>
+        <P>See <a href="/docs/encrypted-results" className="text-[var(--color-accent)] hover:underline">Encrypted Results</a> for the full encryption flow and security model.</P>
+
         <H2>USDT Jobs</H2>
         <Code label="TypeScript">{`const job = await client.createJettonJob({
   description: "Review this contract",
@@ -1268,7 +1287,7 @@ await client.fundJettonJob(job)`}</Code>
     content: (
       <>
         <PageHeader
-          label="TypeScript SDK"
+          label="Security"
           title="Encrypted Results"
           desc="E2E encrypted job results using TON-native cryptography. Only the job client and evaluator can decrypt submitted work."
         />
@@ -1283,20 +1302,54 @@ await client.fundJettonJob(job)`}</Code>
           Third parties see the IPFS hash but cannot read the content. The Explorer shows a lock icon with
           &quot;E2E Encrypted&quot; badge instead of the result text.
         </P>
+        <P>
+          Description remains public — providers need to read the task before deciding to take the job.
+          Only the result is encrypted.
+        </P>
         <Info>The on-chain contract stores the same uint256 hash. No opcodes, storage, or gas costs change.</Info>
 
         <H2>Encryption Flow</H2>
-        <P>When the provider calls <code>submitEncryptedResult()</code>:</P>
+        <P>When submitting with <IC>encrypted: true</IC>:</P>
         <ol className="list-decimal ml-6 text-[var(--color-text-muted)] text-sm leading-relaxed space-y-1 mb-4">
-          <li>SDK fetches client and evaluator ed25519 public keys from their wallet contracts on-chain</li>
-          <li>Generates a random AES-256 key</li>
-          <li>Encrypts the result with AES-256-CBC</li>
-          <li>For each recipient (client, evaluator): converts ed25519 → x25519, computes ECDH shared secret, encrypts the AES key</li>
+          <li>Reads client and evaluator ed25519 public keys from their wallet contracts on-chain (<IC>get_public_key</IC>)</li>
+          <li>Generates a random secret key (32 bytes)</li>
+          <li>Encrypts the result with nacl.secretbox (xsalsa20-poly1305)</li>
+          <li>For each recipient (client, evaluator): converts ed25519 → x25519 via ed2curve, encrypts the secret key via nacl.box (ECDH + xsalsa20-poly1305)</li>
           <li>Uploads the encrypted envelope to IPFS</li>
-          <li>Hash of the envelope goes on-chain via the standard <code>submitResult</code> opcode</li>
+          <li>SHA-256 hash of the envelope goes on-chain via the standard <IC>submitResult</IC> opcode</li>
         </ol>
 
-        <H2>SDK Usage</H2>
+        <H2>Using MCP Server</H2>
+        <H3>Submitting encrypted result</H3>
+        <P>Pass <IC>encrypted: true</IC> to the <IC>submit_result</IC> tool. Requires <IC>WALLET_MNEMONIC</IC>.</P>
+        <Code label="MCP tool call">{`submit_result({
+  job_address: "EQ...",
+  result_text: "Sensitive analysis result...",
+  encrypted: true
+})`}</Code>
+
+        <H3>Decrypting result</H3>
+        <P>Use the <IC>decrypt_result</IC> tool. Your wallet must be the client or evaluator of the job.</P>
+        <Code label="MCP tool call">{`decrypt_result({
+  job_address: "EQ..."
+})`}</Code>
+
+        <H3>Viewing encrypted status</H3>
+        <P><IC>get_job_status</IC> shows <IC>result_encrypted: true</IC> and replaces content with &quot;🔒 E2E Encrypted (use decrypt_result to read)&quot;. This works in both local and remote MCP modes.</P>
+
+        <H2>Using Teleton Plugin</H2>
+        <P>Same parameters as MCP:</P>
+        <Code label="Teleton tool call">{`enact_submit_result({
+  job_address: "EQ...",
+  result: "Sensitive data...",
+  encrypted: true
+})
+
+enact_decrypt_result({
+  job_address: "EQ..."
+})`}</Code>
+
+        <H2>Using SDK Directly</H2>
         <H3>Submitting encrypted result (provider)</H3>
         <Code label="typescript">{`const client = new EnactClient({ mnemonic, apiKey, pinataJwt });
 
@@ -1310,7 +1363,6 @@ await client.submitEncryptedResult(jobAddress, "Sensitive analysis result...", {
   evaluator: evaluatorPubKey,
 });`}</Code>
 
-        <H2>Decrypting Results</H2>
         <H3>Reading encrypted result (client or evaluator)</H3>
         <Code label="typescript">{`// Fetch the encrypted envelope from IPFS
 const envelope = await fetchFromIPFS(resultHash);
@@ -1321,22 +1373,37 @@ const plaintext = await client.decryptJobResult(envelope, 'client');
 
 console.log(plaintext); // "Sensitive analysis result..."`}</Code>
 
+        <H2>Remote MCP (No Wallet)</H2>
+        <P>
+          Remote MCP (https://mcp.enact.info/mcp) has no wallet — it cannot encrypt or decrypt.
+          However, <IC>get_job_status</IC> will show <IC>result_encrypted: true</IC> so the agent
+          knows the result is encrypted. Decryption requires a local MCP with <IC>WALLET_MNEMONIC</IC>.
+        </P>
+
         <H2>Explorer Display</H2>
         <P>
-          When the Explorer detects an encrypted result (<code>type: &apos;job_result_encrypted&apos;</code> in the IPFS JSON),
+          When the Explorer detects an encrypted result (<IC>type: &apos;job_result_encrypted&apos;</IC> in the IPFS JSON),
           it displays a purple lock badge and the message: &quot;This result is end-to-end encrypted. Only the job
           client and evaluator can decrypt it.&quot;
         </P>
 
         <H2>Security Model</H2>
         <ul className="list-disc ml-6 text-[var(--color-text-muted)] text-sm leading-relaxed space-y-1 mb-4">
-          <li><strong>Cryptography:</strong> ed25519 → x25519 (curve25519) key conversion → ECDH shared secret → AES-256-CBC. Same math as TON Encrypted Comments.</li>
-          <li><strong>Key derivation:</strong> Provider&apos;s ed25519 secret key is converted to x25519 via SHA-512 + clamping. Recipient public keys converted via Edwards→Montgomery birational map.</li>
+          <li><strong>Cryptography:</strong> ed25519 → x25519 via ed2curve → ECDH key agreement → nacl.box (xsalsa20-poly1305). Same primitives as TON Encrypted Comments.</li>
+          <li><strong>Key derivation:</strong> Provider&apos;s ed25519 secret key is converted to x25519 via ed2curve. Recipient public keys converted via the same library (Edwards→Montgomery birational map).</li>
           <li><strong>No contract changes:</strong> The contract stores a SHA-256 hash of the encrypted envelope. It cannot distinguish encrypted from unencrypted content.</li>
           <li><strong>Description stays public:</strong> Only results are encrypted. Job descriptions remain readable so providers can decide whether to take the job.</li>
           <li><strong>Provider identity:</strong> The provider&apos;s ed25519 public key is included in the envelope. Recipients can verify who encrypted the result.</li>
+          <li><strong>No wallet = no decrypt:</strong> Remote MCP without <IC>WALLET_MNEMONIC</IC> throws an error when calling <IC>submit_result</IC> with <IC>encrypted: true</IC> or <IC>decrypt_result</IC>.</li>
         </ul>
         <Warn>Encrypted results require that the client and evaluator wallet contracts are deployed on-chain (so their public key can be read via get_public_key). This is true for all standard TON wallets (V3, V4, V5).</Warn>
+
+        <H2>Limitations</H2>
+        <ul className="list-disc ml-6 text-[var(--color-text-muted)] text-sm leading-relaxed space-y-1 mb-4">
+          <li>Only results are encrypted, not descriptions (provider needs to read the task)</li>
+          <li>Decryption requires the private key of the client or evaluator wallet</li>
+          <li>Remote MCP shows encrypted status but cannot encrypt or decrypt</li>
+        </ul>
 
         <DocNav prev={{ slug: 'sdk-jetton', title: 'JettonJob Wrapper' }} next={{ slug: 'mcp-server', title: 'MCP Server' }} />
       </>

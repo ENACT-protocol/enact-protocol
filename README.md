@@ -11,7 +11,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 [![Tests](https://github.com/ENACT-protocol/enact-protocol/actions/workflows/test.yml/badge.svg)](https://github.com/ENACT-protocol/enact-protocol/actions)
 [![npm](https://img.shields.io/npm/v/@enact-protocol/sdk)](https://www.npmjs.com/package/@enact-protocol/sdk)
 [![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
-[![MCP](https://img.shields.io/badge/MCP-15%20tools-blueviolet)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-16%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 [Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
@@ -113,7 +113,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 │                                                                    │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────┐  │
 │  │ MCP Server  │  │ Telegram Bot │  │Teleton Plugin│  │  OWS   │  │
-│  │ (15 tools)  │  │ (buttons UI) │  │(15 ag. tools)│  │(signer)│  │
+│  │ (16 tools)  │  │ (buttons UI) │  │(16 ag. tools)│  │(signer)│  │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  └───┬────┘  │
 ├─────────┴──────────────────┴───────────────────┴───────┴─────────┤
 │                  TypeScript SDK / Wrappers                         │
@@ -136,13 +136,13 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout (configurable, 1h–30d) |
 | 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
-| 🤖 | **MCP Integration** | 15 tools for AI agents via Model Context Protocol |
+| 🤖 | **MCP Integration** | 16 tools for AI agents via Model Context Protocol |
 | 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
 | 📎 | **File & Image Support** | Attach files, images, documents as job descriptions or results via IPFS |
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
 | 💎 | **USDT Payments** | JettonJob contract for USDT stablecoin escrow (auto-resolved wallet) |
 | 🆓 | **0% Protocol Fee** | No fees — all funds go directly to the provider |
-| 🔐 | **Encrypted Results** | E2E encrypted job results — ed25519 → x25519 ECDH + AES-256. Only client and evaluator can decrypt |
+| 🔐 | **Encrypted Results** | E2E encrypted job results — ed25519 → x25519 + nacl.box. Only client and evaluator can decrypt. No contract changes — encryption in SDK, MCP server, and Teleton plugin |
 
 ## MCP Server
 
@@ -177,14 +177,15 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 ```
 
 <details>
-<summary><b>All 15 Tools</b></summary>
+<summary><b>All 16 Tools</b></summary>
 
 | Tool | Description |
 |------|-------------|
 | `create_job` | Create job (description auto-uploaded to IPFS) |
 | `fund_job` | Fund a job with TON |
 | `take_job` | Take a job as provider |
-| `submit_result` | Submit result (auto-uploads to IPFS via Pinata) |
+| `submit_result` | Submit result (supports `encrypted: true` for E2E encryption) |
+| `decrypt_result` | Decrypt an encrypted job result (requires wallet) |
 | `evaluate_job` | Approve or reject with optional reason |
 | `cancel_job` | Cancel after timeout |
 | `claim_job` | Auto-claim after evaluation timeout |
@@ -365,7 +366,7 @@ Use `--dry-run` to preview decisions without sending transactions.
 - Multi-token payments — any TEP-74 jetton
 - Structured mandates — machine-readable success criteria for evaluation
 - Hook system — extensible pre/post actions on job state transitions
-- On-chain reputation system
+- Gas optimizations and improved error handling
 - TEP proposal: Agentic Commerce Protocol for TON
 
 ## License

@@ -14,6 +14,8 @@ import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Address, beginCell, toNano } from '@ton/core';
 import { createHash } from 'crypto';
+import nacl from 'tweetnacl';
+import ed2curve from 'ed2curve';
 
 const OPCODES = {
     createJob: 0x00000010,
@@ -79,6 +81,47 @@ async function toHash(context, content) {
     // Fallback: hex-encode first 32 bytes
     const text = typeof content === 'string' ? content : (content.description ?? content.result ?? JSON.stringify(content));
     return BigInt('0x' + Buffer.from(text).toString('hex').padEnd(64, '0').slice(0, 64));
+}
+
+// ─── E2E Encryption helpers ───
+
+async function getWalletPublicKey(client, address) {
+    const result = await client.runMethod(Address.parse(address), 'get_public_key');
+    const pubKeyInt = result.stack.readBigNumber();
+    return Buffer.from(pubKeyInt.toString(16).padStart(64, '0'), 'hex');
+}
+
+function encryptResultData(result, senderSecretKey, senderPublicKey, recipientPublicKeys) {
+    const senderX25519Sec = ed2curve.convertSecretKey(new Uint8Array(senderSecretKey));
+    const secretKey = nacl.randomBytes(nacl.secretbox.keyLength);
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const ciphertext = nacl.secretbox(new TextEncoder().encode(result), nonce, secretKey);
+    const recipients = [];
+    for (const [role, pubKey] of [['client', recipientPublicKeys.client], ['evaluator', recipientPublicKeys.evaluator]]) {
+        const recipientX25519Pub = ed2curve.convertPublicKey(new Uint8Array(pubKey));
+        if (!recipientX25519Pub) throw new Error(`Failed to convert ${role} public key to x25519`);
+        const boxNonce = nacl.randomBytes(nacl.box.nonceLength);
+        const encryptedKey = nacl.box(secretKey, boxNonce, recipientX25519Pub, senderX25519Sec);
+        recipients.push({ role, encryptedKey: Buffer.from(encryptedKey).toString('base64'), nonce: Buffer.from(boxNonce).toString('base64') });
+    }
+    return { type: 'job_result_encrypted', version: 1, senderPublicKey: senderPublicKey.toString('hex'), recipients, ciphertext: Buffer.from(ciphertext).toString('base64'), nonce: Buffer.from(nonce).toString('base64'), submittedAt: new Date().toISOString() };
+}
+
+function decryptResultData(envelope, role, recipientSecretKey) {
+    const recipient = envelope.recipients.find(r => r.role === role);
+    if (!recipient) throw new Error(`No encrypted key for role: ${role}`);
+    const recipientX25519Sec = ed2curve.convertSecretKey(new Uint8Array(recipientSecretKey));
+    const senderX25519Pub = ed2curve.convertPublicKey(new Uint8Array(Buffer.from(envelope.senderPublicKey, 'hex')));
+    if (!senderX25519Pub) throw new Error('Failed to convert sender public key');
+    const encKey = new Uint8Array(Buffer.from(recipient.encryptedKey, 'base64'));
+    const boxNonce = new Uint8Array(Buffer.from(recipient.nonce, 'base64'));
+    const secretKey = nacl.box.open(encKey, boxNonce, senderX25519Pub, recipientX25519Sec);
+    if (!secretKey) throw new Error('Decryption failed — wrong key or corrupted data');
+    const ciphertext = new Uint8Array(Buffer.from(envelope.ciphertext, 'base64'));
+    const nonce = new Uint8Array(Buffer.from(envelope.nonce, 'base64'));
+    const plaintext = nacl.secretbox.open(ciphertext, nonce, secretKey);
+    if (!plaintext) throw new Error('Decryption failed — corrupted ciphertext');
+    return new TextDecoder().decode(plaintext);
 }
 
 export const tools = [
@@ -188,24 +231,43 @@ export const tools = [
 
     {
         name: 'enact_submit_result',
-        description: 'Submit work result for a ENACT job you\'ve taken.',
+        description: 'Submit work result for an ENACT job you\'ve taken. Set encrypted=true for E2E encryption.',
         parameters: {
             type: 'object',
             properties: {
                 job_address: { type: 'string', description: 'Job contract address' },
                 result: { type: 'string', description: 'Result text or hash' },
                 result_type: { type: 'number', description: '0=hash, 1=ton_storage, 2=ipfs', default: 0 },
+                encrypted: { type: 'boolean', description: 'If true, encrypt result (only client and evaluator can read)', default: false },
             },
             required: ['job_address', 'result'],
         },
         execute: async (params, context) => {
-            const resultHash = await toHash(context, { type: 'job_result', result: params.result, submittedAt: new Date().toISOString() });
+            let resultHash;
+            if (params.encrypted) {
+                const { client, keyPair } = await getWallet(context);
+                // Read client and evaluator from on-chain
+                const addr = Address.parse(params.job_address);
+                const jobData = await client.runMethod(addr, 'get_job_data');
+                jobData.stack.readNumber(); // jobId
+                const clientAddr = jobData.stack.readAddress();
+                jobData.stack.readAddressOpt(); // provider
+                const evaluatorAddr = jobData.stack.readAddress();
+
+                const clientPubKey = await getWalletPublicKey(client, clientAddr.toString());
+                const evaluatorPubKey = await getWalletPublicKey(client, evaluatorAddr.toString());
+                const envelope = encryptResultData(params.result, keyPair.secretKey, keyPair.publicKey, { client: clientPubKey, evaluator: evaluatorPubKey });
+                resultHash = await toHash(context, envelope);
+            } else {
+                resultHash = await toHash(context, { type: 'job_result', result: params.result, submittedAt: new Date().toISOString() });
+            }
             const body = beginCell()
                 .storeUint(OPCODES.submitResult, 32)
                 .storeUint(resultHash, 256)
                 .storeUint(params.result_type ?? 0, 8)
                 .endCell();
-            return sendTx(context, params.job_address, toNano('0.01'), body);
+            const tx = await sendTx(context, params.job_address, toNano('0.01'), body);
+            return { ...tx, encrypted: params.encrypted ?? false };
         },
     },
 
@@ -264,6 +326,30 @@ export const tools = [
             const reason = result.stack.readBigNumber();
             const state = result.stack.readNumber();
 
+            // Check if result is encrypted (try resolving IPFS)
+            let resultEncrypted = false;
+            if (resultHash > 0n) {
+                const jwt = context.env?.PINATA_JWT;
+                if (jwt) {
+                    try {
+                        const rHashHex = resultHash.toString(16).padStart(64, '0');
+                        const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${rHashHex}","op":"eq"}}`;
+                        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${jwt}` }, signal: AbortSignal.timeout(5000) });
+                        if (res.ok) {
+                            const pins = await res.json();
+                            if (pins.rows?.length > 0) {
+                                const cid = pins.rows[0].ipfs_pin_hash;
+                                const ipfsRes = await fetch(`https://ipfs.io/ipfs/${cid}`, { signal: AbortSignal.timeout(5000) });
+                                if (ipfsRes.ok) {
+                                    const content = await ipfsRes.json();
+                                    if (content?.type === 'job_result_encrypted') resultEncrypted = true;
+                                }
+                            }
+                        }
+                    } catch {}
+                }
+            }
+
             return {
                 jobId,
                 state: STATE_NAMES[state] ?? 'UNKNOWN',
@@ -275,6 +361,7 @@ export const tools = [
                 evalTimeout: `${evalTimeout / 3600}h`,
                 submittedAt,
                 resultType: ['hash', 'ton_storage', 'ipfs'][resultType] ?? 'unknown',
+                result_encrypted: resultEncrypted,
             };
         },
     },
@@ -506,6 +593,57 @@ export const tools = [
                 }
             }
             return { totalJobs: nextId, jobs };
+        },
+    },
+
+    {
+        name: 'enact_decrypt_result',
+        description: 'Decrypt an encrypted job result. Only works if your wallet is the client or evaluator.',
+        parameters: {
+            type: 'object',
+            properties: {
+                job_address: { type: 'string', description: 'Job contract address' },
+            },
+            required: ['job_address'],
+        },
+        execute: async (params, context) => {
+            const { client, wallet, keyPair } = await getWallet(context);
+            const addr = Address.parse(params.job_address);
+            const jobData = await client.runMethod(addr, 'get_job_data');
+            const jobId = jobData.stack.readNumber();
+            const clientAddr = jobData.stack.readAddress();
+            jobData.stack.readAddressOpt(); // provider
+            const evaluatorAddr = jobData.stack.readAddress();
+            jobData.stack.readBigNumber(); // budget
+            jobData.stack.readBigNumber(); // descHash
+            const resultHash = jobData.stack.readBigNumber();
+
+            if (resultHash === 0n) throw new Error('No result submitted yet');
+
+            // Resolve CID from Pinata
+            const jwt = context.env?.PINATA_JWT;
+            if (!jwt) throw new Error('PINATA_JWT required for decryption');
+            const rHashHex = resultHash.toString(16).padStart(64, '0');
+            const pinUrl = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${rHashHex}","op":"eq"}}`;
+            const pinRes = await fetch(pinUrl, { headers: { 'Authorization': `Bearer ${jwt}` } });
+            if (!pinRes.ok) throw new Error('Failed to search Pinata');
+            const pins = await pinRes.json();
+            if (!pins.rows?.length) throw new Error('Could not resolve IPFS CID');
+            const cid = pins.rows[0].ipfs_pin_hash;
+
+            const ipfsRes = await fetch(`https://ipfs.io/ipfs/${cid}`);
+            if (!ipfsRes.ok) throw new Error('Failed to fetch from IPFS');
+            const envelope = await ipfsRes.json();
+            if (envelope.type !== 'job_result_encrypted') return { error: 'Result is not encrypted', content: envelope };
+
+            const myAddr = wallet.address.toString();
+            let role;
+            if (myAddr === clientAddr.toString()) role = 'client';
+            else if (myAddr === evaluatorAddr.toString()) role = 'evaluator';
+            else throw new Error('Your wallet is neither client nor evaluator');
+
+            const decrypted = decryptResultData(envelope, role, keyPair.secretKey);
+            return { jobId, role, decrypted_result: decrypted };
         },
     },
 ];
