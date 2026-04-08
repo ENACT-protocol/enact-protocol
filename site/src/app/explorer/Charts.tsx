@@ -202,7 +202,7 @@ export function MiniBarSparkline({ data, color = '#0098EA', meta }: { data: numb
   );
 }
 
-export function useSparklineData(jobs?: Job[]) {
+export function useSparklineData(jobs?: Job[], factoryType?: 'ton' | 'usdt') {
   const [stats, setStats] = useState<DayStat[]>([]);
   useEffect(() => {
     fetch('/api/explorer/stats').then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => { if (Array.isArray(d)) setStats(d); }).catch(() => {});
@@ -210,20 +210,28 @@ export function useSparklineData(jobs?: Job[]) {
 
   // Fallback: build stats from job data when API unavailable
   const effectiveStats = useMemo(() => {
-    if (stats.length > 0) return stats;
-    if (!jobs?.length) return [];
-    const dayMap = new Map<string, DayStat>();
-    for (const j of jobs) {
-      if (!j.createdAt) continue;
-      const day = new Date(j.createdAt * 1000).toISOString().slice(0, 10);
-      const key = `${day}-${j.type}`;
-      const entry = dayMap.get(key) || { day, factory_type: j.type, job_count: 0, volume: 0 };
-      entry.job_count++;
-      entry.volume += Number(BigInt(j.budget));
-      dayMap.set(key, entry);
+    let base: DayStat[];
+    if (stats.length > 0) {
+      base = stats;
+    } else if (jobs?.length) {
+      const dayMap = new Map<string, DayStat>();
+      for (const j of jobs) {
+        if (!j.createdAt) continue;
+        const day = new Date(j.createdAt * 1000).toISOString().slice(0, 10);
+        const key = `${day}-${j.type}`;
+        const entry = dayMap.get(key) || { day, factory_type: j.type, job_count: 0, volume: 0 };
+        entry.job_count++;
+        entry.volume += Number(BigInt(j.budget));
+        dayMap.set(key, entry);
+      }
+      base = Array.from(dayMap.values());
+    } else {
+      return [];
     }
-    return Array.from(dayMap.values());
-  }, [stats, jobs]);
+    // Filter by factory type when viewing a specific factory page
+    if (factoryType) return base.filter(s => s.factory_type === factoryType);
+    return base;
+  }, [stats, jobs, factoryType]);
 
   // Local date formatter (avoids UTC shift from toISOString)
   const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;

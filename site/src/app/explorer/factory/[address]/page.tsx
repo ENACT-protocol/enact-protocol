@@ -52,7 +52,7 @@ export default function FactoryPage() {
     return null;
   }, [data, address]);
 
-  const sparklines = useSparklineData(info?.jobs);
+  const sparklines = useSparklineData(info?.jobs, info?.type);
 
   const stats = useMemo(() => {
     if (!info) return { total: 0, done: 0, open: 0, completed: 0, disputed: 0, cancelled: 0, volume: '0', volumeNum: 0 };
