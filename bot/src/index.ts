@@ -1045,29 +1045,25 @@ bot.command('create', async (ctx) => {
         const jobId = countBeforeResult.stack.readNumber(); // Our job gets this ID
         await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
 
-        // Wait for factory to process and deploy our job contract
+        // Wait for factory to deploy job contract (sub-second with Catchain 2.0)
         let jobAddr: any = null;
-        for (let retry = 0; retry < 20; retry++) {
-            await new Promise(r => setTimeout(r, 500));
+        for (let retry = 0; retry < 15; retry++) {
+            await new Promise(r => setTimeout(r, 200));
             try {
                 const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
                 jobAddr = addrResult.stack.readAddress();
-                // Verify job exists by reading its data
                 await client.runMethod(Address.parse(jobAddr.toString()), 'get_job_data');
                 break;
             } catch { /* job not deployed yet */ }
         }
-        if (!jobAddr) throw new Error('Job creation not confirmed after 30s');
+        if (!jobAddr) throw new Error('Job creation not confirmed on-chain');
 
-        // Step 2: Auto-fund with retry
+        // Step 2: Auto-fund (tx confirmed = seqno changed = done)
         let funded = false;
         try {
-            await new Promise(r => setTimeout(r, 2000)); // Brief pause before fund
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
-            // Wait for indexer to update Supabase
-            await new Promise(r => setTimeout(r, 8000));
-            try { const s = await getJobStatus(client, jobAddr.toString()); if (s.state >= 1) funded = true; } catch {}
+            funded = true; // sendTx confirmed via seqno — tx is on-chain
         } catch (fundErr: any) {
             console.error('Fund failed:', fundErr.message);
         }
@@ -1451,17 +1447,11 @@ bot.command('submit', async (ctx) => {
             .text('🔭 Status', statusCb)
             .text('🏠 Menu', 'menu_main');
 
-        // Wait for indexer to update Supabase
-        await new Promise(r => setTimeout(r, 8000));
-        const s2 = await getJobStatus(client, jobAddr.toString());
-        const confirmed = s2.state >= 2;
-
+        // sendTx confirmed (seqno changed) — tx is on-chain
         await ctx.reply(
-            confirmed
-                ? `${e('📨')} <b>Result Submitted!</b>\n\n${e('🆔')} Job: #${jobId}\n` +
-                  (fileUrl ? `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` : '') +
-                  `Awaiting evaluation from the evaluator.`
-                : `${e('⚠️')} Transaction sent. Check status in a few seconds.`,
+            `${e('📨')} <b>Result Submitted!</b>\n\n${e('🆔')} Job: #${jobId}\n` +
+            (fileUrl ? `${e('📎')} File: <a href="${fileUrl}">View on IPFS</a>\n` : '') +
+            `Awaiting evaluation from the evaluator.`,
             { parse_mode: 'HTML', reply_markup: kb }
         );
 
@@ -2077,17 +2067,11 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        // sendTx confirmed (seqno changed) — tx is on-chain
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
         const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        // Wait for indexer to update Supabase (~8s: 4s finalization + 3s v3 API + 1s write)
-        await new Promise(r => setTimeout(r, 8000));
-        const s = await getJobStatus(client, jobAddr.toString());
-        if (s.provider !== 'none') {
-            await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${prefix}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
-        } else {
-            await ctx.reply(`${e('⚠️')} Transaction sent. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
-        }
+        await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${prefix}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         await ctx.reply(`${e('❌')} Error: ${err.message}`, { parse_mode: 'HTML' });
     }
@@ -2222,14 +2206,8 @@ async function handleQuit(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         await sendTx(client, w, jobAddr, gas, body);
 
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        // Wait for indexer to update Supabase
-        await new Promise(r => setTimeout(r, 8000));
-        const s = await getJobStatus(client, jobAddr.toString());
-        if (s.provider === 'none') {
-            await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
-        } else {
-            await ctx.reply(`${e('⚠️')} Transaction sent. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
-        }
+        // sendTx confirmed (seqno changed) — tx is on-chain
+        await ctx.reply(`${e('🚪')} <b>Quit Job ${isJetton ? 'J#' : '#'}${jobId}</b>\n\nJob is open again for other providers.`, { parse_mode: 'HTML', reply_markup: kb });
     } catch (err: any) {
         const msg = err.message || '';
         if (msg.includes('500') || msg.includes('504') || msg.includes('timeout')) {

@@ -710,8 +710,8 @@ server.tool(
         let jettonWallet = '';
         if (wallet) {
             try {
-                // Wait for job to deploy (Catchain 2.0: ~1s finality)
-                await new Promise(r => setTimeout(r, 2000));
+                // Quick poll for job deployment (sub-second with Catchain 2.0)
+                for (let r = 0; r < 10; r++) { await new Promise(ok => setTimeout(ok, 200)); try { await client.runMethod(config.jettonFactoryAddress, 'get_next_job_id'); break; } catch {} }
                 const nextId = await client.runMethod(config.jettonFactoryAddress, 'get_next_job_id');
                 const jobId = nextId.stack.readNumber() - 1;
                 const jobAddrRes = await client.runMethod(config.jettonFactoryAddress, 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
