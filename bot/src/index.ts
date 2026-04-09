@@ -334,22 +334,42 @@ function decodeHexOnly(hash: string): string | null {
     return null;
 }
 
-/** Wait for indexer to update job in Supabase (via Supabase realtime or poll) */
-async function waitForJobUpdate(jobAddress: string, check: (row: any) => boolean, timeoutMs = 4000): Promise<any | null> {
+/** Wait for indexer to update job in Supabase via Realtime subscription (instant push, no polling) */
+async function waitForJobUpdate(jobAddress: string, check: (row: any) => boolean, timeoutMs = 5000): Promise<any | null> {
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_KEY;
     if (!sbUrl || !sbKey) return null;
     const { createClient: sc } = await import('@supabase/supabase-js');
     const sb = sc(sbUrl, sbKey);
 
-    // Quick poll Supabase (indexer writes in ~500ms after finalized)
-    const t0 = Date.now();
-    while (Date.now() - t0 < timeoutMs) {
+    // Check current state first (maybe indexer already wrote it)
+    try {
         const { data } = await sb.from('jobs').select('state, state_name, provider, submitted_at').eq('address', jobAddress).single();
         if (data && check(data)) return data;
-        await new Promise(r => setTimeout(r, 300));
-    }
-    return null;
+    } catch {}
+
+    // Subscribe to Realtime — instant push when indexer writes
+    return new Promise<any | null>((resolve) => {
+        let resolved = false;
+        const done = (result: any | null) => { if (resolved) return; resolved = true; ch.unsubscribe(); resolve(result); };
+
+        const ch = sb.channel(`wait-${jobAddress.slice(0, 12)}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs', filter: `address=eq.${jobAddress}` }, (payload: any) => {
+                if (payload.new && check(payload.new)) done(payload.new);
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs', filter: `address=eq.${jobAddress}` }, (payload: any) => {
+                if (payload.new && check(payload.new)) done(payload.new);
+            })
+            .subscribe((status: string) => {
+                if (status === 'SUBSCRIBED') {
+                    // Re-check after subscribe (race: indexer wrote between initial check and subscribe)
+                    sb.from('jobs').select('state, state_name, provider, submitted_at').eq('address', jobAddress).single()
+                        .then(({ data }: any) => { if (data && check(data)) done(data); });
+                }
+            });
+
+        setTimeout(() => done(null), timeoutMs);
+    });
 }
 
 /** Find IPFS URL for a hash — check Supabase first, then Pinata */
@@ -2073,11 +2093,13 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
                     const s = await getJobStatus(c, jobAddr.toString());
                     if (s.provider !== 'none') {
                         clearInterval(takeTimer); tcWatchers.delete(userId);
+                        const pf = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
                         const tkb = new InlineKeyboard()
-                            .text('🔭 Status', `status_${jobId}`)
+                            .text('📨 Submit Result', `${pf ? 'j' : ''}submit_prompt_${jobId}`).text('🚪 Quit', `${pf ? 'j' : ''}quit_${jobId}`).row()
+                            .text('🔭 Status', `${pf ? 'j' : ''}status_${jobId}`)
                             .text('🏠 Menu', 'menu_main');
                         await bot.api.sendMessage(ctx.chat!.id,
-                            `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${factory === JETTON_FACTORY_ADDRESS ? 'j' : ''}${jobId} your_result_text</code>`,
+                            `${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${pf}${jobId} your_result_text</code>`,
                             { parse_mode: 'HTML', reply_markup: tkb });
                     }
                 } catch {}
@@ -2092,12 +2114,17 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         await sendTx(client, w, jobAddr, toNano('0.01'), body);
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
         const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
-        const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
-        // Wait for indexer confirmation via Supabase (true on-chain verification)
+        // Wait for indexer confirmation via Supabase Realtime (true on-chain verification)
         const confirmed = await waitForJobUpdate(jobAddr.toString(), r => r.provider && r.provider !== 'none');
+        const submitCb = factory === JETTON_FACTORY_ADDRESS ? `jsubmit_prompt_${jobId}` : `submit_prompt_${jobId}`;
+        const quitCb = factory === JETTON_FACTORY_ADDRESS ? `jquit_${jobId}` : `quit_${jobId}`;
         if (confirmed) {
+            const kb = new InlineKeyboard()
+                .text('📨 Submit Result', submitCb).text('🚪 Quit', quitCb).row()
+                .text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
             await ctx.reply(`${e('🤝')} <b>Job #${jobId} Taken!</b>\n\nSubmit your result:\n<code>/submit ${prefix}${jobId} your_result_text</code>`, { parse_mode: 'HTML', reply_markup: kb });
         } else {
+            const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
             await ctx.reply(`${e('⚠️')} Transaction sent. Check status in a few seconds.`, { parse_mode: 'HTML', reply_markup: kb });
         }
     } catch (err: any) {

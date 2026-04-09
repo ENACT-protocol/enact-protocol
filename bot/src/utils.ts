@@ -73,7 +73,12 @@ export async function sendTx(
         sendMode: SendMode.PAY_GAS_SEPARATELY,
         messages: [internal({ to, value, body, bounce: true })],
     }));
-    return seqno;
+    // Wait for seqno to change (tx accepted in block)
+    for (const delay of [400, 400, 600]) {
+        await new Promise(r => setTimeout(r, delay));
+        try { if (await wallet.contract.getSeqno() > (seqno as number)) return seqno; } catch {}
+    }
+    return seqno; // Return even if unconfirmed — waitForJobUpdate will verify
 }
 
 // ─── Supabase singleton ───
