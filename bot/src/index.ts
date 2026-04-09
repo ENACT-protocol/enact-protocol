@@ -334,42 +334,29 @@ function decodeHexOnly(hash: string): string | null {
     return null;
 }
 
-/** Wait for indexer to update job in Supabase via Realtime subscription (instant push, no polling) */
-async function waitForJobUpdate(jobAddress: string, check: (row: any) => boolean, timeoutMs = 5000): Promise<any | null> {
+/** Singleton Supabase client for bot (reused across all calls — no setup overhead) */
+let _botSb: any = null;
+async function getBotSb() {
+    if (_botSb) return _botSb;
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_KEY;
     if (!sbUrl || !sbKey) return null;
     const { createClient: sc } = await import('@supabase/supabase-js');
-    const sb = sc(sbUrl, sbKey);
+    _botSb = sc(sbUrl, sbKey);
+    return _botSb;
+}
 
-    // Check current state first (maybe indexer already wrote it)
-    try {
+/** Wait for indexer to update job in Supabase — fast poll with singleton client (no RT setup overhead) */
+async function waitForJobUpdate(jobAddress: string, check: (row: any) => boolean, timeoutMs = 5000): Promise<any | null> {
+    const sb = await getBotSb();
+    if (!sb) return null;
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
         const { data } = await sb.from('jobs').select('state, state_name, provider, submitted_at').eq('address', jobAddress).single();
         if (data && check(data)) return data;
-    } catch {}
-
-    // Subscribe to Realtime — instant push when indexer writes
-    return new Promise<any | null>((resolve) => {
-        let resolved = false;
-        const done = (result: any | null) => { if (resolved) return; resolved = true; ch.unsubscribe(); resolve(result); };
-
-        const ch = sb.channel(`wait-${jobAddress.slice(0, 12)}`)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs', filter: `address=eq.${jobAddress}` }, (payload: any) => {
-                if (payload.new && check(payload.new)) done(payload.new);
-            })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs', filter: `address=eq.${jobAddress}` }, (payload: any) => {
-                if (payload.new && check(payload.new)) done(payload.new);
-            })
-            .subscribe((status: string) => {
-                if (status === 'SUBSCRIBED') {
-                    // Re-check after subscribe (race: indexer wrote between initial check and subscribe)
-                    sb.from('jobs').select('state, state_name, provider, submitted_at').eq('address', jobAddress).single()
-                        .then(({ data }: any) => { if (data && check(data)) done(data); });
-                }
-            });
-
-        setTimeout(() => done(null), timeoutMs);
-    });
+        await new Promise(r => setTimeout(r, 200));
+    }
+    return null;
 }
 
 /** Find IPFS URL for a hash — check Supabase first, then Pinata */

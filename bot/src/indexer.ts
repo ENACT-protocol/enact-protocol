@@ -362,6 +362,11 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
             if (insErr) log(`  [ACTIVITY] INSERT error: ${insErr.message}`);
         } else if (newEvents.length > 0) {
             log(`  [SKIP] Activity unchanged for ${type}#${jobId}`);
+        } else if (force && existingHashes.size === 0 && state === 0) {
+            // New job with no txs yet (v3 not indexed) — create synthetic "Created" event
+            const syntheticEvent = { job_id: jobId, factory_type: type, job_address: jobAddr, event: 'Created', status: 'OPEN', time: effectiveCreatedAt || Math.floor(Date.now() / 1000), amount: budgetFormatted, from_address: clientStr, tx_hash: `synthetic_init_${jobAddr.slice(0,20)}` };
+            await sb.from('activity_events').upsert(syntheticEvent, { onConflict: 'tx_hash' });
+            log(`  [ACTIVITY] ${type}#${jobId}: synthetic Created event (no txs from v3/WS)`);
         } else {
             log(`  [ACTIVITY] ${type}#${jobId}: 0 events from ${txs.length} txs`);
         }
@@ -578,7 +583,6 @@ function connectWebSocket() {
                             try {
                                 const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
                                 const lastCount = state?.last_job_count ?? 0;
-                                // Quick retry — factory may need a moment to deploy job contract
                                 let count = lastCount;
                                 for (let r = 0; r < 5; r++) {
                                     const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
@@ -588,11 +592,20 @@ function connectWebSocket() {
                                     await sleep(200);
                                 }
                                 if (count > lastCount) {
-                                    // No sleep! New job txs will be fetched by indexJob via REST
-                                    // (factory WS event doesn't contain the new job's txs)
                                     for (let i = lastCount; i < count; i++) {
+                                        // Try to find new job's txs in the WS event (trace contains INIT_JOB tx)
+                                        let jobWsTxs: ParsedTx[] | undefined;
+                                        try {
+                                            const addrResult = await c.runMethod(Address.parse(factory), 'get_job_address', [{ type: 'int', value: BigInt(i) }]);
+                                            const jobRaw = addrResult.stack.readAddress().toRawString().toLowerCase();
+                                            const rawTxs = txsByAccount.get(jobRaw);
+                                            if (rawTxs) {
+                                                jobWsTxs = parseWsTxs(rawTxs);
+                                                log(`[WS] Found ${jobWsTxs.length} WS txs for new job ${type}#${i} in trace (+${Date.now()-t0}ms)`);
+                                            }
+                                        } catch {}
                                         log(`[IDX] indexJob start ${type}#${i} (+${Date.now()-t0}ms)`);
-                                        await indexJob(c, factory, i, type, true);
+                                        await indexJob(c, factory, i, type, true, jobWsTxs);
                                         log(`[IDX] indexJob done ${type}#${i} (+${Date.now()-t0}ms)`);
                                     }
                                     await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
