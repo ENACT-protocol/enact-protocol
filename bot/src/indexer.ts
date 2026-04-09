@@ -104,12 +104,53 @@ const OP = { FUND: 1, TAKE: 2, SUBMIT: 3, EVALUATE: 4, CANCEL: 5, INIT_JOB: 6, C
 
 interface ParsedTx { hash: string; fee: string; utime: number; opcode: number | null; from: string | null; approved?: boolean; }
 
-// ─── Transaction Fetching (with retry + backoff + opcode parsing) ───
+// ─── Transaction Parsing (v3 schema — used by both WS events and REST fallback) ───
 
+function parseV3Tx(tx: any): ParsedTx | null {
+    // Skip failed/aborted transactions
+    if (tx.description?.aborted === true) return null;
+    const exitCode = tx.description?.compute_ph?.exit_code ?? 0;
+    if (exitCode !== 0) return null;
+
+    let opcode: number | null = null;
+    let approved: boolean | undefined;
+    try {
+        const opcodeHex = tx.in_msg?.opcode;
+        if (opcodeHex) opcode = parseInt(opcodeHex, 16);
+        // For EVALUATE, parse body to get approved flag
+        if (opcode === OP.EVALUATE) {
+            const bodyB64 = tx.in_msg?.message_content?.body;
+            if (bodyB64) {
+                const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
+                const slice = cell.beginParse();
+                if (slice.remainingBits >= 40) {
+                    slice.loadUint(32);
+                    approved = slice.loadUint(8) === 1;
+                }
+            }
+        }
+    } catch {}
+    // v3 hash is base64 — convert to hex for consistency
+    const hashHex = tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : '';
+    let from: string | null = null;
+    try { from = tx.in_msg?.source ? Address.parse(tx.in_msg.source).toString({ bounceable: false }) : null; } catch { from = tx.in_msg?.source || null; }
+    return { hash: hashHex, fee: (Number(tx.total_fees || 0) / 1e9).toFixed(4), utime: tx.now || 0, opcode, from, approved };
+}
+
+/** Parse transactions directly from WS event data (v3 Transaction schema) */
+function parseWsTxs(wsTxs: any[]): ParsedTx[] {
+    const results: ParsedTx[] = [];
+    for (const tx of wsTxs) {
+        const parsed = parseV3Tx(tx);
+        if (parsed) results.push(parsed);
+    }
+    return results;
+}
+
+/** Fetch transactions via REST v3 (polling fallback only) */
 async function fetchTransactions(address: string): Promise<ParsedTx[]> {
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            // TonCenter v3 API — has exit_code, aborted for filtering failed TX
             const url = `https://toncenter.com/api/v3/transactions?account=${encodeURIComponent(address)}&limit=20&sort=desc`;
             const headers: Record<string, string> = {};
             if (API_KEY) headers['X-API-Key'] = API_KEY;
@@ -117,48 +158,7 @@ async function fetchTransactions(address: string): Promise<ParsedTx[]> {
             if (res.status === 429) { await sleep(2000 * (attempt + 1)); continue; }
             if (!res.ok) return [];
             const data = await res.json() as { transactions?: any[] };
-            return (data.transactions ?? [])
-                .filter((tx: any) => {
-                    // Skip failed/aborted transactions
-                    if (tx.description?.aborted === true) return false;
-                    const exitCode = tx.description?.compute_ph?.exit_code ?? 0;
-                    if (exitCode !== 0) return false;
-                    return true;
-                })
-                .map((tx: any) => {
-                // v3 gives opcode directly as hex string (e.g. "0x00000002")
-                let opcode: number | null = null;
-                let approved: boolean | undefined;
-                try {
-                    const opcodeHex = tx.in_msg?.opcode;
-                    if (opcodeHex) opcode = parseInt(opcodeHex, 16);
-                    // For EVALUATE, parse body to get approved flag
-                    if (opcode === OP.EVALUATE) {
-                        const bodyB64 = tx.in_msg?.message_content?.body;
-                        if (bodyB64) {
-                            const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
-                            const slice = cell.beginParse();
-                            if (slice.remainingBits >= 40) { // 32 opcode + 8 approved
-                                slice.loadUint(32); // skip opcode
-                                approved = slice.loadUint(8) === 1;
-                            }
-                        }
-                    }
-                } catch {}
-                // v3 hash is base64 — convert to hex for consistency
-                const hashHex = tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : '';
-                // v3 source is raw format (0:abc...) — convert to friendly
-                let from: string | null = null;
-                try { from = tx.in_msg?.source ? Address.parse(tx.in_msg.source).toString({ bounceable: false }) : null; } catch { from = tx.in_msg?.source || null; }
-                return {
-                    hash: hashHex,
-                    fee: (Number(tx.total_fees || 0) / 1e9).toFixed(4),
-                    utime: tx.now || 0,
-                    opcode,
-                    from,
-                    approved,
-                };
-            });
+            return (data.transactions ?? []).map(parseV3Tx).filter((t): t is ParsedTx => t !== null);
         } catch (err: any) {
             if (attempt < 2) await sleep(1000 * (attempt + 1));
         }
@@ -172,7 +172,7 @@ function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 const indexLocks = new Set<string>();
 
-async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt', force = false) {
+async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton' | 'usdt', force = false, wsTxs?: ParsedTx[]) {
     const lockKey = `${type}#${jobId}`;
     if (indexLocks.has(lockKey)) return; // already indexing this job
     indexLocks.add(lockKey);
@@ -233,10 +233,16 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const resultHashHex = resultHash.toString(16).padStart(64, '0');
         const reasonHashHex = reason.toString(16).padStart(64, '0');
 
-        // Fetch transactions FIRST (fast, non-blocking)
+        // Use WS-provided txs if available (instant), otherwise fetch via REST (polling fallback)
         const txT0 = Date.now();
-        const txs = await fetchTransactions(jobAddr);
-        log(`  [RPC] getTransactions +${Date.now()-txT0}ms (${txs.length} txs)`);
+        let txs: ParsedTx[];
+        if (wsTxs && wsTxs.length > 0) {
+            txs = wsTxs;
+            log(`  [WS-TX] ${txs.length} txs from event +${Date.now()-txT0}ms`);
+        } else {
+            txs = await fetchTransactions(jobAddr);
+            log(`  [REST] getTransactions +${Date.now()-txT0}ms (${txs.length} txs)`);
+        }
 
         // Check existing content to skip unnecessary IPFS
         const { data: existingContent } = await sb.from('jobs').select('description_text, result_text, result_encrypted, reason_text, state, provider, submitted_at').eq('address', jobAddr).single();
@@ -500,14 +506,31 @@ function connectWebSocket() {
 
             if (data.type === 'transactions' && data.transactions) {
                 const finality = data.finality || 'unknown';
+
+                // Parse ALL transaction data from WS event (v3 schema — no REST needed!)
+                const allWsTxs = parseWsTxs(data.transactions);
+
+                // Group raw WS txs by account for per-job processing
+                const txsByAccount = new Map<string, any[]>();
+                for (const rawTx of data.transactions) {
+                    if (!rawTx.account) continue;
+                    const key = rawTx.account.toLowerCase();
+                    if (!txsByAccount.has(key)) txsByAccount.set(key, []);
+                    txsByAccount.get(key)!.push(rawTx);
+                }
+
+                // Collect unique accounts
+                const accounts = new Set<string>();
                 for (const tx of data.transactions) {
-                    const account = tx.account;
-                    if (!account) continue;
+                    if (tx.account) accounts.add(tx.account);
+                }
+
+                for (const account of accounts) {
                     const acctLower = account.toLowerCase();
 
                     // Handle pending/confirmed: write pending_state to Supabase
                     if (finality === 'pending' || finality === 'confirmed') {
-                        if (finalizedRecently.has(acctLower)) continue; // Already finalized — skip
+                        if (finalizedRecently.has(acctLower)) continue;
                         try {
                             const friendlyAddr = Address.parse(account).toString();
                             const { data: job } = await sb.from('jobs').select('job_id, factory_type').eq('address', friendlyAddr).single();
@@ -530,121 +553,87 @@ function connectWebSocket() {
                         continue;
                     }
 
-                    // finalized — full processing
+                    // finalized — process in background (non-blocking, parallel)
                     finalizedRecently.add(acctLower);
-                    const t0 = Date.now();
-                    log(`[WS] Finalized: account=${account.slice(0, 16)}... t=${t0}`);
+                    const accountTxs = parseWsTxs(txsByAccount.get(acctLower) || []);
 
-                    const rawFactory = Address.parse(FACTORY).toRawString().toLowerCase();
-                    const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString().toLowerCase();
+                    // Fire-and-forget — each account processed independently
+                    (async () => {
+                        const t0 = Date.now();
+                        log(`[WS] Finalized: account=${account.slice(0, 16)}... t=${t0}`);
 
-                    if (acctLower === rawFactory || acctLower === rawJettonFactory) {
-                        const type = acctLower === rawFactory ? 'ton' : 'usdt';
-                        const factory = acctLower === rawFactory ? FACTORY : JETTON_FACTORY;
-                        log(`[WS] Factory tx (${type}) — checking new jobs (+${Date.now()-t0}ms)`);
-                        try {
-                            const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
-                            const lastCount = state?.last_job_count ?? 0;
-                            // Retry — factory needs time to deploy job contract
-                            // Use shorter delays (500ms) for faster response, max 5 retries
-                            let count = lastCount;
-                            for (let r = 0; r < 5; r++) {
-                                const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
-                                count = countResult.stack.readNumber();
-                                if (count > lastCount) break;
-                                log(`[WS] Count unchanged (${count}), retry ${r+1}/5 in 500ms... (+${Date.now()-t0}ms)`);
-                                await sleep(500);
-                            }
-                            if (count > lastCount) {
-                                // Wait for v3 API to index the new transactions (v3 lags 2-4s)
-                                await sleep(3000);
-                                for (let i = lastCount; i < count; i++) {
-                                    log(`[IDX] indexJob start ${type}#${i} (+${Date.now()-t0}ms)`);
-                                    await indexJob(c, factory, i, type, true);
-                                    log(`[IDX] indexJob done ${type}#${i} (+${Date.now()-t0}ms)`);
-                                }
-                                await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
-                                await refreshTrackedAddresses();
-                                resubscribeWs();
-                            }
-                        } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
-                    } else {
-                        // Job transaction — clear pending_state FIRST, then re-index
-                        let friendlyAddr: string;
-                        try { friendlyAddr = Address.parse(account).toString(); } catch { continue; }
+                        const rawFactory = Address.parse(FACTORY).toRawString().toLowerCase();
+                        const rawJettonFactory = Address.parse(JETTON_FACTORY).toRawString().toLowerCase();
 
-                        // Clear pending_state immediately so badge disappears fast
-                        await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
-
-                        const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type, state').eq('address', friendlyAddr).single();
-                        if (job) {
-                            // Update state from on-chain IMMEDIATELY (no REST delay)
+                        if (acctLower === rawFactory || acctLower === rawJettonFactory) {
+                            // Factory tx — new job created
+                            const type = acctLower === rawFactory ? 'ton' : 'usdt';
+                            const factory = acctLower === rawFactory ? FACTORY : JETTON_FACTORY;
+                            log(`[WS] Factory tx (${type}) — checking new jobs (+${Date.now()-t0}ms)`);
                             try {
-                                const result = await c.runMethod(Address.parse(friendlyAddr), 'get_job_data');
-                                const jid = result.stack.readNumber();
-                                const clientAddr2 = result.stack.readAddress();
-                                const providerAddr2 = result.stack.readAddressOpt();
-                                result.stack.readAddress(); // evaluator
-                                result.stack.readBigNumber(); // budget
-                                result.stack.readBigNumber(); // descHash
-                                const resultHash2 = result.stack.readBigNumber();
-                                result.stack.readNumber(); // timeout
-                                result.stack.readNumber(); // createdAt
-                                result.stack.readNumber(); // evalTimeout
-                                const submittedAt2 = result.stack.readNumber();
-                                result.stack.readNumber(); // resultType
-                                result.stack.readBigNumber(); // reason
-                                const onChainState = result.stack.readNumber();
-                                const newStateName = STATE_NAMES[onChainState] ?? 'UNKNOWN';
-                                const uf2 = { bounceable: false };
-
-                                // Instant state update — visible in explorer within 1-2s
-                                if (onChainState !== job.state) {
-                                    await sb.from('jobs').update({
-                                        state: onChainState, state_name: newStateName,
-                                        provider: providerAddr2?.toString(uf2) ?? null,
-                                        submitted_at: submittedAt2,
-                                        result_hash: resultHash2.toString(16).padStart(64, '0'),
-                                        pending_state: null,
-                                        updated_at: new Date().toISOString(),
-                                    }).eq('address', friendlyAddr);
-                                    log(`[WS] State: ${job.factory_type}#${job.job_id} → ${newStateName} (+${Date.now()-t0}ms)`);
-                                }
-                            } catch (err: any) {
-                                log(`[WS] RPC state err: ${err.message}`);
-                            }
-
-                            // Wait for v3 REST API to index the new TX (v3 lags 2-4s behind WS)
-                            await sleep(3000);
-                            log(`[WS] Full re-index ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
-                            await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true);
-                            log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
-                        } else {
-                            // Job not in DB yet — might be a just-created job that factory handler missed
-                            // Try to find which factory this job belongs to and index it
-                            log(`[WS] Unknown job ${friendlyAddr.slice(0, 16)} — trying discovery`);
-                            for (const { factory, ftype } of [
-                                { factory: FACTORY, ftype: 'ton' as const },
-                                { factory: JETTON_FACTORY, ftype: 'usdt' as const },
-                            ]) {
-                                try {
+                                const { data: state } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
+                                const lastCount = state?.last_job_count ?? 0;
+                                // Quick retry — factory may need a moment to deploy job contract
+                                let count = lastCount;
+                                for (let r = 0; r < 5; r++) {
                                     const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
-                                    const count = countResult.stack.readNumber();
-                                    const { data: stateRow } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
-                                    const lastCount = stateRow?.last_job_count ?? 0;
-                                    if (count > lastCount) {
-                                        log(`[WS] Discovery: ${ftype} has ${count - lastCount} new job(s)`);
-                                        for (let i = lastCount; i < count; i++) {
-                                            await indexJob(c, factory, i, ftype, true);
-                                        }
-                                        await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
-                                        await refreshTrackedAddresses();
-                                        resubscribeWs();
+                                    count = countResult.stack.readNumber();
+                                    if (count > lastCount) break;
+                                    log(`[WS] Count unchanged (${count}), retry ${r+1}/5 in 200ms... (+${Date.now()-t0}ms)`);
+                                    await sleep(200);
+                                }
+                                if (count > lastCount) {
+                                    // No sleep! New job txs will be fetched by indexJob via REST
+                                    // (factory WS event doesn't contain the new job's txs)
+                                    for (let i = lastCount; i < count; i++) {
+                                        log(`[IDX] indexJob start ${type}#${i} (+${Date.now()-t0}ms)`);
+                                        await indexJob(c, factory, i, type, true);
+                                        log(`[IDX] indexJob done ${type}#${i} (+${Date.now()-t0}ms)`);
                                     }
-                                } catch {}
+                                    await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
+                                    await refreshTrackedAddresses();
+                                    resubscribeWs();
+                                }
+                            } catch (err: any) { log(`[WS] Factory err: ${err.message}`); }
+                        } else {
+                            // Job transaction — use WS tx data directly (no REST, no sleep!)
+                            let friendlyAddr: string;
+                            try { friendlyAddr = Address.parse(account).toString(); } catch { return; }
+
+                            // Clear pending_state immediately
+                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
+
+                            const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type, state').eq('address', friendlyAddr).single();
+                            if (job) {
+                                log(`[WS] Indexing ${job.factory_type}#${job.job_id} with ${accountTxs.length} WS txs (+${Date.now()-t0}ms)`);
+                                await indexJob(c, job.factory_address, job.job_id, job.factory_type as 'ton' | 'usdt', true, accountTxs);
+                                log(`[WS] Done ${job.factory_type}#${job.job_id} (+${Date.now()-t0}ms)`);
+                            } else {
+                                // Job not in DB — discovery
+                                log(`[WS] Unknown job ${friendlyAddr.slice(0, 16)} — trying discovery`);
+                                for (const { factory, ftype } of [
+                                    { factory: FACTORY, ftype: 'ton' as const },
+                                    { factory: JETTON_FACTORY, ftype: 'usdt' as const },
+                                ]) {
+                                    try {
+                                        const countResult = await c.runMethod(Address.parse(factory), 'get_next_job_id');
+                                        const count = countResult.stack.readNumber();
+                                        const { data: stateRow } = await sb.from('indexer_state').select('last_job_count').eq('factory_address', factory).single();
+                                        const lastCount = stateRow?.last_job_count ?? 0;
+                                        if (count > lastCount) {
+                                            log(`[WS] Discovery: ${ftype} has ${count - lastCount} new job(s)`);
+                                            for (let i = lastCount; i < count; i++) {
+                                                await indexJob(c, factory, i, ftype, true);
+                                            }
+                                            await sb.from('indexer_state').upsert({ factory_address: factory, last_job_count: count, updated_at: new Date().toISOString() }, { onConflict: 'factory_address' });
+                                            await refreshTrackedAddresses();
+                                            resubscribeWs();
+                                        }
+                                    } catch {}
+                                }
                             }
                         }
-                    }
+                    })().catch(err => log(`[WS] Async finalized err: ${err.message}`));
                 }
             }
         } catch (err: any) {
