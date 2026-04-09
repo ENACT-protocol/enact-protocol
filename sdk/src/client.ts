@@ -60,6 +60,7 @@ export class EnactClient {
     private client: TonClient;
     private walletPromise: Promise<WalletState> | null = null;
     private pinataJwt: string | null = null;
+    private hasApiKey: boolean = false;
     readonly factoryAddress: string;
     readonly jettonFactoryAddress: string;
 
@@ -71,6 +72,7 @@ export class EnactClient {
         factoryAddress?: string;
         jettonFactoryAddress?: string;
     }) {
+        this.hasApiKey = !!(options?.apiKey);
         this.client = new TonClient({
             endpoint: options?.endpoint ?? 'https://toncenter.com/api/v2/jsonRPC',
             apiKey: options?.apiKey ?? '',
@@ -97,22 +99,37 @@ export class EnactClient {
         return this.walletPromise;
     }
 
+    private async _retryOnRateLimit<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+        for (let i = 0; i < retries; i++) {
+            try { return await fn(); }
+            catch (e: any) { if (i < retries - 1 && e?.message?.includes('429')) { await new Promise(r => setTimeout(r, 2000)); continue; } throw e; }
+        }
+        throw new Error('Rate limited');
+    }
+
     private async _send(to: Address, value: bigint, body: Cell) {
         const w = await this._ensureWallet();
         const opened = this.client.open(w.contract);
-        const seqno = await opened.getSeqno();
-        await opened.sendTransfer({
-            seqno,
-            secretKey: w.secretKey,
-            sendMode: SendMode.PAY_GAS_SEPARATELY,
-            messages: [internal({ to, value, body, bounce: true })],
-        });
-        for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 100));
-            const newSeqno = await opened.getSeqno();
-            if (newSeqno > seqno) return;
+
+        if (this.hasApiKey) {
+            // Fast path (API key): 3 RPC calls, ~1.5s total
+            const seqno = await opened.getSeqno();
+            await opened.sendTransfer({ seqno, secretKey: w.secretKey, sendMode: SendMode.PAY_GAS_SEPARATELY, messages: [internal({ to, value, body, bounce: true })] });
+            for (const delay of [500, 500, 1000]) {
+                await new Promise(r => setTimeout(r, delay));
+                if (await opened.getSeqno() > seqno) return;
+            }
+        } else {
+            // Rate-limited path (no API key, 1 RPS): 3 RPC calls, ~4s total
+            const seqno = await this._retryOnRateLimit(() => opened.getSeqno());
+            await new Promise(r => setTimeout(r, 1100));
+            await this._retryOnRateLimit(() => opened.sendTransfer({ seqno, secretKey: w.secretKey, sendMode: SendMode.PAY_GAS_SEPARATELY, messages: [internal({ to, value, body, bounce: true })] }));
+            await new Promise(r => setTimeout(r, 2000)); // Wait for block inclusion + rate limit
+            if (await this._retryOnRateLimit(() => opened.getSeqno()) > seqno) return;
+            await new Promise(r => setTimeout(r, 2000));
+            if (await this._retryOnRateLimit(() => opened.getSeqno()) > seqno) return;
         }
-        throw new Error('Transaction not confirmed after 2s');
+        throw new Error('Transaction not confirmed');
     }
 
     private async _uploadToIPFS(content: object): Promise<bigint> {
