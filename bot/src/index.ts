@@ -1070,18 +1070,9 @@ bot.command('create', async (ctx) => {
         const jobId = countBeforeResult.stack.readNumber(); // Our job gets this ID
         await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
 
-        // Wait for factory to deploy job contract (sub-second with Catchain 2.0)
-        let jobAddr: any = null;
-        for (let retry = 0; retry < 15; retry++) {
-            await new Promise(r => setTimeout(r, 200));
-            try {
-                const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
-                jobAddr = addrResult.stack.readAddress();
-                await client.runMethod(Address.parse(jobAddr.toString()), 'get_job_data');
-                break;
-            } catch { /* job not deployed yet */ }
-        }
-        if (!jobAddr) throw new Error('Job creation not confirmed on-chain');
+        // Get job address from factory (deterministic — available immediately after sendTx)
+        const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
+        const jobAddr = addrResult.stack.readAddress();
 
         // Step 2: Auto-fund + verify via indexer
         let funded = false;

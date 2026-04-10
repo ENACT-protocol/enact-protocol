@@ -485,16 +485,15 @@ export function useExplorerData() {
         const sb = createClient(supabaseUrl, supabaseKey);
         channel = sb.channel('explorer-live')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, (payload: any) => {
-            console.log('[RT] new job:', payload.new?.job_id);
+            console.log(`[RT ${new Date().toISOString().slice(11,23)}] new job:`, payload.new?.job_id, payload.new?.state_name, `utime=${payload.new?.created_at}`);
             applyJobInsert(payload.new);
           })
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs' }, (payload: any) => {
-            console.log('[RT] job update:', payload.new?.job_id, payload.new?.state_name);
+            console.log(`[RT ${new Date().toISOString().slice(11,23)}] job update:`, payload.new?.job_id, payload.new?.state_name, payload.new?.pending_state || '');
             applyJobUpdate(payload.new);
-            // No refetch needed — RT applyJobUpdate handles state, applyActivity handles events
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
-            console.log('[RT] activity:', payload.new?.event);
+            console.log(`[RT ${new Date().toISOString().slice(11,23)}] activity:`, payload.new?.event, `job#${payload.new?.job_id}`, `time=${payload.new?.time}`);
             applyActivity(payload.new);
           })
           .subscribe((status: string) => {

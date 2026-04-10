@@ -363,10 +363,11 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         } else if (newEvents.length > 0) {
             log(`  [SKIP] Activity unchanged for ${type}#${jobId}`);
         } else if (force && existingHashes.size === 0 && state === 0) {
-            // New job with no txs yet (v3 not indexed) — create synthetic "Created" event
+            // New job with no txs yet (v3 not indexed) — insert synthetic "Created" event
             const syntheticEvent = { job_id: jobId, factory_type: type, job_address: jobAddr, event: 'Created', status: 'OPEN', time: effectiveCreatedAt || Math.floor(Date.now() / 1000), amount: budgetFormatted, from_address: clientStr, tx_hash: `synthetic_init_${jobAddr.slice(0,20)}` };
-            await sb.from('activity_events').upsert(syntheticEvent, { onConflict: 'tx_hash' });
-            log(`  [ACTIVITY] ${type}#${jobId}: synthetic Created event (no txs from v3/WS)`);
+            const { error: synErr } = await sb.from('activity_events').insert(syntheticEvent);
+            if (synErr) log(`  [ACTIVITY] synthetic insert error: ${synErr.message}`);
+            else log(`  [ACTIVITY] ${type}#${jobId}: synthetic Created event inserted`);
         } else {
             log(`  [ACTIVITY] ${type}#${jobId}: 0 events from ${txs.length} txs`);
         }
