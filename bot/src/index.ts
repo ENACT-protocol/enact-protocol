@@ -349,13 +349,17 @@ async function getBotSb() {
 /** Wait for indexer to update job in Supabase — fast poll with singleton client (no RT setup overhead) */
 async function waitForJobUpdate(jobAddress: string, check: (row: any) => boolean, timeoutMs = 5000): Promise<any | null> {
     const sb = await getBotSb();
-    if (!sb) return null;
+    if (!sb) { console.log('[WAIT] No Supabase client'); return null; }
     const t0 = Date.now();
+    let polls = 0;
     while (Date.now() - t0 < timeoutMs) {
-        const { data } = await sb.from('jobs').select('state, state_name, provider, submitted_at').eq('address', jobAddress).single();
+        const { data, error } = await sb.from('jobs').select('state, state_name, provider, submitted_at').eq('address', jobAddress).single();
+        polls++;
+        if (polls <= 2 || (data && check(data))) console.log(`[WAIT] poll#${polls} +${Date.now()-t0}ms addr=${jobAddress.slice(0,16)} data=${JSON.stringify(data?.state_name??null)} provider=${data?.provider?.slice(0,12)??'null'} err=${error?.message??'none'}`);
         if (data && check(data)) return data;
         await new Promise(r => setTimeout(r, 200));
     }
+    console.log(`[WAIT] TIMEOUT after ${polls} polls, ${Date.now()-t0}ms`);
     return null;
 }
 
