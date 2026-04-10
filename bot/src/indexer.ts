@@ -451,9 +451,9 @@ async function backfill() {
 let wsReconnectDelay = 1000;
 let trackedAddresses: string[] = [];
 let activeWs: WebSocket | null = null;
-// Track finalized accounts to skip stale pending/confirmed events
+// Track finalized accounts (used by factory handler to avoid duplicate indexing)
 const finalizedRecently = new Set<string>();
-setInterval(() => finalizedRecently.clear(), 300_000); // Clear every 5 min — longer to suppress stale pending
+setInterval(() => finalizedRecently.clear(), 300_000);
 
 async function refreshTrackedAddresses() {
     const sb = getSupabase();
@@ -482,7 +482,7 @@ function resubscribeWs() {
         operation: 'subscribe', id: 'enact-idx',
         addresses: trackedAddresses,
         types: ['transactions'],
-        min_finality: 'pending',
+        min_finality: 'finalized',
     }));
     log(`[WS] Resubscribed to ${trackedAddresses.length} addresses`);
 }
@@ -535,30 +535,9 @@ function connectWebSocket() {
                 for (const account of accounts) {
                     const acctLower = account.toLowerCase();
 
-                    // Handle pending/confirmed: write pending_state to Supabase
-                    if (finality === 'pending' || finality === 'confirmed') {
-                        if (finalizedRecently.has(acctLower)) continue;
-                        try {
-                            const friendlyAddr = Address.parse(account).toString();
-                            const { data: job } = await sb.from('jobs').select('job_id, factory_type').eq('address', friendlyAddr).single();
-                            if (job) {
-                                const badge = finality === 'pending' ? 'Processing...' : 'Confirming...';
-                                await sb.from('jobs').update({ pending_state: badge }).eq('address', friendlyAddr);
-                                log(`[WS] ${finality}: ${job.factory_type}#${job.job_id} → ${badge}`);
-                            }
-                        } catch {}
-                        continue;
-                    }
-
-                    // trace_invalidated — clear pending state
-                    if (finality === 'trace_invalidated') {
-                        try {
-                            const friendlyAddr = Address.parse(account).toString();
-                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
-                            log(`[WS] trace_invalidated for ${account.slice(0, 16)}`);
-                        } catch {}
-                        continue;
-                    }
+                    // Skip pending/confirmed — no DB writes needed, finalized handles everything
+                    // (pending/confirmed writes caused RT noise + state revert bugs)
+                    if (finality === 'pending' || finality === 'confirmed' || finality === 'trace_invalidated') continue;
 
                     // finalized — process in background (non-blocking, parallel)
                     finalizedRecently.add(acctLower);

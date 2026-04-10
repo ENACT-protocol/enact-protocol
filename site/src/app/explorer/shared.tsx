@@ -407,7 +407,7 @@ export function useExplorerData() {
         const update = (j: Job): Job => {
           if (j.address !== row.address) return j;
           const newState = row.state ?? j.state;
-          const forward = newState >= j.state; // State only progresses forward (0→1→2→3/4/5)
+          const forward = newState >= j.state;
           return {
             ...j,
             state: forward ? newState : j.state,
@@ -415,7 +415,7 @@ export function useExplorerData() {
             provider: row.provider ?? j.provider,
             submittedAt: row.submitted_at ?? j.submittedAt,
             budgetFormatted: row.budget_formatted ?? j.budgetFormatted,
-            pendingState: row.pending_state || null,
+            pendingState: null,
             description: row.description_text ? { text: row.description_text, source: row.description_ipfs_url ? 'ipfs' : 'hex' } : j.description,
             resultContent: row.result_encrypted ? { text: null, source: 'ipfs', encrypted: true } : row.result_text ? { text: row.result_text, source: row.result_ipfs_url ? 'ipfs' : 'hex' } : j.resultContent,
             reasonContent: row.reason_text ? { text: row.reason_text, source: row.reason_ipfs_url ? 'ipfs' : 'hex' } : j.reasonContent,
