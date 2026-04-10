@@ -135,6 +135,8 @@ function parseV3Tx(tx: any): ParsedTx | null {
     let from: string | null = null;
     try { from = tx.in_msg?.source ? Address.parse(tx.in_msg.source).toString({ bounceable: false }) : null; } catch { from = tx.in_msg?.source || null; }
     const utime = tx.now || tx.utime || 0;
+    // DEBUG: log all time-related fields from WS tx to find correct timestamp
+    if (opcode) log(`[TX-DEBUG] op=${opcode} now=${tx.now} utime=${tx.utime} lt=${tx.lt} resolved=${utime} keys=${Object.keys(tx).slice(0,15).join(',')}`);
     return { hash: hashHex, fee: (Number(tx.total_fees || 0) / 1e9).toFixed(4), utime, opcode, from, approved };
 }
 
