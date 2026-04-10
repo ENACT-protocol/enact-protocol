@@ -615,9 +615,7 @@ function connectWebSocket() {
                             let friendlyAddr: string;
                             try { friendlyAddr = Address.parse(account).toString(); } catch { return; }
 
-                            // Clear pending_state immediately
-                            await sb.from('jobs').update({ pending_state: null }).eq('address', friendlyAddr);
-
+                            // No separate pending_state clear — indexJob upsert handles it (force=true sets pending_state=null)
                             const { data: job } = await sb.from('jobs').select('job_id, factory_address, factory_type, state').eq('address', friendlyAddr).single();
                             if (job) {
                                 log(`[WS] Indexing ${job.factory_type}#${job.job_id} with ${accountTxs.length} WS txs (+${Date.now()-t0}ms)`);

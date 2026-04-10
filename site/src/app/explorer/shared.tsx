@@ -406,10 +406,12 @@ export function useExplorerData() {
         if (!prev) return prev;
         const update = (j: Job): Job => {
           if (j.address !== row.address) return j;
+          const newState = row.state ?? j.state;
+          const forward = newState >= j.state; // State only progresses forward (0→1→2→3/4/5)
           return {
             ...j,
-            state: row.state ?? j.state,
-            stateName,
+            state: forward ? newState : j.state,
+            stateName: forward ? stateName : j.stateName,
             provider: row.provider ?? j.provider,
             submittedAt: row.submitted_at ?? j.submittedAt,
             budgetFormatted: row.budget_formatted ?? j.budgetFormatted,
@@ -460,20 +462,13 @@ export function useExplorerData() {
         const exists = prev.activity?.some(a => a.address === ev.address && a.event === ev.event && a.time === ev.time);
         const newActivity = exists ? prev.activity : [ev, ...(prev.activity || [])];
 
-        // Also add to job.transactions + sync state from activity status
-        const STATE_MAP: Record<string, number> = { OPEN: 0, FUNDED: 1, SUBMITTED: 2, COMPLETED: 3, DISPUTED: 4, CANCELLED: 5 };
+        // Also add to job.transactions for job detail pages
         const addTxToJob = (j: Job): Job => {
           if (j.address !== row.job_address) return j;
           const tx = { hash: row.tx_hash || '', fee: '0', utime: row.time };
           const txExists = j.transactions?.some(t => t.hash === tx.hash || (t.utime === tx.utime));
-          // Sync state from activity event (fallback when job UPDATE RT is missed)
-          const actState = STATE_MAP[row.status];
-          const stateChanged = actState !== undefined && actState > j.state;
-          return {
-            ...j,
-            transactions: txExists ? j.transactions : [...(j.transactions || []), tx],
-            ...(stateChanged ? { state: actState, stateName: row.status, pendingState: null } : {}),
-          };
+          if (txExists) return j;
+          return { ...j, transactions: [...(j.transactions || []), tx] };
         };
 
         return {
