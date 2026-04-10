@@ -460,13 +460,20 @@ export function useExplorerData() {
         const exists = prev.activity?.some(a => a.address === ev.address && a.event === ev.event && a.time === ev.time);
         const newActivity = exists ? prev.activity : [ev, ...(prev.activity || [])];
 
-        // Also add to job.transactions for job detail pages
+        // Also add to job.transactions + sync state from activity status
+        const STATE_MAP: Record<string, number> = { OPEN: 0, FUNDED: 1, SUBMITTED: 2, COMPLETED: 3, DISPUTED: 4, CANCELLED: 5 };
         const addTxToJob = (j: Job): Job => {
           if (j.address !== row.job_address) return j;
           const tx = { hash: row.tx_hash || '', fee: '0', utime: row.time };
           const txExists = j.transactions?.some(t => t.hash === tx.hash || (t.utime === tx.utime));
-          if (txExists) return j;
-          return { ...j, transactions: [...(j.transactions || []), tx] };
+          // Sync state from activity event (fallback when job UPDATE RT is missed)
+          const actState = STATE_MAP[row.status];
+          const stateChanged = actState !== undefined && actState > j.state;
+          return {
+            ...j,
+            transactions: txExists ? j.transactions : [...(j.transactions || []), tx],
+            ...(stateChanged ? { state: actState, stateName: row.status, pendingState: null } : {}),
+          };
         };
 
         return {
