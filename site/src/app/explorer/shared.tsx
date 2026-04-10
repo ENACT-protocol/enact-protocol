@@ -73,7 +73,7 @@ export function fmtDateShort(unix: number) {
   if (!unix) return '—';
   const d = new Date(unix * 1000);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
-    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 export function fmtTimeout(sec: number) { return sec >= 86400 ? `${Math.round(sec / 86400)}d` : `${Math.round(sec / 3600)}h`; }
@@ -492,15 +492,12 @@ export function useExplorerData() {
         const sb = createClient(supabaseUrl, supabaseKey);
         channel = sb.channel('explorer-live')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, (payload: any) => {
-            console.log(`[RT ${new Date().toISOString().slice(11,23)}] new job:`, payload.new?.job_id, payload.new?.state_name, `utime=${payload.new?.created_at}`);
             applyJobInsert(payload.new);
           })
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs' }, (payload: any) => {
-            console.log(`[RT ${new Date().toISOString().slice(11,23)}] job update:`, payload.new?.job_id, payload.new?.state_name, payload.new?.pending_state || '');
             applyJobUpdate(payload.new);
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_events' }, (payload: any) => {
-            console.log(`[RT ${new Date().toISOString().slice(11,23)}] activity:`, payload.new?.event, `job#${payload.new?.job_id}`, `time=${payload.new?.time}`);
             applyActivity(payload.new);
           })
           .subscribe((status: string) => {
