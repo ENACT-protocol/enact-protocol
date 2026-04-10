@@ -134,9 +134,7 @@ function parseV3Tx(tx: any): ParsedTx | null {
     const hashHex = tx.hash ? Buffer.from(tx.hash, 'base64').toString('hex') : '';
     let from: string | null = null;
     try { from = tx.in_msg?.source ? Address.parse(tx.in_msg.source).toString({ bounceable: false }) : null; } catch { from = tx.in_msg?.source || null; }
-    const utime = tx.now || tx.utime || 0;
-    // DEBUG: log all time-related fields from WS tx to find correct timestamp
-    if (opcode) log(`[TX-DEBUG] op=${opcode} now=${tx.now} utime=${tx.utime} lt=${tx.lt} resolved=${utime} keys=${Object.keys(tx).slice(0,15).join(',')}`);
+    const utime = tx.now || 0;
     return { hash: hashHex, fee: (Number(tx.total_fees || 0) / 1e9).toFixed(4), utime, opcode, from, approved };
 }
 
@@ -145,11 +143,7 @@ function parseWsTxs(wsTxs: any[]): ParsedTx[] {
     const results: ParsedTx[] = [];
     for (const tx of wsTxs) {
         const parsed = parseV3Tx(tx);
-        if (parsed) {
-            // Debug: log WS tx time fields to diagnose time offset issues
-            if (parsed.utime === 0) log(`[WS-TX] WARNING: utime=0 for hash=${parsed.hash.slice(0,12)}... (tx.now=${tx.now} tx.utime=${tx.utime})`);
-            results.push(parsed);
-        }
+        if (parsed) results.push(parsed);
     }
     return results;
 }
