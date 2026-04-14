@@ -401,6 +401,7 @@ export default function Home() {
                 ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot','/docs/telegram-bot'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 16 tools — full lifecycle + USDT.','cp plugin → ~/.teleton/plugins/','/docs/teleton'],
                 ['Open Wallet Standard','Secure key management by MoonPay. Private keys never leave the vault.','OWS SDK · Policy Engine · TON + 8 chains','/docs/ows'],
+                ['Agent Skills','One-command install for Claude Code, Cursor, and 40+ AI agents. Rules, snippets, troubleshooting.','npx skills add ENACT-protocol/enact-protocol','/docs/agent-skills'],
               ].map(([n,d,t,href])=>(
                 <Link key={n} href={href} className="bg-[#0A0A0E] border border-[#1A1A24] p-4 sm:p-5 hover:border-gray-700 transition-colors block">
                   <div className="mono-label text-white mb-2">{n}</div>

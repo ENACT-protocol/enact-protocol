@@ -304,6 +304,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <P>ENACT has multiple integration layers. Pick the one that fits how you want to interact with the protocol.</P>
 
         <CardGroup cols={2}>
+          <NavCard href="/docs/agent-skills" icon="hgi-magic-wand-03" title="One-command Agent Skill" desc="npx skills add ENACT-protocol/enact-protocol — rules, snippets, troubleshooting loaded into Claude Code, Cursor, Codex, and 40+ agents." />
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="16 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
@@ -1079,7 +1080,61 @@ ows policy create --file enact-policy.json`}</Code>
           <NavCard href="https://docs.openwallet.sh" icon="hgi-book-02" title="OWS Docs" desc="Open Wallet Standard documentation" />
         </CardGroup>
 
-        <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
+        <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'agent-skills', title: 'Agent Skills' }} />
+      </>
+    ),
+  },
+
+  /* ─────────────────── AGENT SKILLS ──────────────────── */
+  'agent-skills': {
+    title: 'Agent Skills',
+    content: (
+      <>
+        <PageHeader
+          label="Integrations"
+          title="Agent Skills"
+          desc="One-command install for Claude Code, Cursor, and 40+ other AI coding agents via the skills.sh marketplace."
+        />
+
+        <P>
+          ENACT ships an official <a href="https://skills.sh/ENACT-protocol/enact-protocol" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">Agent Skill</a> —
+          a portable package of rules, code snippets, and troubleshooting guides that teaches any compatible agent how to work with the protocol correctly on the first try.
+          The skill is distributed through <a href="https://skills.sh" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">skills.sh</a>,
+          the Agent Skills directory maintained by Vercel Labs.
+        </P>
+
+        <H2>Install</H2>
+        <Code label="Terminal">{`npx skills add ENACT-protocol/enact-protocol`}</Code>
+        <P>The CLI discovers the skill at <IC>skills/enact/SKILL.md</IC> in the repo, clones it locally, and symlinks or copies it into every detected agent directory.</P>
+
+        <H2>What's Inside</H2>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+          <tbody>
+            {[
+              ['SKILL.md','Rule-based guidance (18 rules covering setup, safety, job lifecycle, USDT, encryption, decryption)'],
+              ['references/operations.md','Copy-pasteable snippets for every operation (SDK + MCP), plus a minimum-viable 12-line flow'],
+              ['references/mcp-config.md','Claude Desktop / Cursor / Cline configs (remote and local) with exact env vars'],
+              ['references/troubleshooting.md','Common errors grouped by root cause — throttling, exit codes 101/102, bounced txs, IPFS, state-machine pitfalls'],
+            ].map(([f,d])=>(<tr key={f}><td className="font-mono text-xs">{f}</td><td>{d}</td></tr>))}
+          </tbody>
+        </table></div>
+
+        <H2>Supported Agents</H2>
+        <P>Installing with <IC>-a &apos;*&apos;</IC> targets every detected agent directory. Out of the box: Claude Code, Cursor, Cline, Codex, Windsurf, Goose, Roo, Kilo, Qwen Code, Gemini CLI, and ~40 others. Pick a specific target with <IC>-a claude-code</IC> or similar.</P>
+
+        <H2>Safety Posture</H2>
+        <P>The skill explicitly marks IPFS-fetched job descriptions, results, and evaluation reasons as untrusted input — the <IC>[SAFETY-1]</IC> rule instructs any agent consuming the skill to treat that content as data, not commands, and never auto-execute code or follow URLs found inside. This mitigates indirect prompt-injection risk on the provider and evaluator sides.</P>
+
+        <H2>Why a Skill, not just Docs</H2>
+        <P>Docs require the agent to search, read, and synthesize before acting. A skill is loaded into the agent&apos;s active context when the task matches the skill&apos;s trigger keywords — so the rules apply automatically before the first wrong move.</P>
+
+        <CardGroup>
+          <NavCard href="https://skills.sh/ENACT-protocol/enact-protocol" icon="hgi-link-square-01" title="On skills.sh" desc="Public install counter, security audits, metadata" />
+          <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/skills/enact" icon="hgi-source-code" title="Source" desc="SKILL.md + references on GitHub" />
+        </CardGroup>
+
+        <DocNav prev={{ slug: 'ows', title: 'Open Wallet Standard' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
       </>
     ),
   },
@@ -1105,7 +1160,7 @@ ows policy create --file enact-policy.json`}</Code>
         </table></div>
         <Warn>Never commit <IC>WALLET_MNEMONIC</IC> to version control. Use <IC>.env</IC> files and add them to <IC>.gitignore</IC>.</Warn>
 
-        <DocNav prev={{ slug: 'ows', title: 'Open Wallet Standard' }} next={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
+        <DocNav prev={{ slug: 'agent-skills', title: 'Agent Skills' }} next={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
       </>
     ),
   },

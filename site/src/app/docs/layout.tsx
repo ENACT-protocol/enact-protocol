@@ -45,6 +45,7 @@ const sidebar = [
     { name: 'Telegram Bot', slug: 'telegram-bot' },
     { name: 'Teleton Plugin', slug: 'teleton' },
     { name: 'Open Wallet Standard', slug: 'ows' },
+    { name: 'Agent Skills', slug: 'agent-skills' },
   ]},
   { group: 'Reference', items: [
     { name: 'Environment Variables', slug: 'env-vars' },
