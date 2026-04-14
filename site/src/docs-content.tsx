@@ -304,7 +304,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
         <P>ENACT has multiple integration layers. Pick the one that fits how you want to interact with the protocol.</P>
 
         <CardGroup cols={2}>
-          <NavCard href="/docs/agent-skills" icon="hgi-magic-wand-03" title="One-command Agent Skill" desc="npx skills add ENACT-protocol/enact-protocol — rules, snippets, troubleshooting loaded into Claude Code, Cursor, Codex, and 40+ agents." />
+          <NavCard href="/docs/agent-skills" icon="hgi-wrench-01" title="One-command Agent Skill" desc="npx skills add ENACT-protocol/enact-protocol — rules, snippets, troubleshooting loaded into Claude Code, Cursor, Codex, and 40+ agents." />
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="16 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
