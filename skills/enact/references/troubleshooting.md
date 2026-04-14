@@ -10,7 +10,7 @@ TonCenter throttling. Without an API key you're capped at ~1 RPS and a single `f
 ## "Job creation not confirmed on-chain"
 The factory's `get_next_job_id` didn't advance within the SDK's poll window.
 - **Cause:** wallet has zero TON, or the mnemonic belongs to a non-deployed v5 wallet.
-- **Fix:** fund the wallet with ≥ 0.1 TON. Top up at https://ton.org/buy. Deploy happens on the first outgoing tx automatically.
+- **Fix:** fund the wallet with ≥ 0.1 TON from any exchange (Bybit, OKX, MEXC) or @wallet in Telegram. Deploy happens on the first outgoing tx automatically.
 
 ## "Wallet not initialized. Pass mnemonic to constructor."
 You tried to call a write method on a read-only client.
