@@ -1221,6 +1221,23 @@ asyncio.run(main())`}</Code>
 )
 tools = get_enact_tools(client, include_write=True)   # opt-in`}</Code>
 
+        <H2>Human-in-the-loop</H2>
+        <P>For high-stakes write tools, wrap each write in a confirmation step. The simplest version is a terminal prompt; in a UI you'd surface a button or Slack message.</P>
+        <Code label="Python">{`from langchain_core.tools import BaseTool
+
+def confirm(tool: BaseTool, args: dict) -> bool:
+    if not tool.is_write:
+        return True
+    print(f"\\n⚠️  About to call {tool.name} with {args}")
+    return input("Proceed? [y/N] ").strip().lower() == "y"
+
+# Gate every write call on confirm(...) before invoking tool._arun(**args).
+# Same pattern works with LangGraph's interrupt_before or LangChain's
+# HumanApprovalCallbackHandler for callback-driven agents.`}</Code>
+
+        <H2>Works with any LangChain-compatible framework</H2>
+        <P>Because tools are plain <IC>BaseTool</IC> instances, they drop into <IC>CrewAI</IC>, <IC>AutoGen</IC>, <IC>LangGraph</IC>, and any other framework that accepts LangChain tools — no adapter required.</P>
+
         <H2>Async vs Sync</H2>
         <P>The core SDK is async-only; LangChain tools implement both <IC>_arun</IC> (native) and <IC>_run</IC> (fallback). The sync fallback calls <IC>asyncio.run</IC> when there is no running loop; inside a running loop it raises, telling you to use the async agent interface (<IC>executor.ainvoke</IC>).</P>
 
@@ -1440,6 +1457,7 @@ await client.fundJettonJob(job)`}</Code>
 
         <H2>Install</H2>
         <Code label="Terminal">{`pip install enact-protocol`}</Code>
+        <P>Requires Python 3.10+. Built on <IC>tonutils</IC>, <IC>pytoniq-core</IC>, <IC>PyNaCl</IC>, and <IC>httpx</IC>.</P>
 
         <H2>Quick Start</H2>
         <Code label="Python">{`import asyncio
@@ -1491,7 +1509,8 @@ asyncio.run(main())`}</Code>
 
         <H2>File & Image Support</H2>
         <P>Attach files or images to jobs and results. Requires <IC>pinata_jwt</IC>.</P>
-        <Code label="Python">{`from pathlib import Path
+        <Code label="Python">{`# (snippets below run inside an async function, e.g. the main() above)
+from pathlib import Path
 from enact_protocol import CreateJobParams
 
 # Create job with attached file
@@ -1509,7 +1528,8 @@ await client.submit_result(job_addr, "Design completed", file=(result_pdf, "resu
 
         <H2>Encrypted Results</H2>
         <P>E2E encrypt results so only the job client and evaluator can read them. Envelopes are cross-compatible with the NPM SDK.</P>
-        <Code label="Python">{`# Get public keys from on-chain wallet state
+        <Code label="Python">{`# (inside an async function)
+# Get public keys from on-chain wallet state
 client_pub = await client.get_wallet_public_key(status.client)
 evaluator_pub = await client.get_wallet_public_key(status.evaluator)
 
@@ -1527,13 +1547,26 @@ plaintext = await client.decrypt_job_result(envelope, role="client")`}</Code>
         <P>See <a href="/docs/encrypted-results" className="text-[var(--color-accent)] hover:underline">Encrypted Results</a> for the full encryption flow and security model.</P>
 
         <H2>USDT Jobs</H2>
-        <Code label="Python">{`job_addr = await client.create_jetton_job(CreateJobParams(
+        <Code label="Python">{`# (inside an async function)
+job_addr = await client.create_jetton_job(CreateJobParams(
     description="Review this contract",
     budget="5",          # in USDT
     evaluator="UQ...",
 ))
 await client.set_jetton_wallet(job_addr)
 await client.fund_jetton_job(job_addr)`}</Code>
+
+        <H2>Testnet</H2>
+        <P>Point the SDK at TON testnet to build and debug without spending mainnet TON. The contracts and tooling are identical — only the endpoint changes.</P>
+        <Code label="Python">{`client = EnactClient(
+    endpoint="https://testnet.toncenter.com/api/v2/jsonRPC",
+    api_key="YOUR_TESTNET_KEY",
+    # Use testnet factory addresses if you've deployed your own;
+    # otherwise the mainnet defaults won't resolve on testnet.
+    factory_address="EQ...",
+    jetton_factory_address="EQ...",
+)`}</Code>
+        <Info>Grab a free testnet API key from <a href="https://t.me/tonapibot" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">@tonapibot</a> and testnet TON from <a href="https://t.me/testgiver_ton_bot" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">@testgiver_ton_bot</a>.</Info>
 
         <H2>Custom Endpoint</H2>
         <Code label="Python">{`client = EnactClient(
