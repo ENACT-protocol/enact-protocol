@@ -107,6 +107,40 @@ def test_jetton_transfer_opcode():
     assert _read_op(body) == JETTON_TRANSFER_OP
 
 
+def test_ipfs_hash_matches_json_stringify_for_ascii():
+    """Verify SHA-256 hash matches what NPM's JSON.stringify would produce."""
+    import hashlib
+
+    from enact_protocol.ipfs import compute_uint256_hash
+
+    # JSON.stringify({"a":1,"b":"x"}) in JS produces exactly this string.
+    js_equivalent = '{"a":1,"b":"x"}'
+    expected = int.from_bytes(
+        hashlib.sha256(js_equivalent.encode("utf-8")).digest(), "big"
+    )
+    assert compute_uint256_hash({"a": 1, "b": "x"}) == expected
+
+
+def test_ipfs_hash_matches_json_stringify_for_cyrillic():
+    """Non-ASCII must be \\uXXXX-escaped to match JS JSON.stringify byte-for-byte.
+
+    This is the advisor-caught v0.1.1 regression: ``ensure_ascii=False`` would
+    emit raw UTF-8 bytes, producing a different hash than NPM SDK for any
+    description with Cyrillic / emoji / CJK.
+    """
+    import hashlib
+
+    from enact_protocol.ipfs import compute_uint256_hash
+
+    # JSON.stringify({"desc":"Тест"}) in JS produces exactly:
+    # '{"desc":"\\u0422\\u0435\\u0441\\u0442"}'
+    js_equivalent = r'{"desc":"\u0422\u0435\u0441\u0442"}'
+    expected = int.from_bytes(
+        hashlib.sha256(js_equivalent.encode("utf-8")).digest(), "big"
+    )
+    assert compute_uint256_hash({"desc": "Тест"}) == expected
+
+
 def test_bodies_are_deterministic():
     """Same inputs must produce byte-identical bodies (no random nonces here)."""
     a = build_job_message("fund")

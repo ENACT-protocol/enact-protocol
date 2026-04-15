@@ -42,19 +42,19 @@ def mime_for_filename(filename: str) -> str:
 def compute_uint256_hash(content: Any) -> int:
     """SHA-256 of a JSON-serialisable object, returned as a uint256 int.
 
-    The serialisation uses ``json.dumps`` without sorting or whitespace — this
-    matches ``JSON.stringify(content)`` in the NPM SDK byte-for-byte for any
-    object whose field order is preserved (Pydantic and ``dict`` both keep
-    insertion order).
+    The serialisation must match ``JSON.stringify(content)`` from the NPM SDK
+    byte-for-byte, so that a description uploaded from Python produces the
+    same on-chain ``descHash`` as one uploaded from JS. ``JSON.stringify``
+    escapes non-ASCII characters to ``\\uXXXX`` by default — so we set
+    ``ensure_ascii=True`` (Python's default) and use the same compact
+    separators the JS SDK implicitly produces.
     """
     if isinstance(content, bytes):
         data = content
     elif isinstance(content, str):
         data = content.encode("utf-8")
     else:
-        data = json.dumps(content, separators=(",", ":"), ensure_ascii=False).encode(
-            "utf-8"
-        )
+        data = json.dumps(content, separators=(",", ":")).encode("utf-8")
     return int.from_bytes(hashlib.sha256(data).digest(), "big")
 
 
@@ -101,7 +101,7 @@ class PinataClient:
 
         If ``self.jwt`` is ``None``, skips the upload (mirrors NPM SDK).
         """
-        json_str = json.dumps(content, separators=(",", ":"), ensure_ascii=False)
+        json_str = json.dumps(content, separators=(",", ":"))
         hash_int = compute_uint256_hash(json_str)
 
         if not self.jwt:

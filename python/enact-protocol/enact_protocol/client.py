@@ -324,6 +324,7 @@ class EnactClient:
             buffer, filename = file
             pinned = await self._pinata.pin_file(buffer, filename)
             import json as _json
+            # Match JSON.stringify byte-for-byte (default escapes non-ASCII).
             result_content = _json.dumps(
                 {
                     "result": result,
@@ -335,7 +336,6 @@ class EnactClient:
                     },
                 },
                 separators=(",", ":"),
-                ensure_ascii=False,
             )
         else:
             result_content = result
