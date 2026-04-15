@@ -1286,7 +1286,7 @@ await executor.ainvoke({"input": "EQ..."})`}</Code>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Variable</th><th>Used By</th><th>Description</th></tr></thead>
           <tbody>
-            {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','TON JobFactory, for Teleton plugin'],['ENACT_JETTON_FACTORY_ADDRESS','Teleton','USDT JettonJobFactory, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" or "testnet"'],['PINATA_JWT','MCP, Bot, SDK','Pinata JWT for IPFS — text, files, and images (pinata.cloud/keys)']].map(([v,u,d])=>(
+            {[['FACTORY_ADDRESS','MCP, Bot','JobFactory contract address'],['ENACT_FACTORY_ADDRESS','Teleton','TON JobFactory, for Teleton plugin'],['ENACT_JETTON_FACTORY_ADDRESS','Teleton','USDT JettonJobFactory, for Teleton plugin'],['WALLET_MNEMONIC','All','24-word TON wallet mnemonic'],['TON_ENDPOINT','All','TonCenter API endpoint'],['TONCENTER_API_KEY','All','TonCenter API key'],['BOT_TOKEN','Bot','Telegram bot API token'],['NETWORK','MCP','"mainnet" (ENACT runs on TON mainnet only)'],['PINATA_JWT','MCP, Bot, SDK','Pinata JWT for IPFS — text, files, and images (pinata.cloud/keys)']].map(([v,u,d])=>(
               <tr key={v}><td>{v}</td><td>{u}</td><td>{d}</td></tr>
             ))}
           </tbody>
@@ -1555,18 +1555,6 @@ job_addr = await client.create_jetton_job(CreateJobParams(
 ))
 await client.set_jetton_wallet(job_addr)
 await client.fund_jetton_job(job_addr)`}</Code>
-
-        <H2>Testnet</H2>
-        <P>Point the SDK at TON testnet to build and debug without spending mainnet TON. The contracts and tooling are identical — only the endpoint changes.</P>
-        <Code label="Python">{`client = EnactClient(
-    endpoint="https://testnet.toncenter.com/api/v2/jsonRPC",
-    api_key="YOUR_TESTNET_KEY",
-    # Use testnet factory addresses if you've deployed your own;
-    # otherwise the mainnet defaults won't resolve on testnet.
-    factory_address="EQ...",
-    jetton_factory_address="EQ...",
-)`}</Code>
-        <Info>Grab a free testnet API key from <a href="https://t.me/tonapibot" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">@tonapibot</a> and testnet TON from <a href="https://t.me/testgiver_ton_bot" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">@testgiver_ton_bot</a>.</Info>
 
         <H2>Custom Endpoint</H2>
         <Code label="Python">{`client = EnactClient(
