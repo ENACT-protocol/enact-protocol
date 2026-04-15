@@ -478,9 +478,16 @@ class EnactClient:
 
     # ───────────────────────────── helpers ─────────────────────────────
 
+    async def _get_seqno(self, wallet: WalletV5R1) -> int:
+        """Wrap tonutils' ``WalletV5R1.get_seqno`` which is a classmethod in
+        tonutils>=0.5 (was an instance method in 0.4.x). We call it in the
+        classmethod form so both old and new releases work.
+        """
+        return await WalletV5R1.get_seqno(self._client, wallet.address)
+
     async def _send(self, to: Address, value_nano: int, body: Cell) -> str:
         wallet = await self._ensure_wallet()
-        initial_seqno = await wallet.get_seqno()
+        initial_seqno = await self._get_seqno(wallet)
         message = wallet.create_wallet_internal_message(
             destination=to, value=value_nano, body=body
         )
@@ -503,7 +510,7 @@ class EnactClient:
         for delay in delays:
             await asyncio.sleep(delay)
             try:
-                current = await wallet.get_seqno()
+                current = await self._get_seqno(wallet)
             except Exception:
                 continue
             if current > initial_seqno:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "enact-langchain"
-version = "0.1.2"
+version = "0.1.3"
 description = "LangChain tools for ENACT Protocol — trustless escrow for AI agents on TON"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,7 +23,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "enact-protocol>=0.1.1,<0.2.0",
+    "enact-protocol>=0.1.3,<0.2.0",
     "langchain-core>=0.3,<1.0",
     "pydantic>=2.0,<3.0",
 ]
