@@ -13,7 +13,7 @@ Quick start::
 """
 from __future__ import annotations
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from .client import EnactClient
 from .constants import (

@@ -80,7 +80,7 @@ Put a human-in-the-loop check in front of any write tool in production.
 
 - Docs: https://enact.info/docs/langchain
 - Core SDK: https://pypi.org/project/enact-protocol/
-- Source: https://github.com/ENACT-protocol/enact-protocol
+- Source: https://github.com/ENACT-protocol/enact-protocol/tree/master/python/enact-langchain
 
 ## License
 

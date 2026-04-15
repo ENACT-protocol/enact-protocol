@@ -1248,7 +1248,7 @@ await executor.ainvoke({"input": "EQ..."})`}</Code>
         <H2>OpenAI or Anthropic</H2>
         <P>ENACT tools work with any LangChain chat model that supports tool calling. Swap <IC>ChatAnthropic</IC> for <IC>ChatOpenAI</IC> (from <IC>langchain-openai</IC>) without changing the tool wiring.</P>
 
-        <Tip>See <a href="https://pypi.org/project/enact-langchain/" target="_blank" rel="noopener noreferrer" className="underline">pypi.org/project/enact-langchain</a> and the <a href="https://github.com/ENACT-protocol/enact-protocol" target="_blank" rel="noopener noreferrer" className="underline">repository</a> for the latest examples.</Tip>
+        <Tip>See <a href="https://pypi.org/project/enact-langchain/" target="_blank" rel="noopener noreferrer" className="underline">pypi.org/project/enact-langchain</a> and the <a href="https://github.com/ENACT-protocol/enact-protocol/tree/master/python/enact-langchain" target="_blank" rel="noopener noreferrer" className="underline">source on GitHub</a> for the latest examples.</Tip>
 
         <DocNav prev={{ slug: 'agent-skills', title: 'Agent Skills' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
       </>
@@ -1550,7 +1550,7 @@ await client.fund_jetton_job(job_addr)`}</Code>
     build_set_jetton_wallet_message,
 )`}</Code>
 
-        <Tip>See <a href="https://pypi.org/project/enact-protocol/" target="_blank" rel="noopener noreferrer" className="underline">pypi.org/project/enact-protocol</a> and the <a href="https://github.com/ENACT-protocol/enact-protocol" target="_blank" rel="noopener noreferrer" className="underline">GitHub repo</a> for full documentation.</Tip>
+        <Tip>See <a href="https://pypi.org/project/enact-protocol/" target="_blank" rel="noopener noreferrer" className="underline">pypi.org/project/enact-protocol</a> and the <a href="https://github.com/ENACT-protocol/enact-protocol/tree/master/python/enact-protocol" target="_blank" rel="noopener noreferrer" className="underline">source on GitHub</a> for full documentation.</Tip>
 
         <DocNav prev={{ slug: 'npm-sdk', title: 'NPM SDK' }} next={{ slug: 'tech-stack', title: 'Tech Stack' }} />
       </>

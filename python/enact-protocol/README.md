@@ -92,7 +92,7 @@ ENACT tools into any LangChain agent.
 ## Links
 
 - Docs: https://enact.info/docs/python-sdk
-- Source: https://github.com/ENACT-protocol/enact-protocol
+- Source: https://github.com/ENACT-protocol/enact-protocol/tree/master/python/enact-protocol
 - NPM SDK (reference): https://www.npmjs.com/package/@enact-protocol/sdk
 
 ## License
