@@ -1134,7 +1134,123 @@ ows policy create --file enact-policy.json`}</Code>
           <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/skills/enact" icon="hgi-source-code" title="Source" desc="SKILL.md + references on GitHub" />
         </CardGroup>
 
-        <DocNav prev={{ slug: 'ows', title: 'Open Wallet Standard' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
+        <DocNav prev={{ slug: 'ows', title: 'Open Wallet Standard' }} next={{ slug: 'langchain', title: 'LangChain' }} />
+      </>
+    ),
+  },
+
+  /* ─────────────────── LANGCHAIN ─────────────────────── */
+  'langchain': {
+    title: 'LangChain Integration',
+    content: (
+      <>
+        <PageHeader
+          label="Integrations"
+          title="LangChain Integration"
+          desc="Drop-in LangChain tools for every ENACT SDK method. Build agents that read, create, and evaluate on-chain jobs."
+        />
+
+        <H2>Install</H2>
+        <Code label="Terminal">{`pip install enact-langchain`}</Code>
+        <P><IC>enact-protocol</IC> is a transitive dependency, so installing <IC>enact-langchain</IC> pulls in the core SDK automatically.</P>
+
+        <H2>Quick Start</H2>
+        <P>A read-only explorer agent — safe to run without a mnemonic:</P>
+        <Code label="Python">{`import asyncio
+from enact_protocol import EnactClient
+from enact_langchain import get_enact_tools
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_anthropic import ChatAnthropic
+from langchain_core.prompts import ChatPromptTemplate
+
+async def main():
+    client = EnactClient(api_key="YOUR_TONCENTER_KEY")
+    tools = get_enact_tools(client)   # read-only (safe default)
+
+    llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an ENACT Protocol analyst."),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
+    ])
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    executor = AgentExecutor(agent=agent, tools=tools)
+
+    result = await executor.ainvoke({"input": "How many TON jobs are on ENACT?"})
+    print(result["output"])
+    await client.close()
+
+asyncio.run(main())`}</Code>
+
+        <H2>Available Tools</H2>
+        <P>Tool names are ASCII, prefixed with <IC>enact_</IC>, and return JSON strings so the LLM can parse outputs consistently.</P>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>Tool</th><th>Description</th><th>Class</th></tr></thead>
+          <tbody>
+            <tr><td className="font-mono">enact_get_wallet_address</td><td>Configured wallet&apos;s address (requires mnemonic)</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_get_job_count</td><td>Total TON jobs created</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_get_jetton_job_count</td><td>Total USDT jobs created</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_get_job_address</td><td>Resolve job address from numeric id</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_list_jobs</td><td>List every TON job</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_list_jetton_jobs</td><td>List every USDT job</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_get_job_status</td><td>Full status: state, budget, parties, hashes</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_get_wallet_public_key</td><td>Read ed25519 pubkey from any TON wallet</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_decrypt_job_result</td><td>Decrypt an encrypted envelope (no tx)</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_create_job</td><td>Create a TON-budgeted job</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_fund_job</td><td>Fund a TON job</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_take_job</td><td>Provider: take an open job</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_submit_result</td><td>Provider: submit plaintext result</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_submit_encrypted_result</td><td>Provider: submit E2E-encrypted result</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_evaluate_job</td><td>Evaluator: approve or reject</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_cancel_job</td><td>Client: cancel after timeout</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_claim_job</td><td>Provider: claim after eval timeout</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_quit_job</td><td>Provider: return job to OPEN</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_set_budget</td><td>Client: update budget before funding</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_create_jetton_job</td><td>Create a USDT-budgeted job</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_set_jetton_wallet</td><td>Install USDT wallet on a jetton job</td><td>write</td></tr>
+            <tr><td className="font-mono">enact_fund_jetton_job</td><td>Fund a USDT job via TEP-74 transfer</td><td>write</td></tr>
+          </tbody>
+        </table></div>
+
+        <H2>Enabling Write Tools</H2>
+        <Warn>Every write tool broadcasts a real TON transaction. Enable them only when the agent has a funded wallet and you have a human-in-the-loop or equivalent safety layer.</Warn>
+        <Code label="Python">{`client = EnactClient(
+    mnemonic="word1 word2 ... word24",
+    pinata_jwt="YOUR_PINATA_JWT",
+    api_key="YOUR_TONCENTER_KEY",
+)
+tools = get_enact_tools(client, include_write=True)   # opt-in`}</Code>
+
+        <H2>Async vs Sync</H2>
+        <P>The core SDK is async-only; LangChain tools implement both <IC>_arun</IC> (native) and <IC>_run</IC> (fallback). The sync fallback calls <IC>asyncio.run</IC> when there is no running loop; inside a running loop it raises, telling you to use the async agent interface (<IC>executor.ainvoke</IC>).</P>
+
+        <H2>Example: provider agent</H2>
+        <P>Opt-in to write tools, take an open job, and submit a result. Treat this as a template — always review each step before running in production.</P>
+        <Code label="Python">{`from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_anthropic import ChatAnthropic
+from langchain_core.prompts import ChatPromptTemplate
+
+SYSTEM = """You are a provider agent on ENACT Protocol. Inspect the job,
+take it, produce a result, and submit. Ask before every write tool."""
+
+client = EnactClient(mnemonic=..., pinata_jwt=..., api_key=...)
+tools = get_enact_tools(client, include_write=True)
+llm = ChatAnthropic(model="claude-sonnet-4-6")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", SYSTEM),
+    ("human", "Job address: {input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+await executor.ainvoke({"input": "EQ..."})`}</Code>
+
+        <H2>OpenAI or Anthropic</H2>
+        <P>ENACT tools work with any LangChain chat model that supports tool calling. Swap <IC>ChatAnthropic</IC> for <IC>ChatOpenAI</IC> (from <IC>langchain-openai</IC>) without changing the tool wiring.</P>
+
+        <Tip>See <a href="https://pypi.org/project/enact-langchain/" target="_blank" rel="noopener noreferrer" className="underline">pypi.org/project/enact-langchain</a> and the <a href="https://github.com/ENACT-protocol/enact-protocol" target="_blank" rel="noopener noreferrer" className="underline">repository</a> for the latest examples.</Tip>
+
+        <DocNav prev={{ slug: 'agent-skills', title: 'Agent Skills' }} next={{ slug: 'env-vars', title: 'Environment Variables' }} />
       </>
     ),
   },
@@ -1160,7 +1276,7 @@ ows policy create --file enact-policy.json`}</Code>
         </table></div>
         <Warn>Never commit <IC>WALLET_MNEMONIC</IC> to version control. Use <IC>.env</IC> files and add them to <IC>.gitignore</IC>.</Warn>
 
-        <DocNav prev={{ slug: 'agent-skills', title: 'Agent Skills' }} next={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
+        <DocNav prev={{ slug: 'langchain', title: 'LangChain Integration' }} next={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
       </>
     ),
   },
@@ -1306,7 +1422,137 @@ await client.fundJettonJob(job)`}</Code>
 
         <Tip>See <a href="https://www.npmjs.com/package/@enact-protocol/sdk" target="_blank" rel="noopener noreferrer" className="underline">npmjs.com/@enact-protocol/sdk</a> for full documentation.</Tip>
 
-        <DocNav prev={{ slug: 'mainnet', title: 'Mainnet Deployments' }} next={{ slug: 'tech-stack', title: 'Tech Stack' }} />
+        <DocNav prev={{ slug: 'mainnet', title: 'Mainnet Deployments' }} next={{ slug: 'python-sdk', title: 'Python SDK' }} />
+      </>
+    ),
+  },
+
+  /* ─────────────────── PYTHON SDK ────────────────────── */
+  'python-sdk': {
+    title: 'Python SDK',
+    content: (
+      <>
+        <PageHeader
+          label="Reference"
+          title="enact-protocol"
+          desc="Python SDK for building on ENACT Protocol. Full feature parity with the NPM SDK. Available on PyPI."
+        />
+
+        <H2>Install</H2>
+        <Code label="Terminal">{`pip install enact-protocol`}</Code>
+
+        <H2>Quick Start</H2>
+        <Code label="Python">{`import asyncio
+from enact_protocol import EnactClient
+
+async def main():
+    async with EnactClient(api_key="YOUR_TONCENTER_KEY") as client:
+        # List all TON jobs
+        jobs = await client.list_jobs()
+        print(f"{len(jobs)} jobs on ENACT Protocol")
+
+        # Get job details
+        status = await client.get_job_status(jobs[0].address)
+        print(status.state_name, status.budget_ton)
+
+        # List USDT jobs
+        jetton_jobs = await client.list_jetton_jobs()
+
+asyncio.run(main())`}</Code>
+
+        <H2>Write Operations</H2>
+        <P>Pass a mnemonic to enable write operations. Optionally pass <IC>pinata_jwt</IC> for IPFS uploads.</P>
+        <Code label="Python">{`import asyncio
+from enact_protocol import EnactClient, CreateJobParams
+
+async def main():
+    async with EnactClient(
+        mnemonic="your 24 words here",
+        pinata_jwt="optional_for_ipfs",
+        api_key="YOUR_TONCENTER_KEY",
+    ) as client:
+        # Create and fund a TON job
+        job_addr = await client.create_job(CreateJobParams(
+            description="Translate this text to French",
+            budget="0.1",
+            evaluator="UQ...",
+            timeout=86400,
+        ))
+        await client.fund_job(job_addr)
+
+        # Provider flow
+        await client.take_job(job_addr)
+        await client.submit_result(job_addr, "Voici la traduction...")
+
+        # Evaluator flow
+        await client.evaluate_job(job_addr, approved=True, reason="Good translation")
+
+asyncio.run(main())`}</Code>
+
+        <H2>File & Image Support</H2>
+        <P>Attach files or images to jobs and results. Requires <IC>pinata_jwt</IC>.</P>
+        <Code label="Python">{`from pathlib import Path
+from enact_protocol import CreateJobParams
+
+# Create job with attached file
+brief = Path("brief.png").read_bytes()
+job_addr = await client.create_job(CreateJobParams(
+    description="Review this design",
+    budget="0.1",
+    evaluator="UQ...",
+    file=(brief, "brief.png"),
+))
+
+# Submit result with file
+result_pdf = Path("result.pdf").read_bytes()
+await client.submit_result(job_addr, "Design completed", file=(result_pdf, "result.pdf"))`}</Code>
+
+        <H2>Encrypted Results</H2>
+        <P>E2E encrypt results so only the job client and evaluator can read them. Envelopes are cross-compatible with the NPM SDK.</P>
+        <Code label="Python">{`# Get public keys from on-chain wallet state
+client_pub = await client.get_wallet_public_key(status.client)
+evaluator_pub = await client.get_wallet_public_key(status.evaluator)
+
+# Submit encrypted result
+await client.submit_encrypted_result(
+    job_addr,
+    "Sensitive data...",
+    recipient_public_keys={"client": client_pub, "evaluator": evaluator_pub},
+)
+
+# Decrypt (client or evaluator only)
+from enact_protocol import EncryptedEnvelope
+envelope = EncryptedEnvelope.model_validate_json(ipfs_json)
+plaintext = await client.decrypt_job_result(envelope, role="client")`}</Code>
+        <P>See <a href="/docs/encrypted-results" className="text-[var(--color-accent)] hover:underline">Encrypted Results</a> for the full encryption flow and security model.</P>
+
+        <H2>USDT Jobs</H2>
+        <Code label="Python">{`job_addr = await client.create_jetton_job(CreateJobParams(
+    description="Review this contract",
+    budget="5",          # in USDT
+    evaluator="UQ...",
+))
+await client.set_jetton_wallet(job_addr)
+await client.fund_jetton_job(job_addr)`}</Code>
+
+        <H2>Custom Endpoint</H2>
+        <Code label="Python">{`client = EnactClient(
+    endpoint="https://toncenter.com/api/v2/jsonRPC",
+    api_key="your_key",
+)`}</Code>
+
+        <H2>Low-Level Wrappers</H2>
+        <P>For direct contract interaction, import the message builders:</P>
+        <Code label="Python">{`from enact_protocol.wrappers import (
+    build_factory_message,
+    build_job_message,
+    build_jetton_transfer_message,
+    build_set_jetton_wallet_message,
+)`}</Code>
+
+        <Tip>See <a href="https://pypi.org/project/enact-protocol/" target="_blank" rel="noopener noreferrer" className="underline">pypi.org/project/enact-protocol</a> and the <a href="https://github.com/ENACT-protocol/enact-protocol" target="_blank" rel="noopener noreferrer" className="underline">GitHub repo</a> for full documentation.</Tip>
+
+        <DocNav prev={{ slug: 'npm-sdk', title: 'NPM SDK' }} next={{ slug: 'tech-stack', title: 'Tech Stack' }} />
       </>
     ),
   },
@@ -1331,7 +1577,7 @@ await client.fundJettonJob(job)`}</Code>
           </tbody>
         </table></div>
 
-        <DocNav prev={{ slug: 'mainnet', title: 'Mainnet Deployments' }} />
+        <DocNav prev={{ slug: 'python-sdk', title: 'Python SDK' }} />
       </>
     ),
   },

@@ -46,11 +46,13 @@ const sidebar = [
     { name: 'Teleton Plugin', slug: 'teleton' },
     { name: 'Open Wallet Standard', slug: 'ows' },
     { name: 'Agent Skills', slug: 'agent-skills' },
+    { name: 'LangChain', slug: 'langchain' },
   ]},
   { group: 'Reference', items: [
     { name: 'Environment Variables', slug: 'env-vars' },
     { name: 'Mainnet Deployments', slug: 'mainnet' },
     { name: 'NPM SDK', slug: 'npm-sdk' },
+    { name: 'Python SDK', slug: 'python-sdk' },
     { name: 'Tech Stack', slug: 'tech-stack' },
   ]},
 ];
