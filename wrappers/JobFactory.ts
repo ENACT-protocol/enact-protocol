@@ -19,8 +19,6 @@ export const FactoryOpcodes = {
 export type JobFactoryConfig = {
     owner: Address;
     jobCode: Cell;
-    protocolFeeBps?: number;
-    feeCollector?: Address;
 };
 
 export function jobFactoryConfigToCell(config: JobFactoryConfig): Cell {
@@ -28,8 +26,6 @@ export function jobFactoryConfigToCell(config: JobFactoryConfig): Cell {
         .storeAddress(config.owner)
         .storeRef(config.jobCode)
         .storeUint(0, 32) // nextJobId
-        .storeUint(config.protocolFeeBps ?? 0, 16) // protocolFeeBps
-        .storeAddress(config.feeCollector ?? config.owner) // feeCollector
         .endCell();
 }
 

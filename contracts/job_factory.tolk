@@ -5,22 +5,25 @@ import "@stdlib/gas-payments"
 // ===================== CONSTANTS =====================
 
 const ERR_ACCESS_DENIED: int = 200;
-const ERR_INVALID_FEE: int = 201;
 const ERR_INVALID_TIMEOUT: int = 202;
 const ERR_OVERFLOW: int = 203;
 
-const MAX_FEE_BPS: int = 1000;  // Max 10% fee cap — prevents abuse
 const MIN_TIMEOUT: int = 3600;      // Min 1 hour
 const MAX_TIMEOUT: int = 2592000;   // Max 30 days
 
 // ===================== STORAGE =====================
 
+// The protocol charges no fee and the factory has no fee-collection
+// logic; the v1 layout carried `protocolFeeBps` and `feeCollector`
+// fields that were never read anywhere in the codebase. Keeping dead
+// storage fields is a smell for external auditors and makes the
+// layout harder to evolve, so they are removed in v2. If a future
+// version ever reintroduces fees it should go through a new factory
+// version and a deliberate migration, not reuse vestigial slots.
 struct FactoryStorage {
     owner: address;
     jobCode: cell;
     nextJobId: uint32;
-    protocolFeeBps: uint16;
-    feeCollector: address;
 }
 
 fun FactoryStorage.load(): FactoryStorage {

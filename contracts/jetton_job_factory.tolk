@@ -5,22 +5,21 @@ import "@stdlib/gas-payments"
 // ===================== CONSTANTS =====================
 
 const ERR_ACCESS_DENIED: int = 200;
-const ERR_INVALID_FEE: int = 201;
 const ERR_INVALID_TIMEOUT: int = 202;
 const ERR_OVERFLOW: int = 203;
 
-const MAX_FEE_BPS: int = 1000;
 const MIN_TIMEOUT: int = 3600;
 const MAX_TIMEOUT: int = 2592000;
 
 // ===================== STORAGE =====================
 
+// Dead fields (`protocolFeeBps`, `feeCollector`) from the v1 layout
+// removed — see job_factory.tolk for the full reasoning. v2 charges
+// zero protocol fee by design.
 struct FactoryStorage {
     owner: address;
     jobCode: cell;
     nextJobId: uint32;
-    protocolFeeBps: uint16;
-    feeCollector: address;
 }
 
 fun FactoryStorage.load(): FactoryStorage {
