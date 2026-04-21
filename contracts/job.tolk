@@ -259,6 +259,12 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
 
+            // BUG-2 fix: evaluator must not be able to take their own job,
+            // otherwise they could accept-and-self-approve for a free payout.
+            var ds = det.beginParse();
+            val evaluator = ds.loadAddress();
+            assert(in.senderAddress != evaluator) throw ERR_ACCESS_DENIED;
+
             saveData(jobId, factory, client, in.senderAddress, STATE_FUNDED, det);
 
             // Return excess

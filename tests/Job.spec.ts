@@ -696,4 +696,36 @@ describe('Job', () => {
             exitCode: 101, // ERR_INVALID_STATE
         });
     });
+
+    // ========== BUG-2: evaluator cannot be provider ==========
+
+    it('TakeJob is rejected when sender equals the configured evaluator', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+
+        // The evaluator attempts to take their own job; self-dealing
+        // would let them approve their own submission for a free payout.
+        const r = await job.sendTakeJob(evaluator.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: evaluator.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+        expect(await job.getState()).toBe(1); // still FUNDED, provider unset
+    });
+
+    it('TakeJob succeeds when sender is not the evaluator', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+
+        const r = await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: true,
+        });
+        const data = await job.getJobData();
+        expect(data.providerAddress?.toString()).toBe(provider.address.toString());
+    });
 });
