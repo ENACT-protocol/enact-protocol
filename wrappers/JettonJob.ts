@@ -20,8 +20,25 @@ export const JettonJobOpcodes = {
     quit: 0x00000008,
     setBudget: 0x00000009,
     setJettonWallet: 0x0000000a,
+    retryTransfer: 0x0000000b,
+    commitSettlement: 0x0000000c,
+    emergencyReclaim: 0x0000000d,
     transferNotification: 0x7362d09c,
 };
+
+// State constants matching jetton_job.tolk STATE_* values. Mirrors Job's
+// JobState with the same numeric values for the same semantic states.
+export const JettonJobState = {
+    OPEN: 0,
+    FUNDED: 1,
+    SUBMITTED: 2,
+    COMPLETED: 3,
+    DISPUTED: 4,
+    CANCELLED: 5,
+    SETTLING_COMPLETED: 6,
+    SETTLING_DISPUTED: 7,
+    SETTLING_CANCELLED: 8,
+} as const;
 
 export type JettonJobConfig = {
     jobId: number;
@@ -186,6 +203,41 @@ export class JettonJob implements Contract {
                 .storeUint(JettonJobOpcodes.setBudget, 32)
                 .storeCoins(budget)
                 .endCell(),
+        });
+    }
+
+    // Recipient re-sends the jetton payout while the contract is still
+    // SETTLING_* (previous transfer never landed). Callable by provider
+    // for SETTLING_COMPLETED and by client for SETTLING_DISPUTED/CANCELLED.
+    async sendRetryTransfer(provider: ContractProvider, via: Sender, value: bigint) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell().storeUint(JettonJobOpcodes.retryTransfer, 32).endCell(),
+        });
+    }
+
+    // Recipient-only: promote SETTLING_X -> X, asserting they received
+    // the jetton payout. Unlike Job (TON) where anyone can commit with a
+    // balance proof, jettons live on a separate wallet so this is a
+    // trust-the-recipient pattern; client/provider are both incentive-
+    // aligned to only commit when they actually got paid.
+    async sendCommitSettlement(provider: ContractProvider, via: Sender, value: bigint) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell().storeUint(JettonJobOpcodes.commitSettlement, 32).endCell(),
+        });
+    }
+
+    // Client-only escape hatch. After TIMEOUT_BYPASS (30 days) since job
+    // creation, a SETTLING job can be force-closed by the client, who
+    // receives the jetton payout. State becomes DISPUTED permanently.
+    async sendEmergencyReclaim(provider: ContractProvider, via: Sender, value: bigint) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell().storeUint(JettonJobOpcodes.emergencyReclaim, 32).endCell(),
         });
     }
 

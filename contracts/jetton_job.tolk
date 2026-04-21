@@ -10,6 +10,13 @@ const STATE_SUBMITTED: int = 2;
 const STATE_COMPLETED: int = 3;
 const STATE_DISPUTED: int = 4;
 const STATE_CANCELLED: int = 5;
+// Intermediate "parking orbit" states — jetton payout in flight. See BUG-1
+// two-phase settlement design. The jetton contract variant cannot prove
+// drain on-chain (jettons live on a separate jetton wallet), so commit is
+// recipient-only here (vs. anyone-with-balance-check in job.tolk).
+const STATE_SETTLING_COMPLETED: int = 6;
+const STATE_SETTLING_DISPUTED: int = 7;
+const STATE_SETTLING_CANCELLED: int = 8;
 
 const ERR_ACCESS_DENIED: int = 100;
 const ERR_INVALID_STATE: int = 101;
@@ -20,8 +27,13 @@ const ERR_EVAL_TIMEOUT_NOT_EXPIRED: int = 105;
 const ERR_BUDGET_NOT_SET: int = 106;
 const ERR_NO_PROVIDER: int = 107;
 const ERR_JETTON_WALLET_NOT_SET: int = 108;
+const ERR_BYPASS_NOT_ALLOWED: int = 110;
 
 const MIN_STORAGE: int = 5000000;   // 0.005 TON reserve for storage fees
+// Emergency escape hatch: after this duration in SETTLING, the client can
+// pull remaining funds regardless of the configured recipient. Prevents any
+// scenario where a permanently unreachable recipient locks a job forever.
+const TIMEOUT_BYPASS: int = 2592000;  // 30 days
 
 const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 
@@ -180,6 +192,27 @@ struct (0x0000000A) SetJettonWallet {
     jettonWallet: address;
 }
 
+// ---------- Two-phase settlement opcodes (BUG-1 fix) ----------
+// RetryTransfer: rightful recipient re-sends the jetton payout while the
+// contract is still in a SETTLING_* state (the previous jetton transfer
+// bounced or never landed). Re-runs sendJettonPayout with the stored budget.
+struct (0x0000000B) RetryTransfer {}
+
+// CommitSettlement: the rightful recipient promotes SETTLING_X -> X,
+// asserting that they received the jetton payout. Unlike job.tolk we
+// cannot prove payout drain on-chain for jettons (they live on a separate
+// jetton wallet), so this is recipient-signed. A malicious or careless
+// recipient who commits before actually receiving only locks themselves
+// out of further retries; they can still receive via EmergencyReclaim
+// after TIMEOUT_BYPASS.
+struct (0x0000000C) CommitSettlement {}
+
+// EmergencyReclaim: the client pulls remaining funds after TIMEOUT_BYPASS
+// has elapsed since job creation. Exits to STATE_DISPUTED permanently and
+// sends a jetton payout to the client. Last-resort escape if the intended
+// recipient is permanently unreachable.
+struct (0x0000000D) EmergencyReclaim {}
+
 struct (0x7362d09c) TransferNotification {
     queryId: uint64;
     amount: coins;
@@ -197,6 +230,9 @@ type AllowedMessage =
     | QuitJob
     | SetBudget
     | SetJettonWallet
+    | RetryTransfer
+    | CommitSettlement
+    | EmergencyReclaim
 
 // ===================== HANDLER =====================
 
@@ -336,11 +372,14 @@ fun onInternalMessage(in: InMessage) {
 
             val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, msg.reason, jettonWallet);
 
+            // Two-phase settlement: park in SETTLING_* while the jetton
+            // transfer is in flight. If it bounces the state stays
+            // SETTLING_* and the recipient can call RetryTransfer.
             if (msg.approved != 0) {
-                saveData(jobId, factory, client, provider, STATE_COMPLETED, newDet);
+                saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, newDet);
                 sendJettonPayout(jettonWallet, budget, provider!, evaluator);
             } else {
-                saveData(jobId, factory, client, provider, STATE_DISPUTED, newDet);
+                saveData(jobId, factory, client, provider, STATE_SETTLING_DISPUTED, newDet);
                 sendJettonPayout(jettonWallet, budget, client, evaluator);
             }
         }
@@ -355,7 +394,7 @@ fun onInternalMessage(in: InMessage) {
             val evalDeadline = submittedAt + evalTimeout;
             assert(blockchain.now() >= evalDeadline) throw ERR_EVAL_TIMEOUT_NOT_EXPIRED;
 
-            saveData(jobId, factory, client, provider, STATE_COMPLETED, detCell);
+            saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, detCell);
             sendJettonPayout(jettonWallet, budget, provider!, provider!);
         }
 
@@ -368,7 +407,81 @@ fun onInternalMessage(in: InMessage) {
             val deadline = createdAt + timeout;
             assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
-            saveData(jobId, factory, client, provider, STATE_CANCELLED, detCell);
+            saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
+            sendJettonPayout(jettonWallet, budget, client, client);
+        }
+
+        RetryTransfer => {
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(
+                state == STATE_SETTLING_COMPLETED
+                || state == STATE_SETTLING_DISPUTED
+                || state == STATE_SETTLING_CANCELLED
+            ) throw ERR_INVALID_STATE;
+
+            val (_, budget, _, _, _, _, _, _, _, _, jettonWallet) = loadDetails(detCell);
+
+            // Recipient depends on which terminal branch we were headed for.
+            var recipient: address = client;
+            if (state == STATE_SETTLING_COMPLETED) {
+                assert(provider != null) throw ERR_NO_PROVIDER;
+                recipient = provider!;
+            }
+            assert(in.senderAddress == recipient) throw ERR_ACCESS_DENIED;
+
+            // Re-issue the jetton transfer. Excess TON returns to caller.
+            sendJettonPayout(jettonWallet, budget, recipient, in.senderAddress);
+        }
+
+        CommitSettlement => {
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(
+                state == STATE_SETTLING_COMPLETED
+                || state == STATE_SETTLING_DISPUTED
+                || state == STATE_SETTLING_CANCELLED
+            ) throw ERR_INVALID_STATE;
+
+            // Recipient-only: only the party that would have received the
+            // jettons can assert that settlement is done. We cannot verify
+            // jetton balance on a separate jetton wallet from here.
+            var recipient: address = client;
+            if (state == STATE_SETTLING_COMPLETED) {
+                assert(provider != null) throw ERR_NO_PROVIDER;
+                recipient = provider!;
+            }
+            assert(in.senderAddress == recipient) throw ERR_ACCESS_DENIED;
+
+            var finalState: int = STATE_CANCELLED;
+            if (state == STATE_SETTLING_COMPLETED) {
+                finalState = STATE_COMPLETED;
+            } else if (state == STATE_SETTLING_DISPUTED) {
+                finalState = STATE_DISPUTED;
+            }
+            saveData(jobId, factory, client, provider, finalState, detCell);
+
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
+        }
+
+        EmergencyReclaim => {
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
+            assert(
+                state == STATE_SETTLING_COMPLETED
+                || state == STATE_SETTLING_DISPUTED
+                || state == STATE_SETTLING_CANCELLED
+            ) throw ERR_INVALID_STATE;
+
+            val (_, budget, _, _, _, createdAt, _, _, _, _, jettonWallet) = loadDetails(detCell);
+            assert(blockchain.now() >= createdAt + TIMEOUT_BYPASS) throw ERR_BYPASS_NOT_ALLOWED;
+
+            // Exit SETTLING permanently into DISPUTED with the jetton
+            // payout directed at the client regardless of the prior branch.
+            saveData(jobId, factory, client, provider, STATE_DISPUTED, detCell);
             sendJettonPayout(jettonWallet, budget, client, client);
         }
 

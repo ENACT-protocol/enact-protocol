@@ -98,6 +98,9 @@ describe('JettonJob', () => {
 
         // Approve
         const approveResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // Now in SETTLING_COMPLETED until recipient commits.
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+        await job.sendCommitSettlement(provider.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
 
         // Verify Jetton transfer was sent to jettonWallet (payout to provider)
@@ -115,6 +118,8 @@ describe('JettonJob', () => {
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
         const rejectResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), false);
+        expect(await job.getState()).toBe(7); // SETTLING_DISPUTED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(4); // DISPUTED
 
         // Verify Jetton transfer sent (refund to client via jettonWallet)
@@ -133,6 +138,8 @@ describe('JettonJob', () => {
         blockchain.now = Math.floor(Date.now() / 1000) + TIMEOUT + 1;
 
         const cancelResult = await job.sendCancel(client.getSender(), toNano('0.05'));
+        expect(await job.getState()).toBe(8); // SETTLING_CANCELLED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(5); // CANCELLED
 
         // Verify Jetton refund sent
@@ -279,6 +286,8 @@ describe('JettonJob', () => {
         blockchain.now = jobData.submittedAt + EVAL_TIMEOUT + 1;
 
         const claimResult = await job.sendClaim(provider.getSender(), toNano('0.05'));
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+        await job.sendCommitSettlement(provider.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
 
         // Verify Jetton payout sent
@@ -426,6 +435,135 @@ describe('JettonJob', () => {
             from: outsider.address,
             to: job.address,
             exitCode: 100,
+        });
+    });
+
+    // ========== BUG-1: TWO-PHASE SETTLEMENT (jetton) ==========
+
+    it('CommitSettlement is rejected outside a SETTLING_* state', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        // State is FUNDED (1), not SETTLING_*.
+        const r = await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
+        });
+    });
+
+    it('RetryTransfer is rejected outside a SETTLING_* state', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
+        });
+    });
+
+    it('RetryTransfer in SETTLING_COMPLETED is rejected for non-recipients', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // State is SETTLING_COMPLETED. Outsider is not the provider.
+        const r = await job.sendRetryTransfer(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+    });
+
+    it('CommitSettlement is rejected for non-recipients', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // State is SETTLING_COMPLETED. Only the provider may commit.
+        const r = await job.sendCommitSettlement(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+    });
+
+    it('EmergencyReclaim is rejected before TIMEOUT_BYPASS', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // State is SETTLING_COMPLETED. Bypass not yet allowed.
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: false,
+            exitCode: 110, // ERR_BYPASS_NOT_ALLOWED
+        });
+    });
+
+    it('EmergencyReclaim is rejected when called by a non-client', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        const r = await job.sendEmergencyReclaim(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+    });
+
+    it('EmergencyReclaim succeeds after TIMEOUT_BYPASS and exits to DISPUTED', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+
+        // Fast-forward past the 30-day bypass timeout.
+        blockchain.now = Math.floor(Date.now() / 1000) + 2592000 + 100;
+
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: true,
+        });
+        expect(await job.getState()).toBe(4); // DISPUTED (permanent exit)
+    });
+
+    it('After CommitSettlement finalizes COMPLETED, RetryTransfer is no longer allowed', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendCommitSettlement(provider.getSender(), toNano('0.05'));
+        expect(await job.getState()).toBe(3); // COMPLETED
+
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
         });
     });
 });
