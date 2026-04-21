@@ -718,4 +718,40 @@ describe('JettonJob', () => {
         });
         expect(await job.getState()).toBe(0); // still OPEN
     });
+
+    // ========== SetJettonWallet is one-shot ==========
+
+    it('a second SetJettonWallet is rejected after the first one succeeded', async () => {
+        const job = await deployFactoryAndCreateJob();
+
+        // First call: installs the real wallet.
+        const first = await job.sendSetJettonWallet(
+            client.getSender(),
+            toNano('0.05'),
+            jettonWalletTreasury.address,
+        );
+        expect(first.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: true,
+        });
+
+        // Second call should fail — changing the wallet address would
+        // strand any jettons the client may have already sent.
+        const second = await job.sendSetJettonWallet(
+            client.getSender(),
+            toNano('0.05'),
+            outsider.address, // pretend: different wallet
+        );
+        expect(second.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
+        });
+
+        // Original wallet is preserved.
+        const data = await job.getJobData();
+        expect(data.jettonWallet.equals(jettonWalletTreasury.address)).toBe(true);
+    });
 });

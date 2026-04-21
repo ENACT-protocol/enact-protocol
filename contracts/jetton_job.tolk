@@ -273,7 +273,16 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, _) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, currentWallet) = loadDetails(detCell);
+            // Disallow a second SetJettonWallet. InitJob stores the factory
+            // address as a sentinel placeholder, so a real jetton wallet
+            // has been installed iff currentWallet != factory. If the
+            // client sent USDT to the wrong wallet already, changing the
+            // wallet here would strand those jettons on the old one —
+            // cleaner to require them to cancel the job (now possible in
+            // STATE_OPEN after the earlier fix) and recreate.
+            assert(currentWallet == factory) throw ERR_INVALID_STATE;
+
             val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, msg.jettonWallet);
             saveData(jobId, factory, client, provider, STATE_OPEN, newDet);
 
