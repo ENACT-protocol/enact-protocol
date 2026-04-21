@@ -10,6 +10,11 @@ const STATE_SUBMITTED: int = 2;
 const STATE_COMPLETED: int = 3;
 const STATE_DISPUTED: int = 4;
 const STATE_CANCELLED: int = 5;
+// Intermediate "parking orbit" states — payout in flight, funds still on
+// contract if the outbound bounced. See BUG-1 two-phase settlement design.
+const STATE_SETTLING_COMPLETED: int = 6;
+const STATE_SETTLING_DISPUTED: int = 7;
+const STATE_SETTLING_CANCELLED: int = 8;
 
 const ERR_ACCESS_DENIED: int = 100;
 const ERR_INVALID_STATE: int = 101;
@@ -19,8 +24,15 @@ const ERR_INSUFFICIENT_FUNDS: int = 104;
 const ERR_EVAL_TIMEOUT_NOT_EXPIRED: int = 105;
 const ERR_BUDGET_NOT_SET: int = 106;
 const ERR_NO_PROVIDER: int = 107;
+const ERR_NOTHING_TO_RETRY: int = 108;
+const ERR_SETTLEMENT_NOT_DRAINED: int = 109;
+const ERR_BYPASS_NOT_ALLOWED: int = 110;
 
 const MIN_STORAGE: int = 10000000;  // 0.01 TON reserve for storage fees
+// Emergency escape hatch: after this duration in SETTLING, the client can
+// pull remaining funds regardless of the configured recipient. Prevents any
+// scenario where a permanently unreachable recipient locks a job forever.
+const TIMEOUT_BYPASS: int = 2592000;  // 30 days
 
 // ===================== STORAGE LAYOUT =====================
 // Main cell:
@@ -146,6 +158,21 @@ struct (0x00000009) SetBudget {
     budget: coins;
 }
 
+// ---------- Two-phase settlement opcodes (BUG-1 fix) ----------
+// RetryTransfer: rightful recipient re-sends the payout while the contract
+// is still in a SETTLING_* state (previous payout bounced / never landed).
+struct (0x0000000A) RetryTransfer {}
+
+// CommitSettlement: anyone can promote SETTLING_X → X once the payout has
+// drained from the contract. Used by indexers, UIs, or the recipient to
+// finalize the on-chain terminal state after a successful send.
+struct (0x0000000B) CommitSettlement {}
+
+// EmergencyReclaim: the client can pull remaining funds after TIMEOUT_BYPASS
+// has elapsed since job creation. Exits to STATE_DISPUTED permanently. This
+// is the last-resort escape if the intended recipient is unreachable forever.
+struct (0x0000000C) EmergencyReclaim {}
+
 type AllowedMessage =
     | FundJob
     | TakeJob
@@ -156,6 +183,9 @@ type AllowedMessage =
     | ClaimJob
     | QuitJob
     | SetBudget
+    | RetryTransfer
+    | CommitSettlement
+    | EmergencyReclaim
 
 // ===================== HANDLER =====================
 
@@ -284,8 +314,14 @@ fun onInternalMessage(in: InMessage) {
 
             val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, msg.reason);
 
+            // Two-phase settlement: enter SETTLING_* parking orbit. The
+            // outbound payout is bounceable; if it succeeds the contract
+            // balance drops to MIN_STORAGE and CommitSettlement finalizes
+            // the state. If it bounces funds land back here and the
+            // recipient can call RetryTransfer.
             if (msg.approved != 0) {
-                saveData(jobId, factory, client, provider, STATE_COMPLETED, newDet);
+                saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, newDet);
+                reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
                 createMessage({
                     bounce: BounceMode.Only256BitsOfBody,
                     dest: provider!,
@@ -293,7 +329,8 @@ fun onInternalMessage(in: InMessage) {
                     body: beginCell().endCell()
                 }).send(SEND_MODE_CARRY_ALL_BALANCE);
             } else {
-                saveData(jobId, factory, client, provider, STATE_DISPUTED, newDet);
+                saveData(jobId, factory, client, provider, STATE_SETTLING_DISPUTED, newDet);
+                reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
                 createMessage({
                     bounce: BounceMode.Only256BitsOfBody,
                     dest: client,
@@ -313,7 +350,8 @@ fun onInternalMessage(in: InMessage) {
             val evalDeadline = submittedAt + evalTimeout;
             assert(blockchain.now() >= evalDeadline) throw ERR_EVAL_TIMEOUT_NOT_EXPIRED;
 
-            saveData(jobId, factory, client, provider, STATE_COMPLETED, detCell);
+            saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, detCell);
+            reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
             createMessage({
                 bounce: BounceMode.Only256BitsOfBody,
                 dest: provider!,
@@ -331,7 +369,92 @@ fun onInternalMessage(in: InMessage) {
             val deadline = createdAt + timeout;
             assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
-            saveData(jobId, factory, client, provider, STATE_CANCELLED, detCell);
+            saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
+            reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+            createMessage({
+                bounce: BounceMode.Only256BitsOfBody,
+                dest: client,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_BALANCE);
+        }
+
+        RetryTransfer => {
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(
+                state == STATE_SETTLING_COMPLETED
+                || state == STATE_SETTLING_DISPUTED
+                || state == STATE_SETTLING_CANCELLED
+            ) throw ERR_INVALID_STATE;
+
+            val (_, budget, _, _, _, _, _, _, _, _) = loadDetails(detCell);
+
+            // Recipient depends on which terminal branch we were headed for.
+            var recipient: address = client;
+            if (state == STATE_SETTLING_COMPLETED) {
+                assert(provider != null) throw ERR_NO_PROVIDER;
+                recipient = provider!;
+            }
+            assert(in.senderAddress == recipient) throw ERR_ACCESS_DENIED;
+
+            // If the prior payout already drained the balance there is
+            // nothing left to retry — caller should call CommitSettlement.
+            assert(contract.getOriginalBalance() >= budget) throw ERR_NOTHING_TO_RETRY;
+
+            reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+            createMessage({
+                bounce: BounceMode.Only256BitsOfBody,
+                dest: recipient,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_BALANCE);
+        }
+
+        CommitSettlement => {
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(
+                state == STATE_SETTLING_COMPLETED
+                || state == STATE_SETTLING_DISPUTED
+                || state == STATE_SETTLING_CANCELLED
+            ) throw ERR_INVALID_STATE;
+
+            val (_, budget, _, _, _, _, _, _, _, _) = loadDetails(detCell);
+
+            // Only allow finalization once the payout has actually drained.
+            // Balance at the start of this message must be below the budget,
+            // proving the funds left the contract (or never were there).
+            assert(contract.getOriginalBalance() < budget) throw ERR_SETTLEMENT_NOT_DRAINED;
+
+            var finalState: int = STATE_CANCELLED;
+            if (state == STATE_SETTLING_COMPLETED) {
+                finalState = STATE_COMPLETED;
+            } else if (state == STATE_SETTLING_DISPUTED) {
+                finalState = STATE_DISPUTED;
+            }
+            saveData(jobId, factory, client, provider, finalState, detCell);
+
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
+        }
+
+        EmergencyReclaim => {
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
+            assert(
+                state == STATE_SETTLING_COMPLETED
+                || state == STATE_SETTLING_DISPUTED
+                || state == STATE_SETTLING_CANCELLED
+            ) throw ERR_INVALID_STATE;
+
+            val (_, _, _, _, _, createdAt, _, _, _, _) = loadDetails(detCell);
+            assert(blockchain.now() >= createdAt + TIMEOUT_BYPASS) throw ERR_BYPASS_NOT_ALLOWED;
+
+            // Exit SETTLING permanently into DISPUTED with funds to client.
+            saveData(jobId, factory, client, provider, STATE_DISPUTED, detCell);
             createMessage({
                 bounce: BounceMode.Only256BitsOfBody,
                 dest: client,

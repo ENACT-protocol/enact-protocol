@@ -22,7 +22,23 @@ export const JobOpcodes = {
     claim: 0x00000007,
     quit: 0x00000008,
     setBudget: 0x00000009,
+    retryTransfer: 0x0000000a,
+    commitSettlement: 0x0000000b,
+    emergencyReclaim: 0x0000000c,
 };
+
+// State constants matching job.tolk STATE_* values.
+export const JobState = {
+    OPEN: 0,
+    FUNDED: 1,
+    SUBMITTED: 2,
+    COMPLETED: 3,
+    DISPUTED: 4,
+    CANCELLED: 5,
+    SETTLING_COMPLETED: 6,
+    SETTLING_DISPUTED: 7,
+    SETTLING_CANCELLED: 8,
+} as const;
 
 export type JobConfig = {
     jobId: number;
@@ -163,6 +179,38 @@ export class Job implements Contract {
                 .storeUint(JobOpcodes.setBudget, 32)
                 .storeCoins(budget)
                 .endCell(),
+        });
+    }
+
+    // Recipient re-sends the payout while the contract is still SETTLING_*
+    // (previous payout never landed). Callable by provider for SETTLING_COMPLETED
+    // and by client for SETTLING_DISPUTED / SETTLING_CANCELLED.
+    async sendRetryTransfer(provider: ContractProvider, via: Sender, value: bigint) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell().storeUint(JobOpcodes.retryTransfer, 32).endCell(),
+        });
+    }
+
+    // Promote SETTLING_X → X once the payout has drained the contract.
+    // Anyone can call this; it's the on-chain "mark as final" step.
+    async sendCommitSettlement(provider: ContractProvider, via: Sender, value: bigint) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell().storeUint(JobOpcodes.commitSettlement, 32).endCell(),
+        });
+    }
+
+    // Client-only escape hatch. After TIMEOUT_BYPASS (30 days) since job
+    // creation, a job stuck in SETTLING can be force-closed by the client,
+    // who receives any remaining funds. State becomes DISPUTED permanently.
+    async sendEmergencyReclaim(provider: ContractProvider, via: Sender, value: bigint) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell().storeUint(JobOpcodes.emergencyReclaim, 32).endCell(),
         });
     }
 

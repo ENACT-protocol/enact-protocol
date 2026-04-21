@@ -104,6 +104,9 @@ describe('Job', () => {
             to: provider.address,
             success: true,
         });
+        // After evaluate we're in SETTLING_COMPLETED; anyone can commit.
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
 
         // Verify job data
@@ -127,6 +130,8 @@ describe('Job', () => {
             to: client.address,
             success: true,
         });
+        expect(await job.getState()).toBe(7); // SETTLING_DISPUTED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(4); // DISPUTED
     });
 
@@ -147,6 +152,8 @@ describe('Job', () => {
             to: client.address,
             success: true,
         });
+        expect(await job.getState()).toBe(8); // SETTLING_CANCELLED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(5); // CANCELLED
     });
 
@@ -174,6 +181,8 @@ describe('Job', () => {
             to: provider.address,
             success: true,
         });
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
     });
 
@@ -354,6 +363,7 @@ describe('Job', () => {
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
         await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true, REASON_HASH);
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
 
         const data = await job.getJobData();
         expect(data.reason).toBe(REASON_HASH);
@@ -368,6 +378,7 @@ describe('Job', () => {
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
         await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), false, REASON_HASH);
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
 
         const data = await job.getJobData();
         expect(data.reason).toBe(REASON_HASH);
@@ -382,6 +393,7 @@ describe('Job', () => {
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
         await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
 
         const data = await job.getJobData();
         expect(data.reason).toBe(0n);
@@ -508,6 +520,8 @@ describe('Job', () => {
             to: job.address,
             success: true,
         });
+        expect(await job.getState()).toBe(8); // SETTLING_CANCELLED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(5); // CANCELLED
     });
 
@@ -538,6 +552,148 @@ describe('Job', () => {
             to: job.address,
             success: true,
         });
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
+    });
+
+    // ========== BUG-1: TWO-PHASE SETTLEMENT ==========
+
+    it('CommitSettlement is rejected outside a SETTLING_* state', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        // State is FUNDED (1), not SETTLING_*.
+        const r = await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
+        });
+    });
+
+    it('RetryTransfer is rejected outside a SETTLING_* state', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
+        });
+    });
+
+    it('RetryTransfer in SETTLING_COMPLETED is rejected for non-recipients', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // State is SETTLING_COMPLETED. The sandbox provider accepted the
+        // payout so balance is drained; retry must fail with
+        // ERR_NOTHING_TO_RETRY, not ERR_ACCESS_DENIED, when caller is the
+        // rightful provider. A non-recipient (outsider) gets access denied.
+        const r = await job.sendRetryTransfer(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+    });
+
+    it('RetryTransfer by the rightful recipient after drained balance fails with ERR_NOTHING_TO_RETRY', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // In the sandbox, TreasuryContract always accepts the payout, so
+        // the contract balance has already drained below BUDGET. Retry must
+        // fail with ERR_NOTHING_TO_RETRY — the check catches "nothing to
+        // send" before any outbound action.
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 108, // ERR_NOTHING_TO_RETRY
+        });
+    });
+
+    it('EmergencyReclaim is rejected before TIMEOUT_BYPASS', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // State is SETTLING_COMPLETED. Without advancing time past 30 days
+        // the client bypass must be denied.
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: false,
+            exitCode: 110, // ERR_BYPASS_NOT_ALLOWED
+        });
+    });
+
+    it('EmergencyReclaim is rejected when called by a non-client', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        const r = await job.sendEmergencyReclaim(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+    });
+
+    it('EmergencyReclaim succeeds after TIMEOUT_BYPASS and exits to DISPUTED', async () => {
+        // Force balance to stay on the contract by using a huge budget so
+        // that the sandbox payout fully drains but we can still exercise
+        // the timing rule. Simpler: we can emergency-reclaim even when
+        // balance is MIN_STORAGE — the state transition is the test target.
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
+
+        // Fast-forward past the 30-day bypass timeout.
+        blockchain.now = Math.floor(Date.now() / 1000) + 2592000 + 100;
+
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: true,
+        });
+        expect(await job.getState()).toBe(4); // DISPUTED (permanent exit)
+    });
+
+    it('After CommitSettlement finalizes COMPLETED, RetryTransfer is no longer allowed', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
+        expect(await job.getState()).toBe(3); // COMPLETED
+
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 101, // ERR_INVALID_STATE
+        });
     });
 });
