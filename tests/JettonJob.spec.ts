@@ -650,4 +650,33 @@ describe('JettonJob', () => {
         });
         expect(await job.getState()).toBe(0); // still OPEN
     });
+
+    // ========== TransferNotification excess TON return ==========
+
+    it('funding via TransferNotification returns excess TON to the client', async () => {
+        const job = await setupJob();
+
+        // The funding message from the (sandbox) jetton wallet carries
+        // much more TON than the contract needs to keep. After state is
+        // saved we expect the contract to ship everything above the
+        // MIN_STORAGE reserve straight back to the original client.
+        const r = await job.sendTransferNotification(
+            jettonWalletTreasury.getSender(),
+            toNano('0.5'),
+            { amount: BUDGET, sender: client.address },
+        );
+        expect(r.transactions).toHaveTransaction({
+            from: jettonWalletTreasury.address,
+            to: job.address,
+            success: true,
+        });
+        // An outbound message must land on the client with most of the
+        // extra TON — ignore exact value (storage fees, forward fees)
+        // and just assert the address match.
+        expect(r.transactions).toHaveTransaction({
+            from: job.address,
+            to: client.address,
+            success: true,
+        });
+    });
 });

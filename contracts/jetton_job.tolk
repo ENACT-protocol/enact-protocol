@@ -318,6 +318,21 @@ fun onInternalMessage(in: InMessage) {
 
             val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, jettonWallet);
             saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
+
+            // Return the forward-TON excess (what the jetton wallet
+            // forwarded to us beyond the storage reserve) back to the
+            // original client. Without this, the extra TON sits on the
+            // job contract and eventually leaves as part of the payout —
+            // going to the provider or back to the client via the normal
+            // payout path, which means the client silently overpays gas
+            // on behalf of whoever receives the budget.
+            reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: msg.sender,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
         }
 
         TakeJob => {
