@@ -382,23 +382,44 @@ fun onInternalMessage(in: InMessage) {
         }
 
         CancelJob => {
-            assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
-            assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
+            // Allow cancel in either OPEN (no funds locked, no provider
+            // can be affected) or FUNDED (gated by timeout). Without OPEN
+            // cancel a client who configured the wrong evaluator or
+            // changed their mind before funding cannot clean up; the job
+            // would occupy storage forever.
+            assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
 
-            val (_, _, _, _, timeout, createdAt, _, _, _, _) = loadDetails(detCell);
-            val deadline = createdAt + timeout;
-            assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
+            if (state == STATE_FUNDED) {
+                // FUNDED cancel sends the budgeted payout back to the
+                // client; require the higher payout gas floor.
+                assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
+                val (_, _, _, _, timeout, createdAt, _, _, _, _) = loadDetails(detCell);
+                val deadline = createdAt + timeout;
+                assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
-            saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
-            reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
-            createMessage({
-                bounce: BounceMode.Only256BitsOfBody,
-                dest: client,
-                value: 0,
-                body: beginCell().endCell()
-            }).send(SEND_MODE_CARRY_ALL_BALANCE);
+                saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
+                reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
+                createMessage({
+                    bounce: BounceMode.Only256BitsOfBody,
+                    dest: client,
+                    value: 0,
+                    body: beginCell().endCell()
+                }).send(SEND_MODE_CARRY_ALL_BALANCE);
+            } else {
+                // OPEN cancel: no budget has been locked, no provider is
+                // assigned. Mark terminal and return the storage balance
+                // straight to the client — no SETTLING detour needed.
+                saveData(jobId, factory, client, provider, STATE_CANCELLED, detCell);
+                createMessage({
+                    bounce: BounceMode.NoBounce,
+                    dest: client,
+                    value: 0,
+                    body: beginCell().endCell()
+                }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
+            }
         }
 
         RetryTransfer => {

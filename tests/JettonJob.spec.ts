@@ -615,4 +615,39 @@ describe('JettonJob', () => {
             exitCode: 104, // ERR_INSUFFICIENT_FUNDS
         });
     });
+
+    // ========== CancelJob in OPEN state ==========
+
+    it('cancel in OPEN goes straight to CANCELLED without a jetton payout', async () => {
+        const job = await deployFactoryAndCreateJob();
+        expect(await job.getState()).toBe(0); // OPEN
+        // No jetton wallet set, nothing funded. Client changes their mind.
+
+        const r = await job.sendCancel(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: true,
+        });
+        expect(await job.getState()).toBe(5); // CANCELLED — terminal directly
+
+        // No jetton transfer fired because no jettons were ever received.
+        expect(r.transactions).not.toHaveTransaction({
+            from: job.address,
+            to: jettonWalletTreasury.address,
+        });
+    });
+
+    it('cancel in OPEN is still client-only', async () => {
+        const job = await deployFactoryAndCreateJob();
+
+        const r = await job.sendCancel(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+        expect(await job.getState()).toBe(0); // still OPEN
+    });
 });

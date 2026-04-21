@@ -760,4 +760,49 @@ describe('Job', () => {
             exitCode: 104, // ERR_INSUFFICIENT_FUNDS
         });
     });
+
+    // ========== CancelJob in OPEN state ==========
+
+    it('cancel in OPEN goes straight to CANCELLED without SETTLING detour', async () => {
+        const job = await deployFactoryAndCreateJob();
+        expect(await job.getState()).toBe(0); // OPEN
+
+        // No timeout wait, no funding. Client changed their mind.
+        const r = await job.sendCancel(client.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: true,
+        });
+        // OPEN cancel terminates immediately; no SETTLING bookkeeping
+        // because no budget was ever locked.
+        expect(await job.getState()).toBe(5); // CANCELLED
+    });
+
+    it('cancel in OPEN is still client-only', async () => {
+        const job = await deployFactoryAndCreateJob();
+
+        const r = await job.sendCancel(outsider.getSender(), toNano('0.05'));
+        expect(r.transactions).toHaveTransaction({
+            from: outsider.address,
+            to: job.address,
+            success: false,
+            exitCode: 100, // ERR_ACCESS_DENIED
+        });
+        expect(await job.getState()).toBe(0); // still OPEN
+    });
+
+    it('cancel in FUNDED still requires timeout expiry', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+
+        // No time advance — the job is fresh.
+        const r = await job.sendCancel(client.getSender(), toNano('0.1'));
+        expect(r.transactions).toHaveTransaction({
+            from: client.address,
+            to: job.address,
+            success: false,
+            exitCode: 102, // ERR_TIMEOUT_NOT_EXPIRED
+        });
+    });
 });

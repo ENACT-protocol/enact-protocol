@@ -418,17 +418,34 @@ fun onInternalMessage(in: InMessage) {
         }
 
         CancelJob => {
-            assert(in.valueCoins >= MIN_GAS_JETTON_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
-            assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
+            // Allow cancel in either OPEN (no jettons have been sent, no
+            // provider can be affected) or FUNDED (gated by timeout).
+            assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
 
-            val (_, budget, _, _, timeout, createdAt, _, _, _, _, jettonWallet) = loadDetails(detCell);
-            val deadline = createdAt + timeout;
-            assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
+            if (state == STATE_FUNDED) {
+                // FUNDED cancel refunds the jetton payout — needs the
+                // higher jetton-payout gas floor.
+                assert(in.valueCoins >= MIN_GAS_JETTON_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
+                val (_, budget, _, _, timeout, createdAt, _, _, _, _, jettonWallet) = loadDetails(detCell);
+                val deadline = createdAt + timeout;
+                assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
-            saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
-            sendJettonPayout(jettonWallet, budget, client, client);
+                saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
+                sendJettonPayout(jettonWallet, budget, client, client);
+            } else {
+                // OPEN cancel: no jettons have been received, nothing to
+                // transfer. Just mark terminal and return storage TON.
+                saveData(jobId, factory, client, provider, STATE_CANCELLED, detCell);
+                createMessage({
+                    bounce: BounceMode.NoBounce,
+                    dest: client,
+                    value: 0,
+                    body: beginCell().endCell()
+                }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
+            }
         }
 
         RetryTransfer => {
