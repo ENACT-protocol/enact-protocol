@@ -92,7 +92,7 @@ describe('Job', () => {
         expect(await job.getState()).toBe(2); // SUBMITTED
 
         // Evaluate — approve
-        const evalResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        const evalResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         expect(evalResult.transactions).toHaveTransaction({
             from: evaluator.address,
             to: job.address,
@@ -124,7 +124,7 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const evalResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), false);
+        const evalResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), false);
         expect(evalResult.transactions).toHaveTransaction({
             from: job.address,
             to: client.address,
@@ -146,7 +146,7 @@ describe('Job', () => {
         // Advance time past timeout
         blockchain.now = Math.floor(Date.now() / 1000) + TIMEOUT + 100;
 
-        const cancelResult = await job.sendCancel(client.getSender(), toNano('0.05'));
+        const cancelResult = await job.sendCancel(client.getSender(), toNano('0.1'));
         expect(cancelResult.transactions).toHaveTransaction({
             from: job.address,
             to: client.address,
@@ -169,7 +169,7 @@ describe('Job', () => {
         // Advance time past evaluation timeout
         blockchain.now = Math.floor(Date.now() / 1000) + EVAL_TIMEOUT + 100;
 
-        const claimResult = await job.sendClaim(provider.getSender(), toNano('0.05'));
+        const claimResult = await job.sendClaim(provider.getSender(), toNano('0.1'));
         expect(claimResult.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -194,7 +194,7 @@ describe('Job', () => {
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
         // Don't advance time
-        const result = await job.sendClaim(provider.getSender(), toNano('0.05'));
+        const result = await job.sendClaim(provider.getSender(), toNano('0.1'));
         expect(result.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -212,7 +212,7 @@ describe('Job', () => {
 
         blockchain.now = Math.floor(Date.now() / 1000) + EVAL_TIMEOUT + 100;
 
-        const result = await job.sendClaim(outsider.getSender(), toNano('0.05'));
+        const result = await job.sendClaim(outsider.getSender(), toNano('0.1'));
         expect(result.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -227,11 +227,11 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
 
         blockchain.now = Math.floor(Date.now() / 1000) + EVAL_TIMEOUT + 100;
 
-        const result = await job.sendClaim(provider.getSender(), toNano('0.05'));
+        const result = await job.sendClaim(provider.getSender(), toNano('0.1'));
         expect(result.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -362,7 +362,7 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true, REASON_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true, REASON_HASH);
         await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
 
         const data = await job.getJobData();
@@ -377,7 +377,7 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), false, REASON_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), false, REASON_HASH);
         await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
 
         const data = await job.getJobData();
@@ -392,7 +392,7 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
 
         const data = await job.getJobData();
@@ -450,7 +450,7 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const result = await job.sendEvaluate(outsider.getSender(), toNano('0.05'), true);
+        const result = await job.sendEvaluate(outsider.getSender(), toNano('0.1'), true);
         expect(result.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -483,7 +483,7 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
 
-        const result = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        const result = await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         expect(result.transactions).toHaveTransaction({
             from: evaluator.address,
             to: job.address,
@@ -497,7 +497,7 @@ describe('Job', () => {
 
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
 
-        const result = await job.sendCancel(client.getSender(), toNano('0.05'));
+        const result = await job.sendCancel(client.getSender(), toNano('0.1'));
         expect(result.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -514,7 +514,7 @@ describe('Job', () => {
 
         blockchain.now = Math.floor(Date.now() / 1000) + TIMEOUT + 100;
 
-        const result = await job.sendCancel(client.getSender(), toNano('0.05'));
+        const result = await job.sendCancel(client.getSender(), toNano('0.1'));
         expect(result.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -546,7 +546,7 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const evalResult = await job.sendEvaluate(client.getSender(), toNano('0.05'), true);
+        const evalResult = await job.sendEvaluate(client.getSender(), toNano('0.1'), true);
         expect(evalResult.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -576,7 +576,7 @@ describe('Job', () => {
         const job = await deployFactoryAndCreateJob();
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
-        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -590,12 +590,12 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         // State is SETTLING_COMPLETED. The sandbox provider accepted the
         // payout so balance is drained; retry must fail with
         // ERR_NOTHING_TO_RETRY, not ERR_ACCESS_DENIED, when caller is the
         // rightful provider. A non-recipient (outsider) gets access denied.
-        const r = await job.sendRetryTransfer(outsider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(outsider.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -609,12 +609,12 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         // In the sandbox, TreasuryContract always accepts the payout, so
         // the contract balance has already drained below BUDGET. Retry must
         // fail with ERR_NOTHING_TO_RETRY — the check catches "nothing to
         // send" before any outbound action.
-        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -628,10 +628,10 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         // State is SETTLING_COMPLETED. Without advancing time past 30 days
         // the client bypass must be denied.
-        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -645,8 +645,8 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
-        const r = await job.sendEmergencyReclaim(outsider.getSender(), toNano('0.05'));
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
+        const r = await job.sendEmergencyReclaim(outsider.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -664,13 +664,13 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
 
         // Fast-forward past the 30-day bypass timeout.
         blockchain.now = Math.floor(Date.now() / 1000) + 2592000 + 100;
 
-        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -684,11 +684,11 @@ describe('Job', () => {
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
         await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
 
-        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.1'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -727,5 +727,37 @@ describe('Job', () => {
         });
         const data = await job.getJobData();
         expect(data.providerAddress?.toString()).toBe(provider.address.toString());
+    });
+
+    // ========== MIN_GAS guards ==========
+
+    it('EvaluateJob rejects callers who attach less than MIN_GAS_PAYOUT', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+
+        // 0.05 TON is below the 0.1 TON floor for terminal payouts.
+        const r = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        expect(r.transactions).toHaveTransaction({
+            from: evaluator.address,
+            to: job.address,
+            success: false,
+            exitCode: 104, // ERR_INSUFFICIENT_FUNDS
+        });
+    });
+
+    it('TakeJob rejects callers who attach less than MIN_GAS_STATE_CHANGE', async () => {
+        const job = await deployFactoryAndCreateJob();
+        await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
+
+        // 0.01 TON is below the 0.03 TON floor for state changes.
+        const r = await job.sendTakeJob(provider.getSender(), toNano('0.01'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 104, // ERR_INSUFFICIENT_FUNDS
+        });
     });
 });

@@ -34,6 +34,14 @@ const MIN_STORAGE: int = 10000000;  // 0.01 TON reserve for storage fees
 // scenario where a permanently unreachable recipient locks a job forever.
 const TIMEOUT_BYPASS: int = 2592000;  // 30 days
 
+// BUG-3 fix: per-opcode minimum gas requirements. Callers that underpay
+// would otherwise see outbound payout messages fail silently because the
+// contract's balance was already budgeted for the recipient — leaving the
+// on-chain state terminal without the money moving. Explicit guards at the
+// top of each handler reject underfunded calls before any state change.
+const MIN_GAS_PAYOUT: int = 100000000;       // 0.1 TON for terminal ops that send payouts
+const MIN_GAS_STATE_CHANGE: int = 30000000;  // 0.03 TON for simple state transitions
+
 // ===================== STORAGE LAYOUT =====================
 // Main cell:
 //   jobId:uint32, factoryAddr:address, clientAddr:address,
@@ -215,6 +223,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         SetBudget => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
@@ -233,6 +242,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         FundJob => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
@@ -255,6 +265,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         TakeJob => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, det) = loadMainData();
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
@@ -277,6 +288,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         QuitJob => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, det) = loadMainData();
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(provider != null) throw ERR_NO_PROVIDER;
@@ -294,6 +306,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         SubmitResult => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(provider != null) throw ERR_NO_PROVIDER;
@@ -313,6 +326,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         EvaluateJob => {
+            assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(state == STATE_SUBMITTED) throw ERR_INVALID_STATE;
             val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, _) = loadDetails(detCell);
@@ -347,6 +361,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         ClaimJob => {
+            assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(state == STATE_SUBMITTED) throw ERR_INVALID_STATE;
             assert(provider != null) throw ERR_NO_PROVIDER;
@@ -367,6 +382,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         CancelJob => {
+            assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
@@ -386,6 +402,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         RetryTransfer => {
+            assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(
                 state == STATE_SETTLING_COMPLETED
@@ -417,6 +434,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         CommitSettlement => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(
                 state == STATE_SETTLING_COMPLETED
@@ -448,6 +466,7 @@ fun onInternalMessage(in: InMessage) {
         }
 
         EmergencyReclaim => {
+            assert(in.valueCoins >= MIN_GAS_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
             assert(

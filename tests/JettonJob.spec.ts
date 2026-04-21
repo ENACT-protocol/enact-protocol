@@ -97,7 +97,7 @@ describe('JettonJob', () => {
         expect(await job.getState()).toBe(2); // SUBMITTED
 
         // Approve
-        const approveResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        const approveResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
         // Now in SETTLING_COMPLETED until recipient commits.
         expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
         await job.sendCommitSettlement(provider.getSender(), toNano('0.05'));
@@ -117,7 +117,7 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const rejectResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), false);
+        const rejectResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), false);
         expect(await job.getState()).toBe(7); // SETTLING_DISPUTED
         await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(4); // DISPUTED
@@ -137,7 +137,7 @@ describe('JettonJob', () => {
         // Advance past timeout
         blockchain.now = Math.floor(Date.now() / 1000) + TIMEOUT + 1;
 
-        const cancelResult = await job.sendCancel(client.getSender(), toNano('0.05'));
+        const cancelResult = await job.sendCancel(client.getSender(), toNano('0.15'));
         expect(await job.getState()).toBe(8); // SETTLING_CANCELLED
         await job.sendCommitSettlement(client.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(5); // CANCELLED
@@ -285,7 +285,7 @@ describe('JettonJob', () => {
         const jobData = await job.getJobData();
         blockchain.now = jobData.submittedAt + EVAL_TIMEOUT + 1;
 
-        const claimResult = await job.sendClaim(provider.getSender(), toNano('0.05'));
+        const claimResult = await job.sendClaim(provider.getSender(), toNano('0.15'));
         expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
         await job.sendCommitSettlement(provider.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
@@ -304,7 +304,7 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const result = await job.sendClaim(provider.getSender(), toNano('0.05'));
+        const result = await job.sendClaim(provider.getSender(), toNano('0.15'));
         expect(result.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -346,7 +346,7 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true, REASON_HASH);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true, REASON_HASH);
         const data = await job.getJobData();
         expect(data.reason).toBe(REASON_HASH);
     });
@@ -359,7 +359,7 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const approveResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        const approveResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
 
         // Check the outgoing message to jetton wallet contains correct transfer op
         const outMsgs = approveResult.transactions.filter(
@@ -388,7 +388,7 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const rejectResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), false);
+        const rejectResult = await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), false);
 
         const outMsgs = rejectResult.transactions.filter(
             tx => tx.inMessage?.info.type === 'internal' &&
@@ -430,7 +430,7 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        const result = await job.sendEvaluate(outsider.getSender(), toNano('0.05'), true);
+        const result = await job.sendEvaluate(outsider.getSender(), toNano('0.15'), true);
         expect(result.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -457,7 +457,7 @@ describe('JettonJob', () => {
         const job = await setupJob();
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
-        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.15'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -471,9 +471,9 @@ describe('JettonJob', () => {
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
         // State is SETTLING_COMPLETED. Outsider is not the provider.
-        const r = await job.sendRetryTransfer(outsider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(outsider.getSender(), toNano('0.15'));
         expect(r.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -487,7 +487,7 @@ describe('JettonJob', () => {
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
         // State is SETTLING_COMPLETED. Only the provider may commit.
         const r = await job.sendCommitSettlement(outsider.getSender(), toNano('0.05'));
         expect(r.transactions).toHaveTransaction({
@@ -503,9 +503,9 @@ describe('JettonJob', () => {
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
         // State is SETTLING_COMPLETED. Bypass not yet allowed.
-        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.15'));
         expect(r.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -519,8 +519,8 @@ describe('JettonJob', () => {
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
-        const r = await job.sendEmergencyReclaim(outsider.getSender(), toNano('0.05'));
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
+        const r = await job.sendEmergencyReclaim(outsider.getSender(), toNano('0.15'));
         expect(r.transactions).toHaveTransaction({
             from: outsider.address,
             to: job.address,
@@ -534,13 +534,13 @@ describe('JettonJob', () => {
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
         expect(await job.getState()).toBe(6); // SETTLING_COMPLETED
 
         // Fast-forward past the 30-day bypass timeout.
         blockchain.now = Math.floor(Date.now() / 1000) + 2592000 + 100;
 
-        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.05'));
+        const r = await job.sendEmergencyReclaim(client.getSender(), toNano('0.15'));
         expect(r.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
@@ -554,11 +554,11 @@ describe('JettonJob', () => {
         await fundJob(job);
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
-        await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        await job.sendEvaluate(evaluator.getSender(), toNano('0.15'), true);
         await job.sendCommitSettlement(provider.getSender(), toNano('0.05'));
         expect(await job.getState()).toBe(3); // COMPLETED
 
-        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.05'));
+        const r = await job.sendRetryTransfer(provider.getSender(), toNano('0.15'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,
@@ -581,5 +581,38 @@ describe('JettonJob', () => {
             exitCode: 100, // ERR_ACCESS_DENIED
         });
         expect(await job.getState()).toBe(1); // still FUNDED, provider unset
+    });
+
+    // ========== MIN_GAS guards ==========
+
+    it('EvaluateJob rejects callers who attach less than MIN_GAS_JETTON_PAYOUT', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+        await job.sendTakeJob(provider.getSender(), toNano('0.05'));
+        await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
+
+        // Jetton payouts require at least 0.15 TON. 0.1 TON is below the
+        // floor; without this guard the jetton_transfer would silently
+        // bounce for insufficient forward gas and lock the state terminal.
+        const r = await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
+        expect(r.transactions).toHaveTransaction({
+            from: evaluator.address,
+            to: job.address,
+            success: false,
+            exitCode: 104, // ERR_INSUFFICIENT_FUNDS
+        });
+    });
+
+    it('TakeJob rejects callers who attach less than MIN_GAS_STATE_CHANGE', async () => {
+        const job = await setupJob();
+        await fundJob(job);
+
+        const r = await job.sendTakeJob(provider.getSender(), toNano('0.01'));
+        expect(r.transactions).toHaveTransaction({
+            from: provider.address,
+            to: job.address,
+            success: false,
+            exitCode: 104, // ERR_INSUFFICIENT_FUNDS
+        });
     });
 });
