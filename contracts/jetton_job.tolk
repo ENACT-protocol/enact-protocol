@@ -313,7 +313,13 @@ fun onInternalMessage(in: InMessage) {
             assert(in.senderAddress == jettonWallet) throw ERR_ACCESS_DENIED;
             assert(jettonWallet != factory) throw ERR_JETTON_WALLET_NOT_SET;
             assert(budget > 0) throw ERR_BUDGET_NOT_SET;
-            assert(msg.amount >= budget) throw ERR_INSUFFICIENT_FUNDS;
+            // Exact match required. Accepting >= budget would leave the
+            // overpaid delta stranded on the job's jetton wallet with no
+            // built-in way to withdraw it — CARRY_ALL_BALANCE on payout
+            // only delivers the stored `budget`. SDK/UI clients must
+            // send exactly budget; overpayment is a caller bug we reject
+            // before state mutates.
+            assert(msg.amount == budget) throw ERR_INSUFFICIENT_FUNDS;
             assert(msg.sender == client) throw ERR_ACCESS_DENIED;
 
             val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, jettonWallet);

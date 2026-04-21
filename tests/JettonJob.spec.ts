@@ -679,4 +679,43 @@ describe('JettonJob', () => {
             success: true,
         });
     });
+
+    // ========== Exact jetton amount match ==========
+
+    it('TransferNotification rejects an overpaid jetton amount', async () => {
+        const job = await setupJob();
+
+        // Client accidentally sends 10 USDT for a 5 USDT job. Previously
+        // the 5 USDT excess was stranded on the job jetton wallet with
+        // no withdrawal path. Now we reject before state mutates.
+        const r = await job.sendTransferNotification(
+            jettonWalletTreasury.getSender(),
+            toNano('0.1'),
+            { amount: BUDGET + 1n, sender: client.address },
+        );
+        expect(r.transactions).toHaveTransaction({
+            from: jettonWalletTreasury.address,
+            to: job.address,
+            success: false,
+            exitCode: 104, // ERR_INSUFFICIENT_FUNDS
+        });
+        expect(await job.getState()).toBe(0); // still OPEN
+    });
+
+    it('TransferNotification rejects an underpaid jetton amount', async () => {
+        const job = await setupJob();
+
+        const r = await job.sendTransferNotification(
+            jettonWalletTreasury.getSender(),
+            toNano('0.1'),
+            { amount: BUDGET - 1n, sender: client.address },
+        );
+        expect(r.transactions).toHaveTransaction({
+            from: jettonWalletTreasury.address,
+            to: job.address,
+            success: false,
+            exitCode: 104, // ERR_INSUFFICIENT_FUNDS
+        });
+        expect(await job.getState()).toBe(0); // still OPEN
+    });
 });
