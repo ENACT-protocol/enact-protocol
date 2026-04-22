@@ -8,13 +8,13 @@ import {
     ContractProvider,
     Sender,
     SendMode,
-    TupleItemInt,
 } from '@ton/core';
+import { sign } from '@ton/crypto';
 
 // Opcodes are CRC-32 of the operation name. See contracts/job.tolk for
-// the source strings; every value here is the output of
-// Buffer.from("op::<name>", "utf-8") -> crc32 using the IEEE 802.3
-// polynomial (the same one Tolk's "str".crc32() computes).
+// the source strings; every value here is CRC32("op::<name>") over
+// utf-8 bytes using the IEEE 802.3 polynomial — the same one Tolk's
+// "str".crc32() computes.
 export const JobOpcodes = {
     fund: 0x7a90f051,            // CRC32("op::fund_job")
     takeJob: 0xba32c6d9,         // CRC32("op::take_job")
@@ -25,9 +25,18 @@ export const JobOpcodes = {
     claim: 0xa16c4dc0,           // CRC32("op::claim_job")
     quit: 0x710b6f59,            // CRC32("op::quit_job")
     setBudget: 0xb1e059fd,       // CRC32("op::set_budget")
+    acceptProvider: 0x663a16f6,  // CRC32("op::accept_provider")
+    extendWindow: 0x16b321c2,    // CRC32("op::extend_window")
     retryTransfer: 0xa7665d4e,   // CRC32("op::retry_transfer")
     commitSettlement: 0xe1f3102b,// CRC32("op::commit_settlement")
     emergencyReclaim: 0x2c31d1c3,// CRC32("op::emergency_reclaim")
+};
+
+// Hook notification opcode — the message the job contract fires to the
+// optional hook address after EvaluateJob / ClaimJob. Exposed so SDK
+// consumers can decode incoming hook notifications.
+export const HookOpcodes = {
+    afterEvaluate: 0x6f0e4a7c,   // CRC32("notify::after_evaluate")
 };
 
 // State constants matching job.tolk STATE_* values.
@@ -41,6 +50,12 @@ export const JobState = {
     SETTLING_COMPLETED: 6,
     SETTLING_DISPUTED: 7,
     SETTLING_CANCELLED: 8,
+} as const;
+
+// Mode constants matching lib/constants.tolk MODE_* values.
+export const JobMode = {
+    FIXED: 0,
+    APPLICATION: 1,
 } as const;
 
 export type JobConfig = {
@@ -65,7 +80,21 @@ export type JobData = {
     state: number;
 };
 
+export type JobV2Data = {
+    mode: number;
+    applicationDeadline: number;
+    hookAddress: Address | null;
+};
+
 export function jobConfigToCell(config: JobConfig): Cell {
+    // Mirror the factory's calcJobStateInit empty-data layout. Must
+    // match exactly or the contract's deterministic address will shift.
+    const emptyV2 = beginCell()
+        .storeUint(0, 8)  // mode = MODE_FIXED (placeholder)
+        .storeUint(0, 32) // applicationDeadline
+        .storeBit(false)  // no hookAddress
+        .endCell();
+
     const emptyExt = beginCell()
         .storeUint(0, 32)  // timeout
         .storeUint(0, 32)  // createdAt
@@ -81,6 +110,7 @@ export function jobConfigToCell(config: JobConfig): Cell {
         .storeUint(0, 256) // descriptionHash
         .storeUint(0, 256) // resultHash
         .storeRef(emptyExt)
+        .storeRef(emptyV2)
         .endCell();
 
     return beginCell()
@@ -91,6 +121,36 @@ export function jobConfigToCell(config: JobConfig): Cell {
         .storeUint(0, 8) // state = OPEN
         .storeRef(emptyDetails)
         .endCell();
+}
+
+// Build the cell whose representation hash the provider signs for a
+// given bid. Both signer and verifier must produce byte-identical output
+// or the on-chain ed25519 check will reject the bid.
+export function buildBidSignaturePayload(params: {
+    jobAddress: Address;
+    proposedBudget: bigint;
+    providerAddress: Address;
+}): Cell {
+    return beginCell()
+        .storeAddress(params.jobAddress)
+        .storeCoins(params.proposedBudget)
+        .storeAddress(params.providerAddress)
+        .endCell();
+}
+
+// Provider-side helper: sign a bid. The secret key is the standard
+// 64-byte ed25519 secret key (seed + public key) as produced by
+// @ton/crypto keyPairFromSeed / mnemonicToPrivateKey.
+export function signBid(
+    params: {
+        jobAddress: Address;
+        proposedBudget: bigint;
+        providerAddress: Address;
+    },
+    providerSecretKey: Buffer,
+): Buffer {
+    const payload = buildBidSignaturePayload(params);
+    return sign(payload.hash(), providerSecretKey);
 }
 
 export class Job implements Contract {
@@ -174,6 +234,8 @@ export class Job implements Contract {
         });
     }
 
+    // v2: in FUNDED state, `budget` must exceed the current budget and
+    // `value` must cover (newBudget - currentBudget) + MIN_GAS_STATE_CHANGE.
     async sendSetBudget(provider: ContractProvider, via: Sender, value: bigint, budget: bigint) {
         await provider.internal(via, {
             value,
@@ -185,9 +247,52 @@ export class Job implements Contract {
         });
     }
 
-    // Recipient re-sends the payout while the contract is still SETTLING_*
-    // (previous payout never landed). Callable by provider for SETTLING_COMPLETED
-    // and by client for SETTLING_DISPUTED / SETTLING_CANCELLED.
+    // v2 APPLICATION mode: client submits the winning provider's signed
+    // bid. Signature is the first 512 bits of a ref cell.
+    async sendAcceptProvider(
+        provider: ContractProvider,
+        via: Sender,
+        value: bigint,
+        params: {
+            providerAddress: Address;
+            proposedBudget: bigint;
+            providerPubkey: Buffer; // 32 bytes
+            signature: Buffer;       // 64 bytes from @ton/crypto sign()
+        }
+    ) {
+        if (params.providerPubkey.length !== 32) {
+            throw new Error('providerPubkey must be 32 bytes');
+        }
+        if (params.signature.length !== 64) {
+            throw new Error('signature must be 64 bytes');
+        }
+        const sigRef = beginCell().storeBuffer(params.signature).endCell();
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(JobOpcodes.acceptProvider, 32)
+                .storeAddress(params.providerAddress)
+                .storeCoins(params.proposedBudget)
+                .storeUint(BigInt('0x' + params.providerPubkey.toString('hex')), 256)
+                .storeRef(sigRef)
+                .endCell(),
+        });
+    }
+
+    // v2 APPLICATION mode: extend the acceptance window.
+    async sendExtendWindow(provider: ContractProvider, via: Sender, value: bigint, newDeadline: number) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(JobOpcodes.extendWindow, 32)
+                .storeUint(newDeadline, 32)
+                .endCell(),
+        });
+    }
+
+    // Recipient re-sends the payout while the contract is still SETTLING_*.
     async sendRetryTransfer(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             value,
@@ -196,8 +301,6 @@ export class Job implements Contract {
         });
     }
 
-    // Promote SETTLING_X → X once the payout has drained the contract.
-    // Anyone can call this; it's the on-chain "mark as final" step.
     async sendCommitSettlement(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             value,
@@ -206,9 +309,6 @@ export class Job implements Contract {
         });
     }
 
-    // Client-only escape hatch. After TIMEOUT_BYPASS (30 days) since job
-    // creation, a job stuck in SETTLING can be force-closed by the client,
-    // who receives any remaining funds. State becomes DISPUTED permanently.
     async sendEmergencyReclaim(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             value,
@@ -238,6 +338,16 @@ export class Job implements Contract {
             resultType: stack.readNumber(),
             reason: stack.readBigNumber(),
             state: stack.readNumber(),
+        };
+    }
+
+    async getV2Data(provider: ContractProvider): Promise<JobV2Data> {
+        const result = await provider.get('get_v2_data', []);
+        const stack = result.stack;
+        return {
+            mode: stack.readNumber(),
+            applicationDeadline: stack.readNumber(),
+            hookAddress: stack.readAddressOpt(),
         };
     }
 

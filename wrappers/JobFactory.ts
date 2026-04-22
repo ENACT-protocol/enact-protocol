@@ -9,12 +9,18 @@ import {
     Sender,
     SendMode,
     toNano,
-    TupleItemInt,
 } from '@ton/core';
 
 export const FactoryOpcodes = {
     createJob: 0x8204df3b, // CRC32("op::create_job")
 };
+
+// Modes mirror lib/constants.tolk: MODE_FIXED is first-come TakeJob; MODE_APPLICATION
+// requires AcceptProvider + ed25519-signed bid.
+export const JobMode = {
+    FIXED: 0,
+    APPLICATION: 1,
+} as const;
 
 export type JobFactoryConfig = {
     owner: Address;
@@ -27,6 +33,27 @@ export function jobFactoryConfigToCell(config: JobFactoryConfig): Cell {
         .storeRef(config.jobCode)
         .storeUint(0, 32) // nextJobId
         .endCell();
+}
+
+// Helper: build the v2 ref cell used by CreateJob/InitJob. Kept exported
+// so SDK callers can reproduce the exact byte layout for signing flows.
+export function buildV2InitParams(params: {
+    mode?: number;
+    applicationWindow?: number;
+    hookAddress?: Address | null;
+}): Cell {
+    const mode = params.mode ?? JobMode.FIXED;
+    const applicationWindow = params.applicationWindow ?? 0;
+    const hook = params.hookAddress ?? null;
+    const b = beginCell()
+        .storeUint(mode, 8)
+        .storeUint(applicationWindow, 32);
+    if (hook) {
+        b.storeBit(true).storeAddress(hook);
+    } else {
+        b.storeBit(false);
+    }
+    return b.endCell();
 }
 
 export class JobFactory implements Contract {
@@ -62,8 +89,16 @@ export class JobFactory implements Contract {
             descriptionHash: bigint;
             timeout: number;
             evaluationTimeout?: number;
+            mode?: number;
+            applicationWindow?: number;
+            hookAddress?: Address | null;
         }
     ) {
+        const v2 = buildV2InitParams({
+            mode: params.mode,
+            applicationWindow: params.applicationWindow,
+            hookAddress: params.hookAddress,
+        });
         await provider.internal(via, {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
@@ -74,6 +109,7 @@ export class JobFactory implements Contract {
                 .storeUint(params.descriptionHash, 256)
                 .storeUint(params.timeout, 32)
                 .storeUint(params.evaluationTimeout ?? 86400, 32)
+                .storeRef(v2)
                 .endCell(),
         });
     }
