@@ -1,21 +1,22 @@
 tolk 1.3
 
 import "@stdlib/gas-payments"
+import "lib/constants.tolk"
 
 // ===================== CONSTANTS =====================
 
-const ERR_ACCESS_DENIED: int = 200;
 const ERR_INVALID_TIMEOUT: int = 202;
 const ERR_OVERFLOW: int = 203;
 
 const MIN_TIMEOUT: int = 3600;
 const MAX_TIMEOUT: int = 2592000;
+const MIN_APP_WINDOW: int = 3600;
+const MAX_APP_WINDOW: int = 2592000;
 
 // ===================== STORAGE =====================
 
-// Dead fields (`protocolFeeBps`, `feeCollector`) from the v1 layout
-// removed — see job_factory.tolk for the full reasoning. v2 charges
-// zero protocol fee by design.
+// v2: see job_factory.tolk for the full rationale. Parallel
+// deployment, version() bumped to 4.
 struct FactoryStorage {
     owner: address;
     jobCode: cell;
@@ -34,6 +35,12 @@ fun FactoryStorage.save(self) {
 
 // CRC-32 opcodes, same scheme as the TON factory.
 
+// V2 params ride in a plain ref cell. Jetton variant layout:
+//   mode:uint8 (8)
+//   applicationWindow:uint32 (32)
+//   hookAddress:(Maybe address)
+//   jettonMaster:(Maybe address)
+
 // 0x8204df3b = CRC32("op::create_job")
 struct (0x8204df3b) CreateJob {
     evaluatorAddress: address;
@@ -41,6 +48,7 @@ struct (0x8204df3b) CreateJob {
     descriptionHash: uint256;
     timeout: uint32;
     evaluationTimeout: uint32;
+    v2Ref: cell;
 }
 
 // 0xbb8c8df3 = CRC32("op::init_job")
@@ -53,6 +61,7 @@ struct (0xbb8c8df3) InitJob {
     descriptionHash: uint256;
     timeout: uint32;
     evaluationTimeout: uint32;
+    v2Ref: cell;
 }
 
 type AllowedMessage =
@@ -61,6 +70,16 @@ type AllowedMessage =
 // ===================== CHILD ADDRESS CALCULATION =====================
 
 fun calcJobStateInit(storage: FactoryStorage, jobId: int): AutoDeployAddress {
+    // Empty v2Cell: jetton variant. jettonWallet stays in extCell — v2
+    // adds mode + deadline + maybe(hook) + maybe(jettonMaster) + pendingBudget.
+    val emptyV2 = beginCell()
+        .storeUint(0, 8)      // mode = MODE_FIXED (placeholder)
+        .storeUint(0, 32)     // applicationDeadline
+        .storeBool(false)     // no hookAddress
+        .storeBool(false)     // no jettonMaster
+        .storeCoins(0)        // pendingBudget
+        .endCell();
+
     val emptyExt = beginCell()
         .storeUint(0, 32)    // timeout
         .storeUint(0, 32)    // createdAt
@@ -77,15 +96,16 @@ fun calcJobStateInit(storage: FactoryStorage, jobId: int): AutoDeployAddress {
         .storeUint(0, 256)                     // descriptionHash
         .storeUint(0, 256)                     // resultHash
         .storeRef(emptyExt)                    // ext ref
+        .storeRef(emptyV2)                     // v2 ref
         .endCell();
 
     val emptyJobData = beginCell()
-        .storeUint(jobId, 32)                  // jobId
-        .storeAddress(contract.getAddress())  // factoryAddress
-        .storeAddress(contract.getAddress())  // clientAddress placeholder
-        .storeBool(false)                       // providerAddress = null
-        .storeUint(0, 8)                        // state = OPEN
-        .storeRef(emptyDetails)                 // details ref
+        .storeUint(jobId, 32)
+        .storeAddress(contract.getAddress())
+        .storeAddress(contract.getAddress())
+        .storeBool(false)
+        .storeUint(0, 8)
+        .storeRef(emptyDetails)
         .endCell();
 
     return {
@@ -106,6 +126,13 @@ fun onInternalMessage(in: InMessage) {
             var storage = lazy FactoryStorage.load();
             assert(msg.timeout >= MIN_TIMEOUT && msg.timeout <= MAX_TIMEOUT) throw ERR_INVALID_TIMEOUT;
             assert(msg.evaluationTimeout >= MIN_TIMEOUT && msg.evaluationTimeout <= MAX_TIMEOUT) throw ERR_INVALID_TIMEOUT;
+            var v2s = msg.v2Ref.beginParse();
+            val mode = v2s.loadUint(8);
+            val applicationWindow = v2s.loadUint(32);
+            assert(mode == MODE_FIXED || mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
+            if (mode == MODE_APPLICATION) {
+                assert(applicationWindow >= MIN_APP_WINDOW && applicationWindow <= MAX_APP_WINDOW) throw ERR_INVALID_TIMEOUT;
+            }
 
             val jobId = storage.nextJobId;
             assert(jobId < 4294967295) throw ERR_OVERFLOW;
@@ -126,6 +153,7 @@ fun onInternalMessage(in: InMessage) {
                     descriptionHash: msg.descriptionHash,
                     timeout: msg.timeout,
                     evaluationTimeout: msg.evaluationTimeout,
+                    v2Ref: msg.v2Ref,
                 }
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
         }
@@ -155,6 +183,5 @@ get fun get_next_job_id(): int {
 }
 
 get fun version(): int {
-    return 3;
+    return 4;
 }
-

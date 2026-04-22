@@ -1,25 +1,31 @@
 tolk 1.3
 
 import "@stdlib/gas-payments"
+import "lib/constants.tolk"
 
 // ===================== CONSTANTS =====================
 
-const ERR_ACCESS_DENIED: int = 200;
+// Factory-only error codes (200s range). ERR_ACCESS_DENIED,
+// ERR_WRONG_MODE etc. come from lib/constants.tolk.
 const ERR_INVALID_TIMEOUT: int = 202;
 const ERR_OVERFLOW: int = 203;
 
 const MIN_TIMEOUT: int = 3600;      // Min 1 hour
 const MAX_TIMEOUT: int = 2592000;   // Max 30 days
 
+// AppMode window minimum matches the job timeout floor — anything
+// shorter is a UX anti-pattern (providers can't realistically bid in
+// under an hour) and the maximum is the same 30-day ceiling so we
+// cannot outlive the job itself. A FIXED job ignores these bounds.
+const MIN_APP_WINDOW: int = 3600;
+const MAX_APP_WINDOW: int = 2592000;
+
 // ===================== STORAGE =====================
 
-// The protocol charges no fee and the factory has no fee-collection
-// logic; the v1 layout carried `protocolFeeBps` and `feeCollector`
-// fields that were never read anywhere in the codebase. Keeping dead
-// storage fields is a smell for external auditors and makes the
-// layout harder to evolve, so they are removed in v2. If a future
-// version ever reintroduces fees it should go through a new factory
-// version and a deliberate migration, not reuse vestigial slots.
+// v2 factory: `version()` bumps 3 → 4. The previous v3 factory stays
+// running on mainnet; existing jobs finish there, while v2 features
+// (AppMode, hooks, setBudget+, v2 InitJob layout) land on this new
+// factory deployed side-by-side.
 struct FactoryStorage {
     owner: address;
     jobCode: cell;
@@ -38,6 +44,15 @@ fun FactoryStorage.save(self) {
 
 // CRC-32 opcodes to match the child job contract scheme.
 
+// V2 init params ride in a plain ref cell so both CreateJob and InitJob
+// stay under 1023 bits. Layout inside the ref:
+//   mode:uint8 (8)
+//   applicationWindow:uint32 (32)
+//   hookAddress:(Maybe address) (1 or 1+267)
+// The factory forwards the same ref to InitJob unmodified, so the ref
+// cell hash matches on both sides and the job contract parses it
+// without re-serialization.
+
 // 0x8204df3b = CRC32("op::create_job")
 struct (0x8204df3b) CreateJob {
     evaluatorAddress: address;
@@ -45,9 +60,10 @@ struct (0x8204df3b) CreateJob {
     descriptionHash: uint256;
     timeout: uint32;
     evaluationTimeout: uint32;
+    v2Ref: cell;
 }
 
-// 0xbb8c8df3 = CRC32("op::init_job")
+// 0xbb8c8df3 = CRC32("op::init_job") — must match job.tolk struct
 @overflow1023_policy("suppress")
 struct (0xbb8c8df3) InitJob {
     jobId: uint32;
@@ -57,6 +73,7 @@ struct (0xbb8c8df3) InitJob {
     descriptionHash: uint256;
     timeout: uint32;
     evaluationTimeout: uint32;
+    v2Ref: cell;
 }
 
 type AllowedMessage =
@@ -65,6 +82,13 @@ type AllowedMessage =
 // ===================== CHILD ADDRESS CALCULATION =====================
 
 fun calcJobStateInit(storage: FactoryStorage, jobId: int): AutoDeployAddress {
+    // Empty v2Cell: MODE_FIXED (0), applicationDeadline 0, no hook (false bit).
+    val emptyV2 = beginCell()
+        .storeUint(0, 8)     // mode = MODE_FIXED (placeholder)
+        .storeUint(0, 32)    // applicationDeadline
+        .storeBool(false)    // no hookAddress
+        .endCell();
+
     val emptyExt = beginCell()
         .storeUint(0, 32)    // timeout
         .storeUint(0, 32)    // createdAt
@@ -80,13 +104,14 @@ fun calcJobStateInit(storage: FactoryStorage, jobId: int): AutoDeployAddress {
         .storeUint(0, 256)                     // descriptionHash
         .storeUint(0, 256)                     // resultHash
         .storeRef(emptyExt)                    // ext ref
+        .storeRef(emptyV2)                     // v2 ref
         .endCell();
 
     val emptyJobData = beginCell()
         .storeUint(jobId, 32)                  // jobId
         .storeAddress(contract.getAddress())  // factoryAddress
         .storeAddress(contract.getAddress())  // clientAddress placeholder
-        .storeBool(false)                       // providerAddress = null (Maybe)
+        .storeBool(false)                       // providerAddress = null
         .storeUint(0, 8)                        // state = OPEN
         .storeRef(emptyDetails)                 // details ref
         .endCell();
@@ -109,13 +134,21 @@ fun onInternalMessage(in: InMessage) {
             var storage = lazy FactoryStorage.load();
             assert(msg.timeout >= MIN_TIMEOUT && msg.timeout <= MAX_TIMEOUT) throw ERR_INVALID_TIMEOUT;
             assert(msg.evaluationTimeout >= MIN_TIMEOUT && msg.evaluationTimeout <= MAX_TIMEOUT) throw ERR_INVALID_TIMEOUT;
+            // Peek at mode + applicationWindow without consuming the ref
+            // so it can be forwarded to InitJob byte-identical.
+            var v2s = msg.v2Ref.beginParse();
+            val mode = v2s.loadUint(8);
+            val applicationWindow = v2s.loadUint(32);
+            assert(mode == MODE_FIXED || mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
+            if (mode == MODE_APPLICATION) {
+                assert(applicationWindow >= MIN_APP_WINDOW && applicationWindow <= MAX_APP_WINDOW) throw ERR_INVALID_TIMEOUT;
+            }
 
             val jobId = storage.nextJobId;
             assert(jobId < 4294967295) throw ERR_OVERFLOW;
             storage.nextJobId = jobId + 1;
             storage.save();
 
-            // Deploy child Job contract
             val deployed = calcJobStateInit(storage, jobId);
 
             createMessage({
@@ -130,6 +163,7 @@ fun onInternalMessage(in: InMessage) {
                     descriptionHash: msg.descriptionHash,
                     timeout: msg.timeout,
                     evaluationTimeout: msg.evaluationTimeout,
+                    v2Ref: msg.v2Ref,
                 }
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
         }
@@ -159,6 +193,5 @@ get fun get_next_job_id(): int {
 }
 
 get fun version(): int {
-    return 3;
+    return 4;
 }
-
