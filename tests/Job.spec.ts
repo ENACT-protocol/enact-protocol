@@ -313,17 +313,20 @@ describe('Job', () => {
         });
     });
 
-    it('should reject setBudget when not OPEN', async () => {
+    it('should reject setBudget decrease in FUNDED', async () => {
+        // v2: SetBudget is now allowed in FUNDED for monotonic top-ups.
+        // Decrease must still be rejected (ERR_BUDGET_DECREASE = 115) —
+        // the original "reject when not OPEN" scenario no longer applies.
         const job = await deployFactoryAndCreateJob();
 
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
 
-        const result = await job.sendSetBudget(client.getSender(), toNano('0.05'), toNano('10'));
+        const result = await job.sendSetBudget(client.getSender(), toNano('0.05'), BUDGET - 1n);
         expect(result.transactions).toHaveTransaction({
             from: client.address,
             to: job.address,
             success: false,
-            exitCode: 101, // ERR_INVALID_STATE
+            exitCode: 115, // ERR_BUDGET_DECREASE
         });
     });
 

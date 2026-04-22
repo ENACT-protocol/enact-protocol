@@ -1,7 +1,7 @@
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import { Cell, toNano, Address, beginCell } from '@ton/core';
 import { JettonJob, JettonJobOpcodes } from '../wrappers/JettonJob';
-import { JobFactory } from '../wrappers/JobFactory';
+import { JettonJobFactory } from '../wrappers/JettonJobFactory';
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
 
@@ -15,7 +15,7 @@ describe('JettonJob', () => {
     }, 30000);
 
     let blockchain: Blockchain;
-    let factory: SandboxContract<JobFactory>;
+    let factory: SandboxContract<JettonJobFactory>;
     let client: SandboxContract<TreasuryContract>;
     let provider: SandboxContract<TreasuryContract>;
     let evaluator: SandboxContract<TreasuryContract>;
@@ -31,7 +31,7 @@ describe('JettonJob', () => {
 
     async function deployFactoryAndCreateJob(budget?: bigint) {
         factory = blockchain.openContract(
-            JobFactory.createFromConfig(
+            JettonJobFactory.createFromConfig(
                 { owner: client.address, jobCode: jettonJobCode },
                 jettonFactoryCode
             )
