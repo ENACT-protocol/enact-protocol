@@ -35,10 +35,11 @@ const MIN_STORAGE: int = 5000000;   // 0.005 TON reserve for storage fees
 // scenario where a permanently unreachable recipient locks a job forever.
 const TIMEOUT_BYPASS: int = 2592000;  // 30 days
 
-// BUG-3 fix: per-opcode minimum gas requirements. Jetton payouts need more
-// TON than plain-TON payouts because sendJettonPayout forwards 0.05 TON
+// Per-opcode minimum gas requirements. Jetton payouts need more TON
+// than plain-TON payouts because sendJettonPayout forwards 0.02 TON
 // downstream plus covers the jetton wallet's own compute/forward fees.
-const MIN_GAS_JETTON_PAYOUT: int = 150000000;  // 0.15 TON for ops that fire a jetton transfer
+// Floor lowered from 0.15 -> 0.12 to match the reduced forward amount.
+const MIN_GAS_JETTON_PAYOUT: int = 120000000;  // 0.12 TON for ops that fire a jetton transfer
 const MIN_GAS_STATE_CHANGE: int = 30000000;    // 0.03 TON for simple state transitions
 
 const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
@@ -143,7 +144,11 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
         .storeAddress(recipient)      // destination
         .storeAddress(returnExcessTo) // response_destination — ALL excess TON goes back to caller
         .storeBool(false)             // no custom_payload
-        .storeCoins(50000000)         // forward_ton_amount = 0.05 TON
+        // forward_ton_amount = 0.02 TON. A TEP-74 transfer_notification
+        // to a standard wallet consumes ~0.005 TON of gas; 0.02 TON
+        // gives a 4x safety margin and saves 0.03 TON per payout
+        // compared to the previous 0.05 TON default.
+        .storeCoins(20000000)
         .storeBool(false)             // no forward_payload
         .endCell();
 
