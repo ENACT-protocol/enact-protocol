@@ -21,6 +21,19 @@ const STATE_SETTLING_COMPLETED: int = 6;
 const STATE_SETTLING_DISPUTED: int = 7;
 const STATE_SETTLING_CANCELLED: int = 8;
 
+// -------------------- Modes --------------------
+
+// Job creation modes. FIXED is the v1 default: client posts a budget,
+// any provider can call TakeJob first-come-first-served. APPLICATION is
+// v2's off-chain bidding path: providers sign bids off-chain, client
+// collects them, then submits the winning bid's signature via
+// AcceptProvider which atomically verifies the ed25519 signature and
+// assigns the provider. The mode is baked into the job at InitJob time
+// and cannot change afterwards — mixing modes on the same job would
+// open race conditions between TakeJob and AcceptProvider.
+const MODE_FIXED: int = 0;
+const MODE_APPLICATION: int = 1;
+
 // -------------------- Errors --------------------
 
 const ERR_ACCESS_DENIED: int = 100;
@@ -35,6 +48,11 @@ const ERR_NO_PROVIDER: int = 107;
 const ERR_NOTHING_TO_RETRY: int = 109;
 const ERR_SETTLEMENT_NOT_DRAINED: int = 110;
 const ERR_BYPASS_NOT_ALLOWED: int = 111;
+// v2 additions:
+const ERR_WRONG_MODE: int = 112;           // TakeJob on APPLICATION or AcceptProvider on FIXED
+const ERR_APP_WINDOW_EXPIRED: int = 113;   // AcceptProvider after applicationDeadline
+const ERR_BAD_SIGNATURE: int = 114;        // ed25519 verification of provider bid failed
+const ERR_BUDGET_DECREASE: int = 115;      // SetBudget in FUNDED may only raise the budget
 
 // -------------------- Gas minimums --------------------
 
