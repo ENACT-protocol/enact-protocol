@@ -1,57 +1,29 @@
 tolk 1.3
 
 import "@stdlib/gas-payments"
+import "lib/constants.tolk"
+import "lib/job_state.tolk"
 
-// ===================== CONSTANTS =====================
+// ===================== CONTRACT-LOCAL CONSTANTS =====================
 
-const STATE_OPEN: int = 0;
-const STATE_FUNDED: int = 1;
-const STATE_SUBMITTED: int = 2;
-const STATE_COMPLETED: int = 3;
-const STATE_DISPUTED: int = 4;
-const STATE_CANCELLED: int = 5;
-// Intermediate "parking orbit" states — jetton payout in flight. See BUG-1
-// two-phase settlement design. The jetton contract variant cannot prove
-// drain on-chain (jettons live on a separate jetton wallet), so commit is
-// recipient-only here (vs. anyone-with-balance-check in job.tolk).
-const STATE_SETTLING_COMPLETED: int = 6;
-const STATE_SETTLING_DISPUTED: int = 7;
-const STATE_SETTLING_CANCELLED: int = 8;
+// Shared constants come from `lib/constants.tolk`. Only the
+// jetton-specific pieces live here:
 
-const ERR_ACCESS_DENIED: int = 100;
-const ERR_INVALID_STATE: int = 101;
-const ERR_TIMEOUT_NOT_EXPIRED: int = 102;
-const ERR_ALREADY_HAS_PROVIDER: int = 103;
-const ERR_INSUFFICIENT_FUNDS: int = 104;
-const ERR_EVAL_TIMEOUT_NOT_EXPIRED: int = 105;
-const ERR_BUDGET_NOT_SET: int = 106;
-const ERR_NO_PROVIDER: int = 107;
+// 108 is reserved for jetton-only errors; kept as a local constant
+// because the TON contract never raises it.
 const ERR_JETTON_WALLET_NOT_SET: int = 108;
-const ERR_BYPASS_NOT_ALLOWED: int = 110;
 
+// Jetton job storage is slightly more compact than TON job storage,
+// hence the tighter MIN_STORAGE.
 const MIN_STORAGE: int = 5000000;   // 0.005 TON reserve for storage fees
-// Emergency escape hatch: after this duration in SETTLING, the client can
-// pull remaining funds regardless of the configured recipient. Prevents any
-// scenario where a permanently unreachable recipient locks a job forever.
-const TIMEOUT_BYPASS: int = 2592000;  // 30 days
-
-// Per-opcode minimum gas requirements. Jetton payouts need more TON
-// than plain-TON payouts because sendJettonPayout forwards 0.02 TON
-// downstream plus covers the jetton wallet's own compute/forward fees.
-// Floor lowered from 0.15 -> 0.12 to match the reduced forward amount.
-const MIN_GAS_JETTON_PAYOUT: int = 120000000;  // 0.12 TON for ops that fire a jetton transfer
-const MIN_GAS_STATE_CHANGE: int = 30000000;    // 0.03 TON for simple state transitions
 
 const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 
 // ===================== STORAGE LAYOUT =====================
-// Main cell:
-//   jobId:uint32, factoryAddr:address, clientAddr:address,
-//   hasProvider:bool, [providerAddr:address if hasProvider],
-//   state:uint8
-//   ref → details cell
+// Main cell layout and loadMainData / saveData live in
+// `lib/job_state.tolk` and are shared with job.tolk.
 //
-// Details cell:
+// Details cell (jetton variant — extra jettonWallet in ext):
 //   evaluatorAddr:address, budget:coins,
 //   descHash:uint256, resultHash:uint256
 //   ref → ext cell
@@ -61,21 +33,6 @@ const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 //   evalTimeout:uint32, submittedAt:uint32,
 //   resultType:uint8, reason:uint256,
 //   jettonWallet:address
-
-fun loadMainData(): (int, address, address, address?, int, cell) {
-    var cs = contract.getData().beginParse();
-    val jobId = cs.loadUint(32);
-    val factory = cs.loadAddress();
-    val client = cs.loadAddress();
-    val hasProvider = cs.loadBool();
-    var provider: address? = null;
-    if (hasProvider) {
-        provider = cs.loadAddress();
-    }
-    val state = cs.loadUint(8);
-    val detailsCell = cs.loadRef();
-    return (jobId, factory, client, provider, state, detailsCell);
-}
 
 fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, address) {
     var ds = detailsCell.beginParse();
@@ -95,21 +52,6 @@ fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int,
     val jettonWallet = es.loadAddress();
 
     return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet);
-}
-
-fun saveData(jobId: int, factory: address, client: address, provider: address?, state: int, detailsCell: cell) {
-    var b = beginCell()
-        .storeUint(jobId, 32)
-        .storeAddress(factory)
-        .storeAddress(client);
-    if (provider != null) {
-        b.storeBool(true).storeAddress(provider!);
-    } else {
-        b.storeBool(false);
-    }
-    b.storeUint(state, 8)
-     .storeRef(detailsCell);
-    contract.setData(b.endCell());
 }
 
 fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash: int,

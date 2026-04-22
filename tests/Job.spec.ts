@@ -619,7 +619,7 @@ describe('Job', () => {
             from: provider.address,
             to: job.address,
             success: false,
-            exitCode: 108, // ERR_NOTHING_TO_RETRY
+            exitCode: 109, // ERR_NOTHING_TO_RETRY
         });
     });
 
@@ -636,7 +636,7 @@ describe('Job', () => {
             from: client.address,
             to: job.address,
             success: false,
-            exitCode: 110, // ERR_BYPASS_NOT_ALLOWED
+            exitCode: 111, // ERR_BYPASS_NOT_ALLOWED
         });
     });
 

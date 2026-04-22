@@ -510,7 +510,7 @@ describe('JettonJob', () => {
             from: client.address,
             to: job.address,
             success: false,
-            exitCode: 110, // ERR_BYPASS_NOT_ALLOWED
+            exitCode: 111, // ERR_BYPASS_NOT_ALLOWED
         });
     });
 

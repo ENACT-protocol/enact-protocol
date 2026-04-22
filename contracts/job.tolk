@@ -1,55 +1,21 @@
 tolk 1.3
 
 import "@stdlib/gas-payments"
+import "lib/constants.tolk"
+import "lib/job_state.tolk"
 
-// ===================== CONSTANTS =====================
+// ===================== CONTRACT-LOCAL CONSTANTS =====================
 
-const STATE_OPEN: int = 0;
-const STATE_FUNDED: int = 1;
-const STATE_SUBMITTED: int = 2;
-const STATE_COMPLETED: int = 3;
-const STATE_DISPUTED: int = 4;
-const STATE_CANCELLED: int = 5;
-// Intermediate "parking orbit" states — payout in flight, funds still on
-// contract if the outbound bounced. See BUG-1 two-phase settlement design.
-const STATE_SETTLING_COMPLETED: int = 6;
-const STATE_SETTLING_DISPUTED: int = 7;
-const STATE_SETTLING_CANCELLED: int = 8;
-
-const ERR_ACCESS_DENIED: int = 100;
-const ERR_INVALID_STATE: int = 101;
-const ERR_TIMEOUT_NOT_EXPIRED: int = 102;
-const ERR_ALREADY_HAS_PROVIDER: int = 103;
-const ERR_INSUFFICIENT_FUNDS: int = 104;
-const ERR_EVAL_TIMEOUT_NOT_EXPIRED: int = 105;
-const ERR_BUDGET_NOT_SET: int = 106;
-const ERR_NO_PROVIDER: int = 107;
-const ERR_NOTHING_TO_RETRY: int = 108;
-const ERR_SETTLEMENT_NOT_DRAINED: int = 109;
-const ERR_BYPASS_NOT_ALLOWED: int = 110;
-
+// Everything in `lib/constants.tolk` is imported above. Only constants
+// that differ between TON jobs and jetton jobs live here.
 const MIN_STORAGE: int = 10000000;  // 0.01 TON reserve for storage fees
-// Emergency escape hatch: after this duration in SETTLING, the client can
-// pull remaining funds regardless of the configured recipient. Prevents any
-// scenario where a permanently unreachable recipient locks a job forever.
-const TIMEOUT_BYPASS: int = 2592000;  // 30 days
-
-// BUG-3 fix: per-opcode minimum gas requirements. Callers that underpay
-// would otherwise see outbound payout messages fail silently because the
-// contract's balance was already budgeted for the recipient — leaving the
-// on-chain state terminal without the money moving. Explicit guards at the
-// top of each handler reject underfunded calls before any state change.
-const MIN_GAS_PAYOUT: int = 100000000;       // 0.1 TON for terminal ops that send payouts
-const MIN_GAS_STATE_CHANGE: int = 30000000;  // 0.03 TON for simple state transitions
 
 // ===================== STORAGE LAYOUT =====================
-// Main cell:
-//   jobId:uint32, factoryAddr:address, clientAddr:address,
-//   hasProvider:bool, [providerAddr:address if hasProvider],
-//   state:uint8
-//   ref → details cell
+// Main cell layout and loadMainData / saveData live in
+// `lib/job_state.tolk` — identical to jetton_job.tolk so both contracts
+// stay in sync without duplication.
 //
-// Details cell:
+// Details cell (TON-specific — jetton variant adds jettonWallet):
 //   evaluatorAddr:address, budget:coins,
 //   descHash:uint256, resultHash:uint256
 //   ref → ext cell
@@ -58,21 +24,6 @@ const MIN_GAS_STATE_CHANGE: int = 30000000;  // 0.03 TON for simple state transi
 //   timeout:uint32, createdAt:uint32,
 //   evalTimeout:uint32, submittedAt:uint32,
 //   resultType:uint8, reason:uint256
-
-fun loadMainData(): (int, address, address, address?, int, cell) {
-    var cs = contract.getData().beginParse();
-    val jobId = cs.loadUint(32);
-    val factory = cs.loadAddress();
-    val client = cs.loadAddress();
-    val hasProvider = cs.loadBool();
-    var provider: address? = null;
-    if (hasProvider) {
-        provider = cs.loadAddress();
-    }
-    val state = cs.loadUint(8);
-    val detailsCell = cs.loadRef();
-    return (jobId, factory, client, provider, state, detailsCell);
-}
 
 fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int) {
     var ds = detailsCell.beginParse();
@@ -91,21 +42,6 @@ fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int,
     val reason = es.loadUint(256);
 
     return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason);
-}
-
-fun saveData(jobId: int, factory: address, client: address, provider: address?, state: int, detailsCell: cell) {
-    var b = beginCell()
-        .storeUint(jobId, 32)
-        .storeAddress(factory)
-        .storeAddress(client);
-    if (provider != null) {
-        b.storeBool(true).storeAddress(provider!);
-    } else {
-        b.storeBool(false);
-    }
-    b.storeUint(state, 8)
-     .storeRef(detailsCell);
-    contract.setData(b.endCell());
 }
 
 fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash: int,
