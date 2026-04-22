@@ -23,24 +23,34 @@ const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 // Main cell layout and loadMainData / saveData live in
 // `lib/job_state.tolk` and are shared with job.tolk.
 //
-// Details cell (jetton variant — extra jettonWallet in ext):
+// Details cell (jetton variant — extra jettonWallet in ext, v2 adds jettonMaster):
 //   evaluatorAddr:address, budget:coins,
 //   descHash:uint256, resultHash:uint256
-//   ref → ext cell
+//   ref1 → extCell (v1 fields + jettonWallet)
+//   ref2 → v2Cell (v2 fields + jettonMaster + pendingBudget)
 //
-// Ext cell:
+// extCell:
 //   timeout:uint32, createdAt:uint32,
 //   evalTimeout:uint32, submittedAt:uint32,
 //   resultType:uint8, reason:uint256,
 //   jettonWallet:address
+//
+// v2Cell:
+//   mode:uint8,
+//   applicationDeadline:uint32,
+//   hookAddress:address?,
+//   jettonMaster:address?,        // trusted metadata, not verified on-chain
+//   pendingBudget:coins            // top-up target set by SetBudget in FUNDED;
+//                                  // 0 when no top-up is pending
 
-fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, address) {
+fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, address, int, int, address?, address?, int) {
     var ds = detailsCell.beginParse();
     val evaluator = ds.loadAddress();
     val budget = ds.loadCoins();
     val descHash = ds.loadUint(256);
     val resultHash = ds.loadUint(256);
     val extCell = ds.loadRef();
+    val v2Cell = ds.loadRef();
 
     var es = extCell.beginParse();
     val timeout = es.loadUint(32);
@@ -51,12 +61,29 @@ fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int,
     val reason = es.loadUint(256);
     val jettonWallet = es.loadAddress();
 
-    return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet);
+    var v2s = v2Cell.beginParse();
+    val mode = v2s.loadUint(8);
+    val applicationDeadline = v2s.loadUint(32);
+    val hasHook = v2s.loadBool();
+    var hookAddress: address? = null;
+    if (hasHook) {
+        hookAddress = v2s.loadAddress();
+    }
+    val hasMaster = v2s.loadBool();
+    var jettonMaster: address? = null;
+    if (hasMaster) {
+        jettonMaster = v2s.loadAddress();
+    }
+    val pendingBudget = v2s.loadCoins();
+
+    return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget);
 }
 
 fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash: int,
                      timeout: int, createdAt: int, evalTimeout: int, submittedAt: int,
-                     resultType: int, reason: int, jettonWallet: address): cell {
+                     resultType: int, reason: int, jettonWallet: address,
+                     mode: int, applicationDeadline: int, hookAddress: address?,
+                     jettonMaster: address?, pendingBudget: int): cell {
     val extCell = beginCell()
         .storeUint(timeout, 32)
         .storeUint(createdAt, 32)
@@ -67,12 +94,29 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
         .storeAddress(jettonWallet)
         .endCell();
 
+    var v2b = beginCell()
+        .storeUint(mode, 8)
+        .storeUint(applicationDeadline, 32);
+    if (hookAddress != null) {
+        v2b.storeBool(true).storeAddress(hookAddress!);
+    } else {
+        v2b.storeBool(false);
+    }
+    if (jettonMaster != null) {
+        v2b.storeBool(true).storeAddress(jettonMaster!);
+    } else {
+        v2b.storeBool(false);
+    }
+    v2b.storeCoins(pendingBudget);
+    val v2Cell = v2b.endCell();
+
     return beginCell()
         .storeAddress(evaluator)
         .storeCoins(budget)
         .storeUint(descHash, 256)
         .storeUint(resultHash, 256)
         .storeRef(extCell)
+        .storeRef(v2Cell)
         .endCell();
 }
 
@@ -84,19 +128,12 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
         .storeUint(0, 64)             // query_id
         .storeCoins(jettonAmount)     // Jetton amount
         .storeAddress(recipient)      // destination
-        .storeAddress(returnExcessTo) // response_destination — ALL excess TON goes back to caller
+        .storeAddress(returnExcessTo) // response_destination
         .storeBool(false)             // no custom_payload
-        // forward_ton_amount = 0.02 TON. A TEP-74 transfer_notification
-        // to a standard wallet consumes ~0.005 TON of gas; 0.02 TON
-        // gives a 4x safety margin and saves 0.03 TON per payout
-        // compared to the previous 0.05 TON default.
-        .storeCoins(20000000)
+        .storeCoins(20000000)         // forward_ton_amount 0.02 TON
         .storeBool(false)             // no forward_payload
         .endCell();
 
-    // Send entire contract balance with jetton transfer.
-    // Evaluator's msg.value excess + contract's stored balance all go to jetton wallet.
-    // Jetton wallet returns unused TON to response_destination (= returnExcessTo).
     reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
     createMessage({
         bounce: BounceMode.Only256BitsOfBody,
@@ -106,9 +143,36 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
     }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
 }
 
+// ===================== AFTER-EVALUATE HOOK =====================
+
+// Kept in sync with job.tolk. See that file for rationale.
+// 0x6f0e4a7c = CRC32("notify::after_evaluate")
+const OP_AFTER_EVALUATE: int = 0x6f0e4a7c;
+
+fun fireAfterEvaluate(hookAddress: address?, jobId: int, approved: int, providerAddr: address?) {
+    if (hookAddress == null) {
+        return;
+    }
+    var b = beginCell()
+        .storeUint(OP_AFTER_EVALUATE, 32)
+        .storeUint(jobId, 32)
+        .storeUint(approved, 8);
+    if (providerAddr != null) {
+        b.storeBool(true).storeAddress(providerAddr!);
+    } else {
+        b.storeBool(false);
+    }
+    createMessage({
+        bounce: BounceMode.NoBounce,
+        dest: hookAddress!,
+        value: 10000000,
+        body: b.endCell(),
+    }).send(SEND_MODE_IGNORE_ERRORS);
+}
+
 // ===================== MESSAGES =====================
 
-// CRC-32 opcodes: same scheme as job.tolk. See that file for rationale.
+// CRC-32 opcodes: same scheme as job.tolk.
 
 // 0xba32c6d9 = CRC32("op::take_job")
 struct (0xba32c6d9) TakeJob {}
@@ -128,6 +192,10 @@ struct (0xa478b965) EvaluateJob {
 // 0x18261fbf = CRC32("op::cancel_job")
 struct (0x18261fbf) CancelJob {}
 
+// V2 params ride in a plain ref. Jetton ref layout (wider than TON):
+//   mode:uint8, applicationWindow:uint32,
+//   hookAddress:(Maybe address), jettonMaster:(Maybe address).
+
 // 0xbb8c8df3 = CRC32("op::init_job")
 @overflow1023_policy("suppress")
 struct (0xbb8c8df3) InitJob {
@@ -138,6 +206,7 @@ struct (0xbb8c8df3) InitJob {
     descriptionHash: uint256;
     timeout: uint32;
     evaluationTimeout: uint32;
+    v2Ref: cell;
 }
 
 // 0xa16c4dc0 = CRC32("op::claim_job")
@@ -156,6 +225,20 @@ struct (0x6a48fe56) SetJettonWallet {
     jettonWallet: address;
 }
 
+// ---------- v2 AppMode opcodes ----------
+// 0x663a16f6 = CRC32("op::accept_provider")
+struct (0x663a16f6) AcceptProvider {
+    providerAddress: address;
+    proposedBudget: coins;
+    providerPubkey: uint256;
+    signatureRef: cell;
+}
+
+// 0x16b321c2 = CRC32("op::extend_window")
+struct (0x16b321c2) ExtendWindow {
+    newDeadline: uint32;
+}
+
 // ---------- Two-phase settlement opcodes ----------
 // 0xa7665d4e = CRC32("op::retry_transfer")
 struct (0xa7665d4e) RetryTransfer {}
@@ -166,9 +249,7 @@ struct (0xe1f3102b) CommitSettlement {}
 // 0x2c31d1c3 = CRC32("op::emergency_reclaim")
 struct (0x2c31d1c3) EmergencyReclaim {}
 
-// TEP-74 standard transfer_notification opcode, CRC-32 of the TL-B line
-// (not of the short name). Left unchanged so third-party jetton wallets
-// that comply with TEP-74 keep delivering funding notifications to us.
+// TEP-74 standard transfer_notification opcode.
 struct (0x7362d09c) TransferNotification {
     queryId: uint64;
     amount: coins;
@@ -186,6 +267,8 @@ type AllowedMessage =
     | QuitJob
     | SetBudget
     | SetJettonWallet
+    | AcceptProvider
+    | ExtendWindow
     | RetryTransfer
     | CommitSettlement
     | EmergencyReclaim
@@ -201,13 +284,33 @@ fun onInternalMessage(in: InMessage) {
             assert(in.senderAddress == factory) throw ERR_ACCESS_DENIED;
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
 
+            var v2s = msg.v2Ref.beginParse();
+            val mode = v2s.loadUint(8);
+            val applicationWindow = v2s.loadUint(32);
+            val hasHook = v2s.loadBool();
+            var hookAddress: address? = null;
+            if (hasHook) {
+                hookAddress = v2s.loadAddress();
+            }
+            val hasMaster = v2s.loadBool();
+            var jettonMaster: address? = null;
+            if (hasMaster) {
+                jettonMaster = v2s.loadAddress();
+            }
+            assert(mode == MODE_FIXED || mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
+
+            var deadline: int = 0;
+            if (mode == MODE_APPLICATION) {
+                deadline = blockchain.now() + applicationWindow;
+            }
+
             val det = buildDetailsCell(
                 msg.evaluatorAddress, msg.budget, msg.descriptionHash,
-                0, msg.timeout, 0, msg.evaluationTimeout, 0, 0, 0, factory
+                0, msg.timeout, 0, msg.evaluationTimeout, 0, 0, 0, factory,
+                mode, deadline, hookAddress, jettonMaster, 0
             );
             saveData(msg.jobId, factory, msg.clientAddress, null, STATE_OPEN, det);
 
-            // Return excess to client, keep MIN_STORAGE for rent
             reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
             createMessage({
                 bounce: BounceMode.NoBounce,
@@ -223,20 +326,12 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, currentWallet) = loadDetails(detCell);
-            // Disallow a second SetJettonWallet. InitJob stores the factory
-            // address as a sentinel placeholder, so a real jetton wallet
-            // has been installed iff currentWallet != factory. If the
-            // client sent USDT to the wrong wallet already, changing the
-            // wallet here would strand those jettons on the old one —
-            // cleaner to require them to cancel the job (now possible in
-            // STATE_OPEN after the earlier fix) and recreate.
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, currentWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
             assert(currentWallet == factory) throw ERR_INVALID_STATE;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, msg.jettonWallet);
+            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, msg.jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
             saveData(jobId, factory, client, provider, STATE_OPEN, newDet);
 
-            // Return excess
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
@@ -248,14 +343,49 @@ fun onInternalMessage(in: InMessage) {
         SetBudget => {
             assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
-            assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
+            // v2: SetBudget valid in OPEN (just bump the number) or in
+            // FUNDED (set `pendingBudget` so a follow-up TransferNotification
+            // carrying the delta flips `budget` to the new value). Unlike
+            // the TON contract we cannot atomically top up here — jettons
+            // must arrive via a separate transfer from the client's jetton
+            // wallet.
+            assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, _, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet) = loadDetails(detCell);
-            val newDet = buildDetailsCell(evaluator, msg.budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet);
-            saveData(jobId, factory, client, provider, STATE_OPEN, newDet);
+            val (evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, _) = loadDetails(detCell);
 
-            // Return excess
+            if (state == STATE_FUNDED) {
+                assert(msg.budget > curBudget) throw ERR_BUDGET_DECREASE;
+                val newDet = buildDetailsCell(evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, msg.budget);
+                saveData(jobId, factory, client, provider, state, newDet);
+            } else {
+                // OPEN: no jettons have arrived; just update target budget.
+                // pendingBudget stays 0 — it is only meaningful in FUNDED.
+                val newDet = buildDetailsCell(evaluator, msg.budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, 0);
+                saveData(jobId, factory, client, provider, state, newDet);
+            }
+
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
+        }
+
+        ExtendWindow => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
+            assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
+
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, curDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            assert(mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
+            assert(msg.newDeadline > curDeadline) throw ERR_APP_WINDOW_EXPIRED;
+
+            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, msg.newDeadline, hookAddr, jettonMaster, pendingBudget);
+            saveData(jobId, factory, client, provider, state, newDet);
+
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
@@ -266,31 +396,48 @@ fun onInternalMessage(in: InMessage) {
 
         TransferNotification => {
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
-            assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
+            // v2: TransferNotification is accepted in both OPEN (initial
+            // funding) and FUNDED (top-up for an earlier SetBudget). Any
+            // other state has no pending transfer to settle — reject.
+            // CAVEAT: the SDK/bot must coordinate top-up ordering. If a
+            // client stages SetBudget in FUNDED and the provider calls
+            // SubmitResult (SUBMITTED) before the jetton delta lands, the
+            // incoming TransferNotification reverts but the jettons
+            // themselves already sit on the job's jetton wallet and
+            // sendJettonPayout only pulls `budget` — the delta is
+            // stranded. UIs must pre-check state before forwarding the
+            // jetton transfer; this is documented here rather than fixed
+            // on-chain because the fix (pulling pendingBudget + budget
+            // on payout) breaks the FUNDED-only invariant `budget ==
+            // jettons_actually_escrowed` that the rest of the contract
+            // relies on.
+            assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
 
-            val (evaluator, budget, descHash, resultHash, timeout, _, evalTimeout, submittedAt, resultType, reason, jettonWallet) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
             assert(in.senderAddress == jettonWallet) throw ERR_ACCESS_DENIED;
             assert(jettonWallet != factory) throw ERR_JETTON_WALLET_NOT_SET;
-            assert(budget > 0) throw ERR_BUDGET_NOT_SET;
-            // Exact match required. Accepting >= budget would leave the
-            // overpaid delta stranded on the job's jetton wallet with no
-            // built-in way to withdraw it — CARRY_ALL_BALANCE on payout
-            // only delivers the stored `budget`. SDK/UI clients must
-            // send exactly budget; overpayment is a caller bug we reject
-            // before state mutates.
-            assert(msg.amount == budget) throw ERR_INSUFFICIENT_FUNDS;
             assert(msg.sender == client) throw ERR_ACCESS_DENIED;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, jettonWallet);
-            saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
+            if (state == STATE_OPEN) {
+                assert(budget > 0) throw ERR_BUDGET_NOT_SET;
+                assert(msg.amount == budget) throw ERR_INSUFFICIENT_FUNDS;
 
-            // Return the forward-TON excess (what the jetton wallet
-            // forwarded to us beyond the storage reserve) back to the
-            // original client. Without this, the extra TON sits on the
-            // job contract and eventually leaves as part of the payout —
-            // going to the provider or back to the client via the normal
-            // payout path, which means the client silently overpays gas
-            // on behalf of whoever receives the budget.
+                val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
+                saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
+            } else {
+                // FUNDED top-up: must match the pending delta exactly.
+                // If no top-up was requested (pendingBudget == 0) we
+                // reject — the client sent a stray jetton transfer.
+                assert(pendingBudget > 0) throw ERR_INVALID_STATE;
+                val delta = pendingBudget - budget;
+                assert(msg.amount == delta) throw ERR_INSUFFICIENT_FUNDS;
+
+                // Promote: budget = pendingBudget, clear pending.
+                val newDet = buildDetailsCell(evaluator, pendingBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, 0);
+                saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
+            }
+
+            // Return the forward-TON excess back to the client.
             reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
             createMessage({
                 bounce: BounceMode.NoBounce,
@@ -306,15 +453,54 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
 
-            // BUG-2 fix: evaluator must not be able to take their own job,
-            // otherwise they could accept-and-self-approve for a free payout.
             var ds = det.beginParse();
             val evaluator = ds.loadAddress();
             assert(in.senderAddress != evaluator) throw ERR_ACCESS_DENIED;
 
+            val (_, _, _, _, _, _, _, _, _, _, _, mode, _, _, _, _) = loadDetails(det);
+            assert(mode == MODE_FIXED) throw ERR_WRONG_MODE;
+
             saveData(jobId, factory, client, in.senderAddress, STATE_FUNDED, det);
 
-            // Return excess
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: in.senderAddress,
+                value: 0,
+                body: beginCell().endCell()
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
+        }
+
+        AcceptProvider => {
+            assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
+            val (jobId, factory, client, provider, state, detCell) = loadMainData();
+            assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
+            assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
+            assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
+
+            val (evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            assert(mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
+            assert(msg.providerAddress != evaluator) throw ERR_ACCESS_DENIED;
+            assert(blockchain.now() <= appDeadline) throw ERR_APP_WINDOW_EXPIRED;
+
+            // Jetton AcceptProvider cannot top up the budget atomically
+            // (jettons live on a separate wallet). Any budget change must
+            // go through SetBudget + TransferNotification first. Here we
+            // only accept bids at exactly the currently-funded budget.
+            assert(msg.proposedBudget == curBudget) throw ERR_BUDGET_DECREASE;
+
+            val signedCell = beginCell()
+                .storeAddress(contract.getAddress())
+                .storeCoins(msg.proposedBudget)
+                .storeAddress(msg.providerAddress)
+                .endCell();
+            val signedHash = signedCell.hash();
+            var sigSlice = msg.signatureRef.beginParse();
+            val signature = sigSlice.loadBits(512);
+            assert(isSignatureValid(signedHash, signature, msg.providerPubkey)) throw ERR_BAD_SIGNATURE;
+
+            val newDet = buildDetailsCell(evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
+            saveData(jobId, factory, client, msg.providerAddress, STATE_FUNDED, newDet);
+
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
@@ -332,7 +518,6 @@ fun onInternalMessage(in: InMessage) {
 
             saveData(jobId, factory, client, null, STATE_FUNDED, det);
 
-            // Return excess
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
@@ -348,11 +533,10 @@ fun onInternalMessage(in: InMessage) {
             assert(provider != null) throw ERR_NO_PROVIDER;
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, budget, descHash, _, timeout, createdAt, evalTimeout, _, _, reason, jettonWallet) = loadDetails(detCell);
-            val newDet = buildDetailsCell(evaluator, budget, descHash, msg.resultHash, timeout, createdAt, evalTimeout, blockchain.now(), msg.resultType, reason, jettonWallet);
+            val (evaluator, budget, descHash, _, timeout, createdAt, evalTimeout, _, _, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            val newDet = buildDetailsCell(evaluator, budget, descHash, msg.resultHash, timeout, createdAt, evalTimeout, blockchain.now(), msg.resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
             saveData(jobId, factory, client, provider, STATE_SUBMITTED, newDet);
 
-            // Return excess
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
@@ -365,14 +549,13 @@ fun onInternalMessage(in: InMessage) {
             assert(in.valueCoins >= MIN_GAS_JETTON_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(state == STATE_SUBMITTED) throw ERR_INVALID_STATE;
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, _, jettonWallet) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, _, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
             assert(in.senderAddress == evaluator) throw ERR_ACCESS_DENIED;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, msg.reason, jettonWallet);
+            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, msg.reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
 
-            // Two-phase settlement: park in SETTLING_* while the jetton
-            // transfer is in flight. If it bounces the state stays
-            // SETTLING_* and the recipient can call RetryTransfer.
+            fireAfterEvaluate(hookAddr, jobId, msg.approved, provider);
+
             if (msg.approved != 0) {
                 saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, newDet);
                 sendJettonPayout(jettonWallet, budget, provider!, evaluator);
@@ -389,9 +572,11 @@ fun onInternalMessage(in: InMessage) {
             assert(provider != null) throw ERR_NO_PROVIDER;
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
-            val (_, budget, _, _, _, _, evalTimeout, submittedAt, _, _, jettonWallet) = loadDetails(detCell);
+            val (_, budget, _, _, _, _, evalTimeout, submittedAt, _, _, jettonWallet, _, _, hookAddr, _, _) = loadDetails(detCell);
             val evalDeadline = submittedAt + evalTimeout;
             assert(blockchain.now() >= evalDeadline) throw ERR_EVAL_TIMEOUT_NOT_EXPIRED;
+
+            fireAfterEvaluate(hookAddr, jobId, 1, provider);
 
             saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, detCell);
             sendJettonPayout(jettonWallet, budget, provider!, provider!);
@@ -401,23 +586,17 @@ fun onInternalMessage(in: InMessage) {
             assert(in.valueCoins >= MIN_GAS_STATE_CHANGE) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
-            // Allow cancel in either OPEN (no jettons have been sent, no
-            // provider can be affected) or FUNDED (gated by timeout).
             assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
 
             if (state == STATE_FUNDED) {
-                // FUNDED cancel refunds the jetton payout — needs the
-                // higher jetton-payout gas floor.
                 assert(in.valueCoins >= MIN_GAS_JETTON_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
-                val (_, budget, _, _, timeout, createdAt, _, _, _, _, jettonWallet) = loadDetails(detCell);
+                val (_, budget, _, _, timeout, createdAt, _, _, _, _, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
                 val deadline = createdAt + timeout;
                 assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
                 saveData(jobId, factory, client, provider, STATE_SETTLING_CANCELLED, detCell);
                 sendJettonPayout(jettonWallet, budget, client, client);
             } else {
-                // OPEN cancel: no jettons have been received, nothing to
-                // transfer. Just mark terminal and return storage TON.
                 saveData(jobId, factory, client, provider, STATE_CANCELLED, detCell);
                 createMessage({
                     bounce: BounceMode.NoBounce,
@@ -437,9 +616,8 @@ fun onInternalMessage(in: InMessage) {
                 || state == STATE_SETTLING_CANCELLED
             ) throw ERR_INVALID_STATE;
 
-            val (_, budget, _, _, _, _, _, _, _, _, jettonWallet) = loadDetails(detCell);
+            val (_, budget, _, _, _, _, _, _, _, _, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
 
-            // Recipient depends on which terminal branch we were headed for.
             var recipient: address = client;
             if (state == STATE_SETTLING_COMPLETED) {
                 assert(provider != null) throw ERR_NO_PROVIDER;
@@ -447,7 +625,6 @@ fun onInternalMessage(in: InMessage) {
             }
             assert(in.senderAddress == recipient) throw ERR_ACCESS_DENIED;
 
-            // Re-issue the jetton transfer. Excess TON returns to caller.
             sendJettonPayout(jettonWallet, budget, recipient, in.senderAddress);
         }
 
@@ -460,9 +637,6 @@ fun onInternalMessage(in: InMessage) {
                 || state == STATE_SETTLING_CANCELLED
             ) throw ERR_INVALID_STATE;
 
-            // Recipient-only: only the party that would have received the
-            // jettons can assert that settlement is done. We cannot verify
-            // jetton balance on a separate jetton wallet from here.
             var recipient: address = client;
             if (state == STATE_SETTLING_COMPLETED) {
                 assert(provider != null) throw ERR_NO_PROVIDER;
@@ -496,11 +670,9 @@ fun onInternalMessage(in: InMessage) {
                 || state == STATE_SETTLING_CANCELLED
             ) throw ERR_INVALID_STATE;
 
-            val (_, budget, _, _, _, createdAt, _, _, _, _, jettonWallet) = loadDetails(detCell);
+            val (_, budget, _, _, _, createdAt, _, _, _, _, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
             assert(blockchain.now() >= createdAt + TIMEOUT_BYPASS) throw ERR_BYPASS_NOT_ALLOWED;
 
-            // Exit SETTLING permanently into DISPUTED with the jetton
-            // payout directed at the client regardless of the prior branch.
             saveData(jobId, factory, client, provider, STATE_DISPUTED, detCell);
             sendJettonPayout(jettonWallet, budget, client, client);
         }
@@ -521,11 +693,18 @@ fun onBouncedMessage(in: InMessageBounced) {
 
 get fun get_job_data(): (int, address, address?, address, int, int, int, int, int, int, int, int, int, int, address) {
     val (jobId, _, client, provider, state, detCell) = loadMainData();
-    val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet) = loadDetails(detCell);
+    val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
     return (jobId, client, provider, evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, state, jettonWallet);
 }
 
 get fun get_state(): int {
     val (_, _, _, _, state, _) = loadMainData();
     return state;
+}
+
+// v2: mode + AppMode window + hook + jettonMaster + pendingBudget.
+get fun get_v2_data(): (int, int, address?, address?, int) {
+    val (_, _, _, _, _, detCell) = loadMainData();
+    val (_, _, _, _, _, _, _, _, _, _, _, mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget) = loadDetails(detCell);
+    return (mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget);
 }
