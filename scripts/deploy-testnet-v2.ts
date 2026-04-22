@@ -29,6 +29,10 @@ const MNEMONIC = (process.env.WALLET_MNEMONIC ?? '').trim();
 const API_KEY = process.env.TONCENTER_API_KEY ?? '';
 const ENDPOINT =
     process.env.TONCENTER_ENDPOINT ?? 'https://testnet.toncenter.com/api/v2/jsonRPC';
+const TESTNET = ENDPOINT.includes('testnet');
+const NET_LABEL = TESTNET ? 'testnet' : 'mainnet';
+const EXPLORER_HOST = TESTNET ? 'testnet.tonviewer.com' : 'tonviewer.com';
+const DEPLOY_FILE = TESTNET ? 'testnet-v2.json' : 'mainnet-v2.json';
 
 if (!MNEMONIC) {
     console.error('WALLET_MNEMONIC missing. Create .env.local from .env.local.example.');
@@ -83,7 +87,7 @@ async function waitForSeqno(wallet: any, expected: number): Promise<number> {
 }
 
 async function main() {
-    console.log('--- ENACT v2 testnet deploy ---');
+    console.log(`--- ENACT v2 ${NET_LABEL} deploy ---`);
     console.log(`endpoint: ${ENDPOINT}`);
     const client = new TonClient({ endpoint: ENDPOINT, apiKey: API_KEY });
     const kp = await mnemonicToPrivateKey(MNEMONIC.split(/\s+/));
@@ -91,7 +95,7 @@ async function main() {
     const w = client.open(wallet);
 
     const balance = await retry(() => w.getBalance());
-    console.log(`wallet: ${wallet.address.toString({ testOnly: true })}`);
+    console.log(`wallet: ${wallet.address.toString({ testOnly: TESTNET })}`);
     console.log(`balance: ${Number(balance) / 1e9} TON`);
     if (balance < toNano('0.5')) {
         console.error('need at least 0.5 TON for the two deploys. top up via https://t.me/testgiver_ton_bot');
@@ -112,7 +116,7 @@ async function main() {
     const jFactoryAddr = contractAddress(0, jFactoryInit);
 
     console.log('\n--- JobFactory v4 ---');
-    console.log(`address: ${factoryAddr.toString({ testOnly: true })}`);
+    console.log(`address: ${factoryAddr.toString({ testOnly: TESTNET })}`);
 
     let seqno = await retry(() => w.getSeqno());
     await retry(() =>
@@ -135,7 +139,7 @@ async function main() {
     seqno = await waitForSeqno(w, seqno + 1);
 
     console.log('\n--- JettonJobFactory v4 ---');
-    console.log(`address: ${jFactoryAddr.toString({ testOnly: true })}`);
+    console.log(`address: ${jFactoryAddr.toString({ testOnly: TESTNET })}`);
 
     await retry(() =>
         w.sendTransfer({
@@ -156,24 +160,24 @@ async function main() {
     await waitActive(client, jFactoryAddr, 'JettonJobFactory');
 
     const record = {
-        network: 'testnet',
+        network: NET_LABEL,
         deployedAt: new Date().toISOString(),
-        wallet: wallet.address.toString({ testOnly: true }),
+        wallet: wallet.address.toString({ testOnly: TESTNET }),
         factory: {
-            address: factoryAddr.toString({ testOnly: true }),
+            address: factoryAddr.toString({ testOnly: TESTNET }),
             rawAddress: factoryAddr.toRawString(),
         },
         jettonFactory: {
-            address: jFactoryAddr.toString({ testOnly: true }),
+            address: jFactoryAddr.toString({ testOnly: TESTNET }),
             rawAddress: jFactoryAddr.toRawString(),
         },
         versions: { factory: 4, jettonFactory: 4 },
         explorer: {
-            factory: `https://testnet.tonviewer.com/${factoryAddr.toString({ testOnly: true })}`,
-            jettonFactory: `https://testnet.tonviewer.com/${jFactoryAddr.toString({ testOnly: true })}`,
+            factory: `https://${EXPLORER_HOST}/${factoryAddr.toString({ testOnly: TESTNET })}`,
+            jettonFactory: `https://${EXPLORER_HOST}/${jFactoryAddr.toString({ testOnly: TESTNET })}`,
         },
     };
-    const outPath = path.join(__dirname, '..', 'deployments', 'testnet-v2.json');
+    const outPath = path.join(__dirname, '..', 'deployments', DEPLOY_FILE);
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, JSON.stringify(record, null, 2) + '\n');
 

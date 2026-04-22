@@ -46,6 +46,9 @@ const MNEMONIC = (process.env.WALLET_MNEMONIC ?? '').trim();
 const API_KEY = process.env.TONCENTER_API_KEY ?? '';
 const ENDPOINT =
     process.env.TONCENTER_ENDPOINT ?? 'https://testnet.toncenter.com/api/v2/jsonRPC';
+const TESTNET = ENDPOINT.includes('testnet');
+const DEPLOY_FILE = TESTNET ? 'testnet-v2.json' : 'mainnet-v2.json';
+const E2E_FILE = TESTNET ? 'testnet-v2-e2e.json' : 'mainnet-v2-e2e.json';
 
 if (!MNEMONIC) {
     console.error('WALLET_MNEMONIC missing — copy .env.local.example to .env.local.');
@@ -78,18 +81,17 @@ async function retry<T>(fn: () => Promise<T>, attempts = 6, delay = 3000): Promi
 }
 
 function loadDeployments() {
-    const p = path.join(__dirname, '..', 'deployments', 'testnet-v2.json');
+    const p = path.join(__dirname, '..', 'deployments', DEPLOY_FILE);
     if (!fs.existsSync(p)) {
-        console.error(
-            'deployments/testnet-v2.json missing — run scripts/deploy-testnet-v2.ts first.',
-        );
+        console.error(`deployments/${DEPLOY_FILE} missing — run deploy first.`);
         process.exit(1);
     }
     return JSON.parse(fs.readFileSync(p, 'utf-8'));
 }
 
 function explorerUrl(addr: Address) {
-    return `https://testnet.tonviewer.com/${addr.toString({ testOnly: true })}`;
+    const host = TESTNET ? 'testnet.tonviewer.com' : 'tonviewer.com';
+    return `https://${host}/${addr.toString({ testOnly: TESTNET })}`;
 }
 
 async function waitForSeqno(
@@ -274,7 +276,7 @@ async function scenarioHappyPath(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     let s = await fundJob(wallet, kp, client, jobAddr, budget, s1);
 
@@ -298,7 +300,7 @@ async function scenarioHappyPath(
     // it's not funded. Instead, document this subset as "evaluator self-
     // flow" — the wallet acts as evaluator + client, and we skip take/submit
     // in favor of the cancel path below after the regression check.
-    report.push({ scenario: 'Happy-path TON (full lifecycle)', result: 'skip', details: 'needs second funded wallet — covered by sandbox Job.spec.ts happy path', jobAddress: jobAddr.toString({ testOnly: true }), explorer: explorerUrl(jobAddr) });
+    report.push({ scenario: 'Happy-path TON (full lifecycle)', result: 'skip', details: 'needs second funded wallet — covered by sandbox Job.spec.ts happy path', jobAddress: jobAddr.toString({ testOnly: TESTNET }), explorer: explorerUrl(jobAddr) });
     return s;
 }
 
@@ -322,7 +324,7 @@ async function scenarioCancelInOpen(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     const cancel = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
     const s = await sendMsg(wallet, kp, jobAddr, toNano('0.05'), cancel, s1);
@@ -333,7 +335,7 @@ async function scenarioCancelInOpen(
         'CancelJob result',
     );
     if (finalState === 5) {
-        report.push({ scenario: 'BUG-5 CancelJob in OPEN', result: 'pass', details: `state -> CANCELLED`, jobAddress: jobAddr.toString({ testOnly: true }), explorer: explorerUrl(jobAddr) });
+        report.push({ scenario: 'BUG-5 CancelJob in OPEN', result: 'pass', details: `state -> CANCELLED`, jobAddress: jobAddr.toString({ testOnly: TESTNET }), explorer: explorerUrl(jobAddr) });
     } else {
         report.push({ scenario: 'BUG-5 CancelJob in OPEN', result: 'fail', details: `final state ${finalState}` });
     }
@@ -360,7 +362,7 @@ async function scenarioMinGasFloor(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     // 0.01 TON is below MIN_GAS_STATE_CHANGE (0.03). Cancel must revert;
     // state stays OPEN.
@@ -369,7 +371,7 @@ async function scenarioMinGasFloor(
     await sleep(8000);
     const stateAfter = await getJobState(client, jobAddr);
     if (stateAfter === 0) {
-        report.push({ scenario: 'Min-gas floor on CancelJob', result: 'pass', details: 'state stays OPEN after underfunded cancel', jobAddress: jobAddr.toString({ testOnly: true }), explorer: explorerUrl(jobAddr) });
+        report.push({ scenario: 'Min-gas floor on CancelJob', result: 'pass', details: 'state stays OPEN after underfunded cancel', jobAddress: jobAddr.toString({ testOnly: TESTNET }), explorer: explorerUrl(jobAddr) });
     } else {
         report.push({ scenario: 'Min-gas floor on CancelJob', result: 'fail', details: `state is ${stateAfter}, expected 0` });
     }
@@ -404,7 +406,7 @@ async function scenarioSetBudgetIncrease(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     let s = await fundJob(wallet, kp, client, jobAddr, initial, s1);
 
@@ -422,7 +424,7 @@ async function scenarioSetBudgetIncrease(
                 scenario: 'v2 setBudget+ raises budget in FUNDED',
                 result: 'pass',
                 details: `budget ${Number(initial) / 1e9} -> ${Number(target) / 1e9} TON`,
-                jobAddress: jobAddr.toString({ testOnly: true }),
+                jobAddress: jobAddr.toString({ testOnly: TESTNET }),
                 explorer: explorerUrl(jobAddr),
             });
             return s;
@@ -462,14 +464,14 @@ async function scenarioAppMode(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     // Verify v2 getter reports APPLICATION mode + deadline.
     const v2 = await getV2Data(client, jobAddr);
     if (v2.mode !== JobMode.APPLICATION || v2.applicationDeadline === 0) {
         report.push({ scenario: 'AppMode getter', result: 'fail', details: `mode=${v2.mode} deadline=${v2.applicationDeadline}` });
     } else {
-        report.push({ scenario: 'AppMode getter (mode + deadline)', result: 'pass', details: `mode=APPLICATION deadline=${v2.applicationDeadline}`, jobAddress: jobAddr.toString({ testOnly: true }), explorer: explorerUrl(jobAddr) });
+        report.push({ scenario: 'AppMode getter (mode + deadline)', result: 'pass', details: `mode=APPLICATION deadline=${v2.applicationDeadline}`, jobAddress: jobAddr.toString({ testOnly: TESTNET }), explorer: explorerUrl(jobAddr) });
     }
 
     let s = await fundJob(wallet, kp, client, jobAddr, budget, s1);
@@ -503,7 +505,7 @@ async function scenarioAppMode(
     await sleep(8000);
     const afterBad = await getJobData(client, jobAddr);
     if (afterBad.provider === null) {
-        report.push({ scenario: 'AppMode: bad signature rejected', result: 'pass', details: 'no provider assigned after bad-sig AcceptProvider', jobAddress: jobAddr.toString({ testOnly: true }), explorer: explorerUrl(jobAddr) });
+        report.push({ scenario: 'AppMode: bad signature rejected', result: 'pass', details: 'no provider assigned after bad-sig AcceptProvider', jobAddress: jobAddr.toString({ testOnly: TESTNET }), explorer: explorerUrl(jobAddr) });
     } else {
         report.push({ scenario: 'AppMode: bad signature rejected', result: 'fail', details: 'provider assigned despite bad signature' });
     }
@@ -524,8 +526,8 @@ async function scenarioAppMode(
             report.push({
                 scenario: 'AppMode: AcceptProvider with valid ed25519 signature',
                 result: 'pass',
-                details: `provider assigned: ${providerAddr.toString({ testOnly: true })}`,
-                jobAddress: jobAddr.toString({ testOnly: true }),
+                details: `provider assigned: ${providerAddr.toString({ testOnly: TESTNET })}`,
+                jobAddress: jobAddr.toString({ testOnly: TESTNET }),
                 explorer: explorerUrl(jobAddr),
             });
             return s;
@@ -564,7 +566,7 @@ async function scenarioExtendWindow(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     const before = (await getV2Data(client, jobAddr)).applicationDeadline;
     const next = before + 7200;
@@ -582,7 +584,7 @@ async function scenarioExtendWindow(
                 scenario: 'v2 ExtendWindow pushes deadline',
                 result: 'pass',
                 details: `deadline ${before} -> ${next} (+${next - before}s)`,
-                jobAddress: jobAddr.toString({ testOnly: true }),
+                jobAddress: jobAddr.toString({ testOnly: TESTNET }),
                 explorer: explorerUrl(jobAddr),
             });
             return s;
@@ -621,7 +623,7 @@ async function scenarioWrongModeGate(
         },
         seqno,
     );
-    console.log(`  job: ${jobAddr.toString({ testOnly: true })}`);
+    console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
     let s = await fundJob(wallet, kp, client, jobAddr, toNano('0.03'), s1);
 
@@ -635,7 +637,7 @@ async function scenarioWrongModeGate(
             scenario: 'v2 wrong-mode gate on TakeJob (APPLICATION)',
             result: 'pass',
             details: 'no provider assigned; state still FUNDED',
-            jobAddress: jobAddr.toString({ testOnly: true }),
+            jobAddress: jobAddr.toString({ testOnly: TESTNET }),
             explorer: explorerUrl(jobAddr),
         });
     } else {
@@ -660,7 +662,7 @@ async function main() {
     const w = client.open(wallet);
 
     const balance = await retry(() => w.getBalance());
-    console.log(`wallet: ${wallet.address.toString({ testOnly: true })}`);
+    console.log(`wallet: ${wallet.address.toString({ testOnly: TESTNET })}`);
     console.log(`balance: ${Number(balance) / 1e9} TON`);
     if (balance < toNano('0.6')) {
         console.error('need at least 0.6 TON for the e2e run');
@@ -694,7 +696,7 @@ async function main() {
     console.log('\n-------');
     console.log(`summary: ${passes} pass, ${fails} fail, ${skips} skip, ${report.length} total`);
 
-    const outPath = path.join(__dirname, '..', 'deployments', 'testnet-v2-e2e.json');
+    const outPath = path.join(__dirname, '..', 'deployments', E2E_FILE);
     fs.writeFileSync(
         outPath,
         JSON.stringify({ runAt: new Date().toISOString(), passes, fails, skips, report }, null, 2) +

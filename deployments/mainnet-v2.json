@@ -1,0 +1,21 @@
+{
+  "network": "mainnet",
+  "deployedAt": "2026-04-22T16:53:00.853Z",
+  "wallet": "EQANJV0X3LdwQxfOSdM1cPjHbCMrXZEhZuL21LWhg0pot_do",
+  "factory": {
+    "address": "EQDfJVJDKsgHef1dqy8Bn1sw7K_Rn62TlWeWXyWKzK4ouIR9",
+    "rawAddress": "0:df2552432ac80779fd5dab2f019f5b30ecafd19fad939567965f258accae28b8"
+  },
+  "jettonFactory": {
+    "address": "EQC57mdNdi1M1N86r3sWtU9IngUG3_j2m6ZzMJuHCCHUTkXr",
+    "rawAddress": "0:b9ee674d762d4cd4df3aaf7b16b54f489e0506dff8f69ba673309b870821d44e"
+  },
+  "versions": {
+    "factory": 4,
+    "jettonFactory": 4
+  },
+  "explorer": {
+    "factory": "https://tonviewer.com/EQDfJVJDKsgHef1dqy8Bn1sw7K_Rn62TlWeWXyWKzK4ouIR9",
+    "jettonFactory": "https://tonviewer.com/EQC57mdNdi1M1N86r3sWtU9IngUG3_j2m6ZzMJuHCCHUTkXr"
+  }
+}
