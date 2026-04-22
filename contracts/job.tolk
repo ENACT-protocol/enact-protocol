@@ -131,24 +131,38 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
 
 // ===================== MESSAGES =====================
 
-struct (0x00000001) FundJob {}
+// Opcodes are CRC-32 of the operation name for TEP-62-style
+// interoperability. The comment next to each struct documents the
+// source string; callers (SDKs, bots, explorers) compute the same
+// hash off-chain to construct message bodies. The previous sequential
+// integer scheme (0x01..0x10) is deliberately abandoned in v2 — it
+// worked but collided with any other protocol that also used small
+// integers, and a TEP proposal expects named CRC-32 tags.
 
-struct (0x00000002) TakeJob {}
+// 0x7a90f051 = CRC32("op::fund_job")
+struct (0x7a90f051) FundJob {}
 
-struct (0x00000003) SubmitResult {
+// 0xba32c6d9 = CRC32("op::take_job")
+struct (0xba32c6d9) TakeJob {}
+
+// 0x493e737b = CRC32("op::submit_result")
+struct (0x493e737b) SubmitResult {
     resultHash: uint256;
     resultType: uint8;
 }
 
-struct (0x00000004) EvaluateJob {
+// 0xa478b965 = CRC32("op::evaluate_job")
+struct (0xa478b965) EvaluateJob {
     approved: uint8;
     reason: uint256;
 }
 
-struct (0x00000005) CancelJob {}
+// 0x18261fbf = CRC32("op::cancel_job")
+struct (0x18261fbf) CancelJob {}
 
+// 0xbb8c8df3 = CRC32("op::init_job")
 @overflow1023_policy("suppress")
-struct (0x00000006) InitJob {
+struct (0xbb8c8df3) InitJob {
     jobId: uint32;
     clientAddress: address;
     evaluatorAddress: address;
@@ -158,28 +172,31 @@ struct (0x00000006) InitJob {
     evaluationTimeout: uint32;
 }
 
-struct (0x00000007) ClaimJob {}
+// 0xa16c4dc0 = CRC32("op::claim_job")
+struct (0xa16c4dc0) ClaimJob {}
 
-struct (0x00000008) QuitJob {}
+// 0x710b6f59 = CRC32("op::quit_job")
+struct (0x710b6f59) QuitJob {}
 
-struct (0x00000009) SetBudget {
+// 0xb1e059fd = CRC32("op::set_budget")
+struct (0xb1e059fd) SetBudget {
     budget: coins;
 }
 
-// ---------- Two-phase settlement opcodes (BUG-1 fix) ----------
+// ---------- Two-phase settlement opcodes ----------
 // RetryTransfer: rightful recipient re-sends the payout while the contract
 // is still in a SETTLING_* state (previous payout bounced / never landed).
-struct (0x0000000A) RetryTransfer {}
+// 0xa7665d4e = CRC32("op::retry_transfer")
+struct (0xa7665d4e) RetryTransfer {}
 
 // CommitSettlement: anyone can promote SETTLING_X → X once the payout has
-// drained from the contract. Used by indexers, UIs, or the recipient to
-// finalize the on-chain terminal state after a successful send.
-struct (0x0000000B) CommitSettlement {}
+// drained from the contract.
+// 0xe1f3102b = CRC32("op::commit_settlement")
+struct (0xe1f3102b) CommitSettlement {}
 
-// EmergencyReclaim: the client can pull remaining funds after TIMEOUT_BYPASS
-// has elapsed since job creation. Exits to STATE_DISPUTED permanently. This
-// is the last-resort escape if the intended recipient is unreachable forever.
-struct (0x0000000C) EmergencyReclaim {}
+// EmergencyReclaim: client can pull remaining funds after TIMEOUT_BYPASS.
+// 0x2c31d1c3 = CRC32("op::emergency_reclaim")
+struct (0x2c31d1c3) EmergencyReclaim {}
 
 type AllowedMessage =
     | FundJob

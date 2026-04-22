@@ -10,20 +10,25 @@ import {
     SendMode,
 } from '@ton/core';
 
+// Opcodes are CRC-32 of the operation name (see contracts/jetton_job.tolk).
+// The only non-hashed value is `transferNotification`, which is the
+// TEP-74 well-known tag for jetton transfer notifications — CRC32 of the
+// full TL-B line, not of the short name, and must stay 0x7362d09c so
+// standard jetton wallets find our contract.
 export const JettonJobOpcodes = {
-    takeJob: 0x00000002,
-    submitResult: 0x00000003,
-    evaluate: 0x00000004,
-    cancel: 0x00000005,
-    initJob: 0x00000006,
-    claim: 0x00000007,
-    quit: 0x00000008,
-    setBudget: 0x00000009,
-    setJettonWallet: 0x0000000a,
-    retryTransfer: 0x0000000b,
-    commitSettlement: 0x0000000c,
-    emergencyReclaim: 0x0000000d,
-    transferNotification: 0x7362d09c,
+    takeJob: 0xba32c6d9,         // CRC32("op::take_job")
+    submitResult: 0x493e737b,    // CRC32("op::submit_result")
+    evaluate: 0xa478b965,        // CRC32("op::evaluate_job")
+    cancel: 0x18261fbf,          // CRC32("op::cancel_job")
+    initJob: 0xbb8c8df3,         // CRC32("op::init_job")
+    claim: 0xa16c4dc0,           // CRC32("op::claim_job")
+    quit: 0x710b6f59,            // CRC32("op::quit_job")
+    setBudget: 0xb1e059fd,       // CRC32("op::set_budget")
+    setJettonWallet: 0x6a48fe56, // CRC32("op::set_jetton_wallet")
+    retryTransfer: 0xa7665d4e,   // CRC32("op::retry_transfer")
+    commitSettlement: 0xe1f3102b,// CRC32("op::commit_settlement")
+    emergencyReclaim: 0x2c31d1c3,// CRC32("op::emergency_reclaim")
+    transferNotification: 0x7362d09c, // TEP-74 standard
 };
 
 // State constants matching jetton_job.tolk STATE_* values. Mirrors Job's

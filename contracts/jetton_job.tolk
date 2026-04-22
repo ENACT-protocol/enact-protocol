@@ -161,22 +161,29 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
 
 // ===================== MESSAGES =====================
 
-struct (0x00000002) TakeJob {}
+// CRC-32 opcodes: same scheme as job.tolk. See that file for rationale.
 
-struct (0x00000003) SubmitResult {
+// 0xba32c6d9 = CRC32("op::take_job")
+struct (0xba32c6d9) TakeJob {}
+
+// 0x493e737b = CRC32("op::submit_result")
+struct (0x493e737b) SubmitResult {
     resultHash: uint256;
     resultType: uint8;
 }
 
-struct (0x00000004) EvaluateJob {
+// 0xa478b965 = CRC32("op::evaluate_job")
+struct (0xa478b965) EvaluateJob {
     approved: uint8;
     reason: uint256;
 }
 
-struct (0x00000005) CancelJob {}
+// 0x18261fbf = CRC32("op::cancel_job")
+struct (0x18261fbf) CancelJob {}
 
+// 0xbb8c8df3 = CRC32("op::init_job")
 @overflow1023_policy("suppress")
-struct (0x00000006) InitJob {
+struct (0xbb8c8df3) InitJob {
     jobId: uint32;
     clientAddress: address;
     evaluatorAddress: address;
@@ -186,39 +193,35 @@ struct (0x00000006) InitJob {
     evaluationTimeout: uint32;
 }
 
-struct (0x00000007) ClaimJob {}
+// 0xa16c4dc0 = CRC32("op::claim_job")
+struct (0xa16c4dc0) ClaimJob {}
 
-struct (0x00000008) QuitJob {}
+// 0x710b6f59 = CRC32("op::quit_job")
+struct (0x710b6f59) QuitJob {}
 
-struct (0x00000009) SetBudget {
+// 0xb1e059fd = CRC32("op::set_budget")
+struct (0xb1e059fd) SetBudget {
     budget: coins;
 }
 
-struct (0x0000000A) SetJettonWallet {
+// 0x6a48fe56 = CRC32("op::set_jetton_wallet")
+struct (0x6a48fe56) SetJettonWallet {
     jettonWallet: address;
 }
 
-// ---------- Two-phase settlement opcodes (BUG-1 fix) ----------
-// RetryTransfer: rightful recipient re-sends the jetton payout while the
-// contract is still in a SETTLING_* state (the previous jetton transfer
-// bounced or never landed). Re-runs sendJettonPayout with the stored budget.
-struct (0x0000000B) RetryTransfer {}
+// ---------- Two-phase settlement opcodes ----------
+// 0xa7665d4e = CRC32("op::retry_transfer")
+struct (0xa7665d4e) RetryTransfer {}
 
-// CommitSettlement: the rightful recipient promotes SETTLING_X -> X,
-// asserting that they received the jetton payout. Unlike job.tolk we
-// cannot prove payout drain on-chain for jettons (they live on a separate
-// jetton wallet), so this is recipient-signed. A malicious or careless
-// recipient who commits before actually receiving only locks themselves
-// out of further retries; they can still receive via EmergencyReclaim
-// after TIMEOUT_BYPASS.
-struct (0x0000000C) CommitSettlement {}
+// 0xe1f3102b = CRC32("op::commit_settlement")
+struct (0xe1f3102b) CommitSettlement {}
 
-// EmergencyReclaim: the client pulls remaining funds after TIMEOUT_BYPASS
-// has elapsed since job creation. Exits to STATE_DISPUTED permanently and
-// sends a jetton payout to the client. Last-resort escape if the intended
-// recipient is permanently unreachable.
-struct (0x0000000D) EmergencyReclaim {}
+// 0x2c31d1c3 = CRC32("op::emergency_reclaim")
+struct (0x2c31d1c3) EmergencyReclaim {}
 
+// TEP-74 standard transfer_notification opcode, CRC-32 of the TL-B line
+// (not of the short name). Left unchanged so third-party jetton wallets
+// that comply with TEP-74 keep delivering funding notifications to us.
 struct (0x7362d09c) TransferNotification {
     queryId: uint64;
     amount: coins;

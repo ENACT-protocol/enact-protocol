@@ -13,7 +13,7 @@ import {
 } from '@ton/core';
 
 export const FactoryOpcodes = {
-    createJob: 0x00000010,
+    createJob: 0x8204df3b, // CRC32("op::create_job")
 };
 
 export type JobFactoryConfig = {

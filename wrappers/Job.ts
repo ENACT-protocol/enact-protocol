@@ -11,20 +11,23 @@ import {
     TupleItemInt,
 } from '@ton/core';
 
-// Op codes matching job.tolk
+// Opcodes are CRC-32 of the operation name. See contracts/job.tolk for
+// the source strings; every value here is the output of
+// Buffer.from("op::<name>", "utf-8") -> crc32 using the IEEE 802.3
+// polynomial (the same one Tolk's "str".crc32() computes).
 export const JobOpcodes = {
-    fund: 0x00000001,
-    takeJob: 0x00000002,
-    submitResult: 0x00000003,
-    evaluate: 0x00000004,
-    cancel: 0x00000005,
-    initJob: 0x00000006,
-    claim: 0x00000007,
-    quit: 0x00000008,
-    setBudget: 0x00000009,
-    retryTransfer: 0x0000000a,
-    commitSettlement: 0x0000000b,
-    emergencyReclaim: 0x0000000c,
+    fund: 0x7a90f051,            // CRC32("op::fund_job")
+    takeJob: 0xba32c6d9,         // CRC32("op::take_job")
+    submitResult: 0x493e737b,    // CRC32("op::submit_result")
+    evaluate: 0xa478b965,        // CRC32("op::evaluate_job")
+    cancel: 0x18261fbf,          // CRC32("op::cancel_job")
+    initJob: 0xbb8c8df3,         // CRC32("op::init_job")
+    claim: 0xa16c4dc0,           // CRC32("op::claim_job")
+    quit: 0x710b6f59,            // CRC32("op::quit_job")
+    setBudget: 0xb1e059fd,       // CRC32("op::set_budget")
+    retryTransfer: 0xa7665d4e,   // CRC32("op::retry_transfer")
+    commitSettlement: 0xe1f3102b,// CRC32("op::commit_settlement")
+    emergencyReclaim: 0x2c31d1c3,// CRC32("op::emergency_reclaim")
 };
 
 // State constants matching job.tolk STATE_* values.

@@ -36,7 +36,10 @@ fun FactoryStorage.save(self) {
 
 // ===================== MESSAGES =====================
 
-struct (0x00000010) CreateJob {
+// CRC-32 opcodes to match the child job contract scheme.
+
+// 0x8204df3b = CRC32("op::create_job")
+struct (0x8204df3b) CreateJob {
     evaluatorAddress: address;
     budget: coins;
     descriptionHash: uint256;
@@ -44,8 +47,9 @@ struct (0x00000010) CreateJob {
     evaluationTimeout: uint32;
 }
 
+// 0xbb8c8df3 = CRC32("op::init_job")
 @overflow1023_policy("suppress")
-struct (0x00000006) InitJob {
+struct (0xbb8c8df3) InitJob {
     jobId: uint32;
     clientAddress: address;
     evaluatorAddress: address;
