@@ -120,6 +120,128 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
         .endCell();
 }
 
+// ===================== FAST-PATH HELPERS (OPT-2, O-4) =====================
+// Jetton variant: extCell carries an extra jettonWallet; v2Cell carries
+// Maybe(hookAddress) + Maybe(jettonMaster) + pendingBudget (coins).
+
+fun loadEvaluatorAndMode(detailsCell: cell): (address, int) {
+    var ds = detailsCell.beginParse();
+    val evaluator = ds.loadAddress();
+    ds.loadCoins();
+    ds.loadUint(256);
+    ds.loadUint(256);
+    ds.loadRef();
+    val v2Cell = ds.loadRef();
+    var v2s = v2Cell.beginParse();
+    val mode = v2s.loadUint(8);
+    return (evaluator, mode);
+}
+
+fun loadBudgetOnly(detailsCell: cell): int {
+    var ds = detailsCell.beginParse();
+    ds.loadAddress();
+    return ds.loadCoins();
+}
+
+fun loadBudgetAndWallet(detailsCell: cell): (int, address) {
+    var ds = detailsCell.beginParse();
+    ds.loadAddress();
+    val budget = ds.loadCoins();
+    ds.loadUint(256);
+    ds.loadUint(256);
+    val extCell = ds.loadRef();
+    var es = extCell.beginParse();
+    es.loadUint(32);
+    es.loadUint(32);
+    es.loadUint(32);
+    es.loadUint(32);
+    es.loadUint(8);
+    es.loadUint(256);
+    val jettonWallet = es.loadAddress();
+    return (budget, jettonWallet);
+}
+
+// Rebuild details with a new resultHash + ext fields (submittedAt,
+// resultType). v2 ref untouched.
+fun rebuildForSubmit(
+    detailsCell: cell, newResultHash: int,
+    newSubmittedAt: int, newResultType: int
+): cell {
+    var ds = detailsCell.beginParse();
+    val evaluator = ds.loadAddress();
+    val budget = ds.loadCoins();
+    val descHash = ds.loadUint(256);
+    ds.loadUint(256);
+    val extRef = ds.loadRef();
+    val v2Ref = ds.loadRef();
+
+    var es = extRef.beginParse();
+    val timeout = es.loadUint(32);
+    val createdAt = es.loadUint(32);
+    val evalTimeout = es.loadUint(32);
+    es.loadUint(32);
+    es.loadUint(8);
+    val reason = es.loadUint(256);
+    val jettonWallet = es.loadAddress();
+
+    val newExt = beginCell()
+        .storeUint(timeout, 32)
+        .storeUint(createdAt, 32)
+        .storeUint(evalTimeout, 32)
+        .storeUint(newSubmittedAt, 32)
+        .storeUint(newResultType, 8)
+        .storeUint(reason, 256)
+        .storeAddress(jettonWallet)
+        .endCell();
+
+    return beginCell()
+        .storeAddress(evaluator)
+        .storeCoins(budget)
+        .storeUint(descHash, 256)
+        .storeUint(newResultHash, 256)
+        .storeRef(newExt)
+        .storeRef(v2Ref)
+        .endCell();
+}
+
+fun rebuildForEvaluate(detailsCell: cell, newReason: int): cell {
+    var ds = detailsCell.beginParse();
+    val evaluator = ds.loadAddress();
+    val budget = ds.loadCoins();
+    val descHash = ds.loadUint(256);
+    val resultHash = ds.loadUint(256);
+    val extRef = ds.loadRef();
+    val v2Ref = ds.loadRef();
+
+    var es = extRef.beginParse();
+    val timeout = es.loadUint(32);
+    val createdAt = es.loadUint(32);
+    val evalTimeout = es.loadUint(32);
+    val submittedAt = es.loadUint(32);
+    val resultType = es.loadUint(8);
+    es.loadUint(256);
+    val jettonWallet = es.loadAddress();
+
+    val newExt = beginCell()
+        .storeUint(timeout, 32)
+        .storeUint(createdAt, 32)
+        .storeUint(evalTimeout, 32)
+        .storeUint(submittedAt, 32)
+        .storeUint(resultType, 8)
+        .storeUint(newReason, 256)
+        .storeAddress(jettonWallet)
+        .endCell();
+
+    return beginCell()
+        .storeAddress(evaluator)
+        .storeCoins(budget)
+        .storeUint(descHash, 256)
+        .storeUint(resultHash, 256)
+        .storeRef(newExt)
+        .storeRef(v2Ref)
+        .endCell();
+}
+
 // ===================== JETTON TRANSFER HELPER =====================
 
 fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnExcessTo: address) {
@@ -316,7 +438,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: msg.clientAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -336,7 +458,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -369,7 +491,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -390,7 +512,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -443,7 +565,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: msg.sender,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -453,11 +575,9 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
 
-            var ds = det.beginParse();
-            val evaluator = ds.loadAddress();
+            // BUG-2 self-take gate + v2 mode gate in one lazy read.
+            val (evaluator, mode) = loadEvaluatorAndMode(det);
             assert(in.senderAddress != evaluator) throw ERR_ACCESS_DENIED;
-
-            val (_, _, _, _, _, _, _, _, _, _, _, mode, _, _, _, _) = loadDetails(det);
             assert(mode == MODE_FIXED) throw ERR_WRONG_MODE;
 
             saveData(jobId, factory, client, in.senderAddress, STATE_FUNDED, det);
@@ -466,7 +586,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -477,15 +597,27 @@ fun onInternalMessage(in: InMessage) {
             assert(provider == null) throw ERR_ALREADY_HAS_PROVIDER;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            val (evaluator, mode) = loadEvaluatorAndMode(detCell);
             assert(mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
             assert(msg.providerAddress != evaluator) throw ERR_ACCESS_DENIED;
+
+            // Read curBudget + applicationDeadline without full parse.
+            val curBudget = loadBudgetOnly(detCell);
+
+            var _peek = detCell.beginParse();
+            _peek.loadAddress();
+            _peek.loadCoins();
+            _peek.loadUint(256);
+            _peek.loadUint(256);
+            _peek.loadRef();
+            var _v2peek = _peek.loadRef().beginParse();
+            _v2peek.loadUint(8);
+            val appDeadline = _v2peek.loadUint(32);
             assert(blockchain.now() <= appDeadline) throw ERR_APP_WINDOW_EXPIRED;
 
             // Jetton AcceptProvider cannot top up the budget atomically
             // (jettons live on a separate wallet). Any budget change must
-            // go through SetBudget + TransferNotification first. Here we
-            // only accept bids at exactly the currently-funded budget.
+            // go through SetBudget + TransferNotification first.
             assert(msg.proposedBudget == curBudget) throw ERR_BUDGET_DECREASE;
 
             val signedCell = beginCell()
@@ -498,14 +630,15 @@ fun onInternalMessage(in: InMessage) {
             val signature = sigSlice.loadBits(512);
             assert(isSignatureValid(signedHash, signature, msg.providerPubkey)) throw ERR_BAD_SIGNATURE;
 
-            val newDet = buildDetailsCell(evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
-            saveData(jobId, factory, client, msg.providerAddress, STATE_FUNDED, newDet);
+            // O-4: details content did not change — reuse detCell verbatim,
+            // only the provider slot in the main cell flips.
+            saveData(jobId, factory, client, msg.providerAddress, STATE_FUNDED, detCell);
 
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -522,7 +655,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -533,15 +666,16 @@ fun onInternalMessage(in: InMessage) {
             assert(provider != null) throw ERR_NO_PROVIDER;
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, budget, descHash, _, timeout, createdAt, evalTimeout, _, _, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
-            val newDet = buildDetailsCell(evaluator, budget, descHash, msg.resultHash, timeout, createdAt, evalTimeout, blockchain.now(), msg.resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
+            // O-4: only resultHash (main) + submittedAt/resultType (ext)
+            // change. v2 ref untouched.
+            val newDet = rebuildForSubmit(detCell, msg.resultHash, blockchain.now(), msg.resultType);
             saveData(jobId, factory, client, provider, STATE_SUBMITTED, newDet);
 
             createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
@@ -549,10 +683,17 @@ fun onInternalMessage(in: InMessage) {
             assert(in.valueCoins >= MIN_GAS_JETTON_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
             val (jobId, factory, client, provider, state, detCell) = loadMainData();
             assert(state == STATE_SUBMITTED) throw ERR_INVALID_STATE;
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, _, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            val (evaluator, _) = loadEvaluatorAndMode(detCell);
             assert(in.senderAddress == evaluator) throw ERR_ACCESS_DENIED;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, msg.reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
+            val (budget, jettonWallet) = loadBudgetAndWallet(detCell);
+
+            // hookAddr still needs the fullish parse — reuse loadDetails
+            // for that one field until a narrower helper lands.
+            val (_, _, _, _, _, _, _, _, _, _, _, _, _, hookAddr, _, _) = loadDetails(detCell);
+
+            // O-4: only ext.reason changes; v2 ref + main fields reused.
+            val newDet = rebuildForEvaluate(detCell, msg.reason);
 
             fireAfterEvaluate(hookAddr, jobId, msg.approved, provider);
 
@@ -602,7 +743,7 @@ fun onInternalMessage(in: InMessage) {
                     bounce: BounceMode.NoBounce,
                     dest: client,
                     value: 0,
-                    body: beginCell().endCell()
+                    // no body (empty)
                 }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
             }
         }
@@ -656,7 +797,7 @@ fun onInternalMessage(in: InMessage) {
                 bounce: BounceMode.NoBounce,
                 dest: in.senderAddress,
                 value: 0,
-                body: beginCell().endCell()
+                // no body (empty)
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
         }
 
