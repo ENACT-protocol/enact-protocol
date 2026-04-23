@@ -39,7 +39,8 @@ const ENDPOINT =
 const TESTNET = ENDPOINT.includes('testnet');
 const NET_LABEL = TESTNET ? 'testnet' : 'mainnet';
 const EXPLORER_HOST = TESTNET ? 'testnet.tonviewer.com' : 'tonviewer.com';
-const LIB_FILE = TESTNET ? 'testnet-libraries.json' : 'mainnet-libraries.json';
+const OPT_SUFFIX = (process.env.DEPLOY_LABEL ?? '').length > 0 ? `-${process.env.DEPLOY_LABEL}` : '';
+const LIB_FILE = TESTNET ? `testnet-libraries${OPT_SUFFIX}.json` : `mainnet-libraries${OPT_SUFFIX}.json`;
 
 if (!MNEMONIC) {
     console.error('WALLET_MNEMONIC missing — check .env.local.');
@@ -120,9 +121,15 @@ async function main() {
     const balance = await retry(() => bw.getBalance());
     console.log(`wallet (${basechainWallet.address.toString()}): ${Number(balance) / 1e9} TON`);
 
-    // Need ~1.2 TON: 0.15 deploy + 0.5 rent × 2 libraries on masterchain.
-    if (balance < toNano('1.2')) {
-        console.error(`need at least 1.2 TON; have ${Number(balance) / 1e9}`);
+    // Base case (first publish): 0.15 deploy + 0.5 rent × 2 = 1.15 TON.
+    // Reuse case (publisher already active, need only RegisterLibrary):
+    // ~0.1 TON gas per register × 2 = 0.2 TON. Detect by probing state.
+    const existing = await retry(() => client.getContractState(
+        WalletContractV5R1.create({ publicKey: kp.publicKey, workchain: 0 }).address,
+    ));
+    const minNeeded = toNano('0.25'); // conservative floor for register-only
+    if (balance < minNeeded) {
+        console.error(`need at least 0.25 TON; have ${Number(balance) / 1e9}`);
         process.exit(1);
     }
 
@@ -163,6 +170,9 @@ async function main() {
             .storeUint(2, 8)            // mode = PUBLIC
             .storeRef(libCode)
             .endCell();
+        // RegisterLibrary value: 0.1 TON covers masterchain action gas.
+        // Publisher itself holds the long-term library rent deposit;
+        // additional top-ups can be sent directly if rent runs low.
         await retry(() =>
             bw.sendTransfer({
                 seqno,
@@ -171,7 +181,7 @@ async function main() {
                 messages: [
                     internal({
                         to: publisher.address,
-                        value: toNano('0.5'),
+                        value: toNano('0.1'),
                         body,
                         bounce: true,
                     }),

@@ -15,7 +15,10 @@ const ERR_JETTON_WALLET_NOT_SET: int = 108;
 
 // Jetton job storage is slightly more compact than TON job storage,
 // hence the tighter MIN_STORAGE.
-const MIN_STORAGE: int = 5000000;   // 0.005 TON reserve for storage fees
+// v2-lib-lite: jetton payload stays small and library-backed, so the
+// buffer can shrink to 0.002 TON. Symmetric with job.tolk; see there
+// for the reasoning.
+const MIN_STORAGE: int = 2000000;   // 0.002 TON — v2-lib-lite
 
 const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 

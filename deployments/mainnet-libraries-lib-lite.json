@@ -1,0 +1,16 @@
+{
+  "network": "mainnet",
+  "publishedAt": "2026-04-23T20:03:21.654Z",
+  "publisher": "Ef-HBU_WaLsBVYqCMHfj4DTDNU2Olh3pTSrsHie6jTq9vPfw",
+  "libraries": {
+    "job": {
+      "hash": "0fe311df370be3c56a2787dea974f164382589ba1cec154bfc0b47a591b73245"
+    },
+    "jettonJob": {
+      "hash": "4fab9eb9dd9c4a601040dbfdcdafcb80f0fe1c6a0ec8cbe5b61323c913d32cbb"
+    }
+  },
+  "explorer": {
+    "publisher": "https://tonviewer.com/Ef-HBU_WaLsBVYqCMHfj4DTDNU2Olh3pTSrsHie6jTq9vPfw"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "runAt": "2026-04-23T20:21:45.643Z",
+  "passes": 2,
+  "fails": 0,
+  "report": [
+    {
+      "scenario": "Happy path TON (approve -> COMPLETED)",
+      "result": "pass",
+      "details": "lifecycle reached state 3 via two-phase settlement",
+      "jobAddress": "EQCfptH0EUtB5SykJNBrMz0OMN3U7fEYTpHP4fpgrFezryWM",
+      "explorer": "https://tonviewer.com/EQCfptH0EUtB5SykJNBrMz0OMN3U7fEYTpHP4fpgrFezryWM"
+    },
+    {
+      "scenario": "Reject path TON (disapprove -> DISPUTED)",
+      "result": "pass",
+      "details": "lifecycle reached state 4 via two-phase settlement",
+      "jobAddress": "EQBMezSiK-2Z7EVTOAqE5juR4gFj7IHfGcRCF0AHcZxNdNaF",
+      "explorer": "https://tonviewer.com/EQBMezSiK-2Z7EVTOAqE5juR4gFj7IHfGcRCF0AHcZxNdNaF"
+    }
+  ]
+}

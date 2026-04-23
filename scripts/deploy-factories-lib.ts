@@ -87,9 +87,10 @@ async function waitActive(client: TonClient, addr: Address, label: string) {
 
 async function main() {
     console.log(`--- ENACT v2-lib factory deploy (${NET_LABEL}) ---`);
+    const optSuffix = (process.env.DEPLOY_LABEL ?? '').length > 0 ? `-${process.env.DEPLOY_LABEL}` : '';
     const libs = JSON.parse(
         fs.readFileSync(
-            path.join(__dirname, '..', 'deployments', TESTNET ? 'testnet-libraries.json' : 'mainnet-libraries.json'),
+            path.join(__dirname, '..', 'deployments', TESTNET ? `testnet-libraries${optSuffix}.json` : `mainnet-libraries${optSuffix}.json`),
             'utf-8',
         ),
     );
@@ -189,7 +190,7 @@ async function main() {
         __dirname,
         '..',
         'deployments',
-        TESTNET ? 'testnet-v2-lib.json' : 'mainnet-v2-lib.json',
+        TESTNET ? `testnet-v2${optSuffix ? optSuffix : '-lib'}.json` : `mainnet-v2${optSuffix ? optSuffix : '-lib'}.json`,
     );
     fs.writeFileSync(outPath, JSON.stringify(record, null, 2) + '\n');
 

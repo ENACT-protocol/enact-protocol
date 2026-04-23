@@ -338,8 +338,8 @@ async function main() {
     console.log(`client:   ${clientWallet.address.toString({ testOnly: TESTNET })} — ${Number(clientBal) / 1e9} TON`);
     console.log(`provider: ${providerWallet.address.toString({ testOnly: TESTNET })} — ${Number(providerBal) / 1e9} TON`);
 
-    if (clientBal < toNano('1') || providerBal < toNano('0.5')) {
-        console.error('need at least 1 TON on client and 0.5 TON on provider');
+    if (clientBal < toNano('0.8') || providerBal < toNano('0.4')) {
+        console.error('need at least 0.8 TON on client and 0.4 TON on provider');
         process.exit(1);
     }
 

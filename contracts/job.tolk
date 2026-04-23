@@ -8,7 +8,15 @@ import "lib/job_state.tolk"
 
 // Everything in `lib/constants.tolk` is imported above. Only constants
 // that differ between TON jobs and jetton jobs live here.
-const MIN_STORAGE: int = 10000000;  // 0.01 TON reserve for storage fees
+// v2-lib-lite: library-ref children hold ~33 bytes of code in state
+// instead of ~3 KB inline, so the long-term storage rent floor drops
+// by ~100x. The previous 0.01 TON reserve was a ~25-year buffer for
+// inline-coded jobs; 0.003 TON still gives a ~30-year buffer at the
+// new footprint while returning 0.007 TON more to the client on every
+// deploy. Invariant `getOriginalBalance() < budget` in CommitSettlement
+// now requires budget > MIN_STORAGE + commit_msg_value ≈ 0.033 TON,
+// which is far below any realistic ENACT job budget.
+const MIN_STORAGE: int = 3000000;   // 0.003 TON — v2-lib-lite
 
 // ===================== STORAGE LAYOUT =====================
 // Main cell layout and loadMainData / saveData live in
