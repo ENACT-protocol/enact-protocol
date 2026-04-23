@@ -1,0 +1,21 @@
+{
+  "network": "testnet",
+  "deployedAt": "2026-04-23T13:20:00.536Z",
+  "wallet": "kQANJV0X3LdwQxfOSdM1cPjHbCMrXZEhZuL21LWhg0pot0zi",
+  "factory": {
+    "address": "kQCOFnGj1eRM-WtMXTBjFsreenlZWCokjFFcisvQWIU9W87r",
+    "rawAddress": "0:8e1671a3d5e44cf96b4c5d306316cade7a7959582a248c515c8acbd058853d5b"
+  },
+  "jettonFactory": {
+    "address": "kQBOxaIV1ZviEGQApjeUAa0qH0S-i7CS-dvapV9FFxE0B9WC",
+    "rawAddress": "0:4ec5a215d59be2106400a6379401ad2a1f44be8bb092f9dbdaa55f4517113407"
+  },
+  "versions": {
+    "factory": 4,
+    "jettonFactory": 4
+  },
+  "explorer": {
+    "factory": "https://testnet.tonviewer.com/kQCOFnGj1eRM-WtMXTBjFsreenlZWCokjFFcisvQWIU9W87r",
+    "jettonFactory": "https://testnet.tonviewer.com/kQBOxaIV1ZviEGQApjeUAa0qH0S-i7CS-dvapV9FFxE0B9WC"
+  }
+}

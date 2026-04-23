@@ -47,8 +47,9 @@ const API_KEY = process.env.TONCENTER_API_KEY ?? '';
 const ENDPOINT =
     process.env.TONCENTER_ENDPOINT ?? 'https://testnet.toncenter.com/api/v2/jsonRPC';
 const TESTNET = ENDPOINT.includes('testnet');
-const DEPLOY_FILE = TESTNET ? 'testnet-v2.json' : 'mainnet-v2.json';
-const E2E_FILE = TESTNET ? 'testnet-v2-e2e.json' : 'mainnet-v2-e2e.json';
+const OPT_SUFFIX = (process.env.DEPLOY_LABEL ?? '').length > 0 ? `-${process.env.DEPLOY_LABEL}` : '';
+const DEPLOY_FILE = TESTNET ? `testnet-v2${OPT_SUFFIX}.json` : `mainnet-v2${OPT_SUFFIX}.json`;
+const E2E_FILE = TESTNET ? `testnet-v2${OPT_SUFFIX}-e2e.json` : `mainnet-v2${OPT_SUFFIX}-e2e.json`;
 
 if (!MNEMONIC) {
     console.error('WALLET_MNEMONIC missing — copy .env.local.example to .env.local.');

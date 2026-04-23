@@ -312,11 +312,12 @@ async function runLifecycle(
 
 async function main() {
     console.log('--- ENACT v2 full-lifecycle e2e ---');
+    const optSuffix = (process.env.DEPLOY_LABEL ?? '').length > 0 ? `-${process.env.DEPLOY_LABEL}` : '';
     const depPath = path.join(
         __dirname,
         '..',
         'deployments',
-        TESTNET ? 'testnet-v2.json' : 'mainnet-v2.json',
+        TESTNET ? `testnet-v2${optSuffix}.json` : `mainnet-v2${optSuffix}.json`,
     );
     const dep = JSON.parse(fs.readFileSync(depPath, 'utf-8'));
     const factoryAddr = Address.parse(dep.factory.address);
@@ -390,7 +391,7 @@ async function main() {
         __dirname,
         '..',
         'deployments',
-        TESTNET ? 'testnet-v2-fullcycle.json' : 'mainnet-v2-fullcycle.json',
+        TESTNET ? `testnet-v2${optSuffix}-fullcycle.json` : `mainnet-v2${optSuffix}-fullcycle.json`,
     );
     fs.writeFileSync(
         outPath,

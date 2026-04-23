@@ -32,7 +32,10 @@ const ENDPOINT =
 const TESTNET = ENDPOINT.includes('testnet');
 const NET_LABEL = TESTNET ? 'testnet' : 'mainnet';
 const EXPLORER_HOST = TESTNET ? 'testnet.tonviewer.com' : 'tonviewer.com';
-const DEPLOY_FILE = TESTNET ? 'testnet-v2.json' : 'mainnet-v2.json';
+// Opt in to a dedicated deployment record for the v2-opt (post-OPT-2/O-4/O-8)
+// bytecode so the pre-opt v4 deployments stay captured for reference.
+const OPT_SUFFIX = (process.env.DEPLOY_LABEL ?? '').length > 0 ? `-${process.env.DEPLOY_LABEL}` : '';
+const DEPLOY_FILE = TESTNET ? `testnet-v2${OPT_SUFFIX}.json` : `mainnet-v2${OPT_SUFFIX}.json`;
 
 if (!MNEMONIC) {
     console.error('WALLET_MNEMONIC missing. Create .env.local from .env.local.example.');
