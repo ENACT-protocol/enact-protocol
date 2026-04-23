@@ -1,0 +1,76 @@
+{
+  "runAt": "2026-04-23T15:31:19.401Z",
+  "passes": 9,
+  "fails": 0,
+  "skips": 1,
+  "report": [
+    {
+      "scenario": "BUG-2 evaluator cannot take own job",
+      "result": "pass",
+      "details": "no provider assigned after self-take attempt"
+    },
+    {
+      "scenario": "Happy-path TON (full lifecycle)",
+      "result": "skip",
+      "details": "needs second funded wallet — covered by sandbox Job.spec.ts happy path",
+      "jobAddress": "kQCepyzXyQr2Igi2jfd5YmO4iv-8_as323-GCpXG-EnMJkW7",
+      "explorer": "https://testnet.tonviewer.com/kQCepyzXyQr2Igi2jfd5YmO4iv-8_as323-GCpXG-EnMJkW7"
+    },
+    {
+      "scenario": "BUG-5 CancelJob in OPEN",
+      "result": "pass",
+      "details": "state -> CANCELLED",
+      "jobAddress": "kQAJCTpkWUv8_Em5xYaNLwDDsxoEThqLxwJG3EJ70Y46APZc",
+      "explorer": "https://testnet.tonviewer.com/kQAJCTpkWUv8_Em5xYaNLwDDsxoEThqLxwJG3EJ70Y46APZc"
+    },
+    {
+      "scenario": "Min-gas floor on CancelJob",
+      "result": "pass",
+      "details": "state stays OPEN after underfunded cancel",
+      "jobAddress": "kQCBTmWw-fJ4QJeqvENDwW2Xhch0B4qTmtDl6y3v__6x9t40",
+      "explorer": "https://testnet.tonviewer.com/kQCBTmWw-fJ4QJeqvENDwW2Xhch0B4qTmtDl6y3v__6x9t40"
+    },
+    {
+      "scenario": "v2 setBudget+ raises budget in FUNDED",
+      "result": "pass",
+      "details": "budget 0.05 -> 0.12 TON",
+      "jobAddress": "kQD_y0tGIxiS5RBIDaXyu3o2jOK8czv1p4C9BBsFHOrU1N0B",
+      "explorer": "https://testnet.tonviewer.com/kQD_y0tGIxiS5RBIDaXyu3o2jOK8czv1p4C9BBsFHOrU1N0B"
+    },
+    {
+      "scenario": "AppMode getter (mode + deadline)",
+      "result": "pass",
+      "details": "mode=APPLICATION deadline=1776961721",
+      "jobAddress": "kQDY9Hrpbt7076hg9BjDRoCLf7ONjw7BX3iVvJ8oZFC2exJi",
+      "explorer": "https://testnet.tonviewer.com/kQDY9Hrpbt7076hg9BjDRoCLf7ONjw7BX3iVvJ8oZFC2exJi"
+    },
+    {
+      "scenario": "AppMode: bad signature rejected",
+      "result": "pass",
+      "details": "no provider assigned after bad-sig AcceptProvider",
+      "jobAddress": "kQDY9Hrpbt7076hg9BjDRoCLf7ONjw7BX3iVvJ8oZFC2exJi",
+      "explorer": "https://testnet.tonviewer.com/kQDY9Hrpbt7076hg9BjDRoCLf7ONjw7BX3iVvJ8oZFC2exJi"
+    },
+    {
+      "scenario": "AppMode: AcceptProvider with valid ed25519 signature",
+      "result": "pass",
+      "details": "provider assigned: kQAWtZmYEC2mMCTOmYMFS206xK9c9tvljNnXSWTWkqeTFQo1",
+      "jobAddress": "kQDY9Hrpbt7076hg9BjDRoCLf7ONjw7BX3iVvJ8oZFC2exJi",
+      "explorer": "https://testnet.tonviewer.com/kQDY9Hrpbt7076hg9BjDRoCLf7ONjw7BX3iVvJ8oZFC2exJi"
+    },
+    {
+      "scenario": "v2 ExtendWindow pushes deadline",
+      "result": "pass",
+      "details": "deadline 1776961779 -> 1776968979 (+7200s)",
+      "jobAddress": "kQA-FsXzjpWxBo3dSVpHQh5XSpqnEXasDaz_5sRKHDPKRNMK",
+      "explorer": "https://testnet.tonviewer.com/kQA-FsXzjpWxBo3dSVpHQh5XSpqnEXasDaz_5sRKHDPKRNMK"
+    },
+    {
+      "scenario": "v2 wrong-mode gate on TakeJob (APPLICATION)",
+      "result": "pass",
+      "details": "no provider assigned; state still FUNDED",
+      "jobAddress": "kQDEgg7FJTx1eD4El0sWx1_WHwo9dvEB-T74OVI9W4U6Q5eg",
+      "explorer": "https://testnet.tonviewer.com/kQDEgg7FJTx1eD4El0sWx1_WHwo9dvEB-T74OVI9W4U6Q5eg"
+    }
+  ]
+}

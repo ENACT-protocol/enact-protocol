@@ -1,0 +1,30 @@
+{
+  "network": "testnet",
+  "deployedAt": "2026-04-23T15:26:01.212Z",
+  "wallet": "kQANJV0X3LdwQxfOSdM1cPjHbCMrXZEhZuL21LWhg0pot0zi",
+  "factory": {
+    "address": "kQCRvXKFxZ1VIhtzRCBQDQmIg-K0Np-MhZeK_SVKLtwo-3hz",
+    "rawAddress": "0:91bd7285c59d55221b734420500d098883e2b4369f8c85978afd254a2edc28fb"
+  },
+  "jettonFactory": {
+    "address": "kQB-Owne1ApprpmLbkGbPXeXqi3LCLmgnzhjFQkkP8WxdMKh",
+    "rawAddress": "0:7e3b09ded40a69ae998b6e419b3d7797aa2dcb08b9a09f38631509243fc5b174"
+  },
+  "libraries": {
+    "job": {
+      "hash": "185f1feba9aac7d1160f4ec4f3c829159d57f48f5c4e970b9ac072c6c9ae3bc0"
+    },
+    "jettonJob": {
+      "hash": "c3e9e71ce6837246d90bf9e53460877c49c83d87ceea5bbfa56e06b618a44cef"
+    }
+  },
+  "versions": {
+    "factory": 4,
+    "jettonFactory": 4,
+    "variant": "v2-lib"
+  },
+  "explorer": {
+    "factory": "https://testnet.tonviewer.com/kQCRvXKFxZ1VIhtzRCBQDQmIg-K0Np-MhZeK_SVKLtwo-3hz",
+    "jettonFactory": "https://testnet.tonviewer.com/kQB-Owne1ApprpmLbkGbPXeXqi3LCLmgnzhjFQkkP8WxdMKh"
+  }
+}
