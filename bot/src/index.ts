@@ -310,6 +310,12 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
 // Save description metadata + CID directly into Supabase so the
 // indexer / explorer can render the document without an external
 // metadata lookup (Lighthouse has no Pinata-style search-by-hash API).
+// Patch the description fields onto an existing jobs row created by
+// the indexer. Uses UPDATE rather than UPSERT because the jobs table
+// has NOT NULL columns (job_id, factory_address, ...) that only the
+// indexer can populate from on-chain state. We retry briefly so the
+// helper can be called immediately after factory.sendCreateJob —
+// indexer typically inserts the row within ~1-2 s of the WS event.
 async function saveDescriptionToSupabase(jobAddress: string, description: string, descCid: string | null, descHash: string): Promise<void> {
     console.log(`[IPFS-SAVE] desc start addr=${jobAddress.slice(0, 12)} cid=${descCid ?? 'null'} hash=${descHash.slice(0, 12)}`);
     if (!descCid) {
@@ -322,18 +328,23 @@ async function saveDescriptionToSupabase(jobAddress: string, description: string
         return;
     }
     const ipfsUrl = `${PINATA_GW}/${descCid}`;
-    try {
-        const { error } = await sb.from('jobs').upsert({
-            address: jobAddress,
-            description_text: description,
-            description_ipfs_url: ipfsUrl,
-            desc_hash: descHash,
-        }, { onConflict: 'address' });
-        if (error) console.warn('[IPFS-SAVE] desc upsert error:', error.message);
-        else console.log(`[IPFS-SAVE] desc OK url=${ipfsUrl}`);
-    } catch (e) {
-        console.warn('[IPFS-SAVE] desc upsert threw:', e);
+    const payload = { description_text: description, description_ipfs_url: ipfsUrl, desc_hash: descHash };
+    // Retry up to 12s — indexer race window. Stops on first success.
+    for (let attempt = 0; attempt < 8; attempt++) {
+        try {
+            const { data, error } = await sb.from('jobs').update(payload).eq('address', jobAddress).select('address');
+            if (error) {
+                console.warn(`[IPFS-SAVE] desc update error (attempt ${attempt + 1}):`, error.message);
+            } else if (data && data.length > 0) {
+                console.log(`[IPFS-SAVE] desc OK url=${ipfsUrl} (attempt ${attempt + 1})`);
+                return;
+            }
+        } catch (e) {
+            console.warn(`[IPFS-SAVE] desc update threw (attempt ${attempt + 1}):`, e);
+        }
+        await new Promise(r => setTimeout(r, 1500));
     }
+    console.warn(`[IPFS-SAVE] desc gave up after 8 retries — indexer never created row for ${jobAddress.slice(0, 12)}`);
 }
 
 async function saveResultToSupabase(jobAddress: string, resultText: string, resultCid: string | null, resultHash: string): Promise<void> {
@@ -348,18 +359,22 @@ async function saveResultToSupabase(jobAddress: string, resultText: string, resu
         return;
     }
     const ipfsUrl = `${PINATA_GW}/${resultCid}`;
-    try {
-        const { error } = await sb.from('jobs').upsert({
-            address: jobAddress,
-            result_text: resultText,
-            result_ipfs_url: ipfsUrl,
-            result_hash: resultHash,
-        }, { onConflict: 'address' });
-        if (error) console.warn('[IPFS-SAVE] result upsert error:', error.message);
-        else console.log(`[IPFS-SAVE] result OK url=${ipfsUrl}`);
-    } catch (e) {
-        console.warn('[IPFS-SAVE] result upsert threw:', e);
+    const payload = { result_text: resultText, result_ipfs_url: ipfsUrl, result_hash: resultHash };
+    for (let attempt = 0; attempt < 8; attempt++) {
+        try {
+            const { data, error } = await sb.from('jobs').update(payload).eq('address', jobAddress).select('address');
+            if (error) {
+                console.warn(`[IPFS-SAVE] result update error (attempt ${attempt + 1}):`, error.message);
+            } else if (data && data.length > 0) {
+                console.log(`[IPFS-SAVE] result OK url=${ipfsUrl} (attempt ${attempt + 1})`);
+                return;
+            }
+        } catch (e) {
+            console.warn(`[IPFS-SAVE] result update threw (attempt ${attempt + 1}):`, e);
+        }
+        await new Promise(r => setTimeout(r, 1500));
     }
+    console.warn(`[IPFS-SAVE] result gave up after 8 retries — no indexer row for ${jobAddress.slice(0, 12)}`);
 }
 
 /** Upload file buffer to Pinata IPFS */
@@ -1139,7 +1154,7 @@ bot.command('create', async (ctx) => {
             const predictedJobAddr = addrResult.stack.readAddress();
             // Persist the IPFS CID alongside the predicted job row so
             // the indexer / explorer don't need a separate metadata lookup.
-            await saveDescriptionToSupabase(predictedJobAddr.toString(), description, upload.cid, upload.hash);
+            saveDescriptionToSupabase(predictedJobAddr.toString(), description, upload.cid, upload.hash);
 
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
 
@@ -1196,7 +1211,7 @@ bot.command('create', async (ctx) => {
         const jobAddr = addrResult.stack.readAddress();
         // Persist IPFS CID for indexer / explorer (Lighthouse has no
         // search-by-hash API, so the bot has to write this directly).
-        await saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash);
+        saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash);
 
         // Step 2: Auto-fund + verify via indexer
         let funded = false;
@@ -1325,7 +1340,7 @@ bot.command('createjetton', async (ctx) => {
             const predAddrRes = await client.runMethod(Address.parse(JETTON_FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(predictedId) }]);
             const predictedAddr = predAddrRes.stack.readAddress();
             // Persist IPFS CID for the indexer / explorer.
-            await saveDescriptionToSupabase(predictedAddr.toString(), description, upload.cid, upload.hash);
+            saveDescriptionToSupabase(predictedAddr.toString(), description, upload.cid, upload.hash);
 
             // Step 2: Set USDT wallet deeplink
             const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
@@ -1401,7 +1416,7 @@ bot.command('createjetton', async (ctx) => {
         const jobId = jobCount - 1;
         const jobAddr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, jobId);
         // Persist IPFS CID for indexer / explorer.
-        await saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash);
+        saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash);
 
         // Auto set USDT jetton wallet
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
@@ -1570,7 +1585,7 @@ bot.command('submit', async (ctx) => {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         // Persist IPFS CID for the indexer / explorer.
-        await saveResultToSupabase(jobAddr.toString(), resultText, resultCid, resultHashHex);
+        saveResultToSupabase(jobAddr.toString(), resultText, resultCid, resultHashHex);
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
             .storeUint(resultHash, 256)
@@ -2857,7 +2872,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
                 const predictedJobId = nextIdRes.stack.readNumber();
                 const predAddrRes = await client.runMethod(Address.parse(factoryAddr), 'get_job_address', [{ type: 'int', value: BigInt(predictedJobId) }]);
                 const predictedAddr = predAddrRes.stack.readAddress();
-                await saveDescriptionToSupabase(predictedAddr.toString(), description, descCid, descHashHex);
+                saveDescriptionToSupabase(predictedAddr.toString(), description, descCid, descHashHex);
             } catch (e) {
                 console.warn('[FILE] Could not predict job address for IPFS save:', e);
             }
@@ -2903,7 +2918,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         }
         if (!jobAddr) throw new Error('Job creation not confirmed');
         // Persist IPFS CID for indexer / explorer.
-        await saveDescriptionToSupabase(jobAddr.toString(), description, descCid, descHashHex);
+        saveDescriptionToSupabase(jobAddr.toString(), description, descCid, descHashHex);
         if (!isJetton) {
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
@@ -2958,7 +2973,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         // Persist IPFS CID for indexer / explorer.
-        await saveResultToSupabase(jobAddr.toString(), resultText, resultUploaded.cid, resultUploaded.hash);
+        saveResultToSupabase(jobAddr.toString(), resultText, resultUploaded.cid, resultUploaded.hash);
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
             .storeUint(resultHash, 256)
