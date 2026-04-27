@@ -141,10 +141,12 @@ export class EnactClient {
         if (!this.lighthouseApiKey) return null;
         const fd = new FormData();
         fd.append('file', new Blob([buffer], { type: mimeType }), filename);
-        const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+        // Endpoint per official SDK config: upload.lighthouse.storage.
+        const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${this.lighthouseApiKey}` },
             body: fd,
+            signal: AbortSignal.timeout(45000),
         });
         if (!res.ok) {
             const errText = await res.text().catch(() => '');

@@ -242,16 +242,20 @@ const descCache = new Map<string, string>();
 /** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */
 // Lighthouse low-level upload — single multipart POST, Bearer token,
 // returns { Hash: <CID> }. Free tier 2 GB permanent IPFS pinning.
-// https://docs.lighthouse.storage/lighthouse-1/quick-start
+// Endpoint per official SDK config (lighthouse-package/lighthouse.config.ts):
+// https://upload.lighthouse.storage/api/v0/add
 async function uploadToLighthouse(buffer: Buffer, filename: string, mimeType: string): Promise<string | null> {
     const key = process.env.LIGHTHOUSE_API_KEY;
     if (!key) return null;
     const fd = new FormData();
     fd.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
-    const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+    const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${key}` },
         body: fd,
+        // IPFS pinning includes CID computation server-side — give it
+        // a generous window before Pinata fallback kicks in.
+        signal: AbortSignal.timeout(45000),
     });
     if (!res.ok) {
         const errText = await res.text().catch(() => '');
