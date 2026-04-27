@@ -125,17 +125,50 @@ async function sendTransaction(to: Address, value: bigint, body: Cell) {
     };
 }
 
-// ─── IPFS via Pinata REST API ───
+// ─── IPFS via Lighthouse.storage (primary) + Pinata (fallback) ───
 
 function sha256hex(text: string): string {
     return createHash('sha256').update(text, 'utf-8').digest('hex');
 }
 
+async function uploadToLighthouse(buffer: Buffer, filename: string, mimeType: string): Promise<string | null> {
+    const key = process.env.LIGHTHOUSE_API_KEY;
+    if (!key) return null;
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+    const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}` },
+        body: fd,
+    });
+    if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Lighthouse upload failed: ${res.status} ${errText.slice(0, 100)}`);
+    }
+    const data = await res.json() as { Hash?: string };
+    return data.Hash ?? null;
+}
+
 async function uploadToIPFS(content: object): Promise<{ cid: string; hash: string }> {
-    if (!config.pinataJwt) throw new Error('PINATA_JWT not set. Get key at pinata.cloud/keys');
     const json = JSON.stringify(content);
     const hash = sha256hex(json);
 
+    // Primary: Lighthouse.storage (free 2 GB, simple Bearer-token API).
+    if (process.env.LIGHTHOUSE_API_KEY) {
+        try {
+            const buffer = Buffer.from(json, 'utf-8');
+            const cid = await uploadToLighthouse(buffer, `enact-${hash.slice(0, 8)}.json`, 'application/json');
+            if (cid) {
+                cidMap.set(hash, cid);
+                return { cid, hash };
+            }
+        } catch (e) {
+            console.warn('[IPFS] Lighthouse JSON failed, falling back to Pinata:', e);
+        }
+    }
+
+    // Fallback: legacy Pinata JWT.
+    if (!config.pinataJwt) throw new Error('Neither LIGHTHOUSE_API_KEY nor PINATA_JWT set. Get a free key at lighthouse.storage');
     const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
         method: 'POST',
         headers: {
@@ -153,7 +186,6 @@ async function uploadToIPFS(content: object): Promise<{ cid: string; hash: strin
 }
 
 async function uploadFileToIPFS(filePath: string): Promise<{ cid: string; hash: string; filename: string; mimeType: string; size: number }> {
-    if (!config.pinataJwt) throw new Error('PINATA_JWT not set');
     const fs = await import('fs');
     const path = await import('path');
     const fileBuffer = fs.readFileSync(filePath);
@@ -169,6 +201,21 @@ async function uploadFileToIPFS(filePath: string): Promise<{ cid: string; hash: 
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     const size = fileBuffer.length;
 
+    // Primary: Lighthouse.storage.
+    if (process.env.LIGHTHOUSE_API_KEY) {
+        try {
+            const cid = await uploadToLighthouse(fileBuffer, filename, mimeType);
+            if (cid) {
+                cidMap.set(hash, cid);
+                return { cid, hash, filename, mimeType, size };
+            }
+        } catch (e) {
+            console.warn('[IPFS] Lighthouse file failed, falling back to Pinata:', e);
+        }
+    }
+
+    // Fallback: legacy Pinata.
+    if (!config.pinataJwt) throw new Error('Neither LIGHTHOUSE_API_KEY nor PINATA_JWT set');
     const formData = new FormData();
     formData.append('file', new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), filename);
     formData.append('pinataMetadata', JSON.stringify({
@@ -187,7 +234,7 @@ async function uploadFileToIPFS(filePath: string): Promise<{ cid: string; hash: 
     return { cid: data.IpfsHash, hash, filename, mimeType, size };
 }
 
-const IPFS_GW = process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
 
 async function fetchFromIPFS(cid: string): Promise<any> {
     const res = await fetch(`${IPFS_GW}/${cid}`);

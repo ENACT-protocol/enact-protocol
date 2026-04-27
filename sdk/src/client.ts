@@ -60,6 +60,7 @@ export class EnactClient {
     private client: TonClient;
     private walletPromise: Promise<WalletState> | null = null;
     private pinataJwt: string | null = null;
+    private lighthouseApiKey: string | null = null;
     private hasApiKey: boolean = false;
     readonly factoryAddress: string;
     readonly jettonFactoryAddress: string;
@@ -68,6 +69,9 @@ export class EnactClient {
         endpoint?: string;
         apiKey?: string;
         mnemonic?: string;
+        /** Lighthouse.storage API key — primary IPFS provider since v2 (free 2 GB at lighthouse.storage). */
+        lighthouseApiKey?: string;
+        /** Legacy Pinata JWT — kept as fallback if Lighthouse is not configured. */
         pinataJwt?: string;
         factoryAddress?: string;
         jettonFactoryAddress?: string;
@@ -80,6 +84,7 @@ export class EnactClient {
         this.factoryAddress = options?.factoryAddress ?? FACTORY_ADDRESS;
         this.jettonFactoryAddress = options?.jettonFactoryAddress ?? JETTON_FACTORY_ADDRESS;
         this.pinataJwt = options?.pinataJwt ?? null;
+        this.lighthouseApiKey = options?.lighthouseApiKey ?? null;
 
         if (options?.mnemonic) {
             this.walletPromise = this._initWallet(options.mnemonic);
@@ -132,10 +137,39 @@ export class EnactClient {
         throw new Error('Transaction not confirmed');
     }
 
+    private async _uploadToLighthouse(buffer: Buffer, filename: string, mimeType: string): Promise<string | null> {
+        if (!this.lighthouseApiKey) return null;
+        const fd = new FormData();
+        fd.append('file', new Blob([buffer], { type: mimeType }), filename);
+        const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${this.lighthouseApiKey}` },
+            body: fd,
+        });
+        if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`Lighthouse upload failed: ${res.status} ${errText.slice(0, 100)}`);
+        }
+        const data = await res.json() as { Hash?: string };
+        return data.Hash ?? null;
+    }
+
     private async _uploadToIPFS(content: object): Promise<bigint> {
         const json = JSON.stringify(content);
         const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
 
+        // Primary: Lighthouse.storage.
+        if (this.lighthouseApiKey) {
+            try {
+                const buffer = Buffer.from(json, 'utf-8');
+                await this._uploadToLighthouse(buffer, `enact-${hash.slice(0, 8)}.json`, 'application/json');
+                return BigInt('0x' + hash);
+            } catch {
+                // Fall through to Pinata.
+            }
+        }
+
+        // Fallback: legacy Pinata JWT.
         if (this.pinataJwt) {
             const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
                 method: 'POST',
@@ -152,12 +186,22 @@ export class EnactClient {
     }
 
     private async _uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: bigint; cid: string; filename: string; mimeType: string; size: number }> {
-        if (!this.pinataJwt) throw new Error('pinataJwt required for file uploads');
+        if (!this.lighthouseApiKey && !this.pinataJwt) throw new Error('lighthouseApiKey or pinataJwt required for file uploads');
         const hash = createHash('sha256').update(buffer).digest('hex');
         const ext = filename.split('.').pop()?.toLowerCase() || '';
         const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', pdf: 'application/pdf', txt: 'text/plain', zip: 'application/zip' };
         const mimeType = mimeTypes[ext] || 'application/octet-stream';
 
+        // Primary: Lighthouse.storage.
+        if (this.lighthouseApiKey) {
+            try {
+                const cid = await this._uploadToLighthouse(buffer, filename, mimeType);
+                if (cid) return { hash: BigInt('0x' + hash), cid, filename, mimeType, size: buffer.length };
+            } catch {}
+        }
+
+        // Fallback: Pinata.
+        if (!this.pinataJwt) throw new Error('Lighthouse upload failed and no Pinata fallback configured');
         const formData = new FormData();
         formData.append('file', new Blob([buffer], { type: mimeType }), filename);
         formData.append('pinataMetadata', JSON.stringify({
@@ -249,7 +293,7 @@ export class EnactClient {
         const countBefore = await this.getJobCount();
 
         let descHash: bigint;
-        if (params.file && this.pinataJwt) {
+        if (params.file && (this.lighthouseApiKey || this.pinataJwt)) {
             const f = await this._uploadFileToIPFS(params.file.buffer, params.file.filename);
             // JSON with text + file reference → hash goes to contract
             descHash = await this._uploadToIPFS({
@@ -296,7 +340,7 @@ export class EnactClient {
     /** Submit a result for a job. Optionally attach a file. */
     async submitResult(jobAddress: string, result: string, file?: { buffer: Buffer; filename: string }): Promise<void> {
         let resultHash: bigint;
-        if (file && this.pinataJwt) {
+        if (file && (this.lighthouseApiKey || this.pinataJwt)) {
             const f = await this._uploadFileToIPFS(file.buffer, file.filename);
             // JSON with text + file reference → hash goes to contract
             resultHash = await this._uploadToIPFS({
@@ -331,7 +375,7 @@ export class EnactClient {
 
         // Build result content (same as unencrypted)
         let resultContent: string = result;
-        if (file && this.pinataJwt) {
+        if (file && (this.lighthouseApiKey || this.pinataJwt)) {
             const f = await this._uploadFileToIPFS(file.buffer, file.filename);
             resultContent = JSON.stringify({
                 result,
@@ -380,7 +424,7 @@ export class EnactClient {
     /** Evaluate a job (approve or reject). */
     async evaluateJob(jobAddress: string, approved: boolean, reason?: string): Promise<void> {
         let reasonHash: bigint;
-        if (reason && this.pinataJwt) {
+        if (reason && (this.lighthouseApiKey || this.pinataJwt)) {
             reasonHash = await this._uploadToIPFS({
                 type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString(),
             });
