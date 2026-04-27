@@ -232,21 +232,60 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+// IPFS HTTP gateway used to fetch CIDs back. Defaults to Lighthouse's
+// public gateway since that's the primary upload provider in v2;
+// falls back to ipfs.io. Reuses the historical PINATA_GATEWAY env var
+// for backward compatibility with existing deployments.
+const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
 const descCache = new Map<string, string>();
 
 /** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */
+// Lighthouse low-level upload — single multipart POST, Bearer token,
+// returns { Hash: <CID> }. Free tier 2 GB permanent IPFS pinning.
+// https://docs.lighthouse.storage/lighthouse-1/quick-start
+async function uploadToLighthouse(buffer: Buffer, filename: string, mimeType: string): Promise<string | null> {
+    const key = process.env.LIGHTHOUSE_API_KEY;
+    if (!key) return null;
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+    const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}` },
+        body: fd,
+    });
+    if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Lighthouse upload failed: ${res.status} ${errText.slice(0, 100)}`);
+    }
+    const data = await res.json() as { Hash?: string };
+    return data.Hash ?? null;
+}
+
 async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: bigint }> {
+    const { createHash } = await import('crypto');
+    const json = JSON.stringify(content);
+    const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
+
+    // Primary: Lighthouse.storage (free 2 GB, simple Bearer-token API).
+    if (process.env.LIGHTHOUSE_API_KEY) {
+        try {
+            const buffer = Buffer.from(json, 'utf-8');
+            const cid = await uploadToLighthouse(buffer, `enact-${hash.slice(0, 8)}.json`, 'application/json');
+            if (cid) return { hash, hashBig: BigInt('0x' + hash) };
+        } catch (e) {
+            console.warn('[IPFS] Lighthouse JSON failed, falling back to Pinata:', e);
+        }
+    }
+
+    // Fallback 1: legacy Pinata JWT.
     const jwt = process.env.PINATA_JWT;
     if (!jwt) {
-        // Fallback: hex encode (first 32 bytes)
+        // Fallback 2: hex-encode (first 32 bytes). On-chain descHash
+        // still works but the document is not pinned anywhere.
         const text = JSON.stringify(content);
         const hex = Buffer.from(text).toString('hex').padEnd(64, '0').slice(0, 64);
         return { hash: hex, hashBig: BigInt('0x' + hex) };
     }
-    const { createHash } = await import('crypto');
-    const json = JSON.stringify(content);
-    const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
     const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
@@ -261,13 +300,25 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
 
 /** Upload file buffer to Pinata IPFS */
 async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: string; hashBig: bigint; cid: string }> {
-    const jwt = process.env.PINATA_JWT;
-    if (!jwt) throw new Error('PINATA_JWT not set — cannot upload files');
     const { createHash } = await import('crypto');
     const hash = createHash('sha256').update(buffer).digest('hex');
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf', txt: 'text/plain', json: 'application/json', zip: 'application/zip' };
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+    // Primary: Lighthouse.storage (free 2 GB).
+    if (process.env.LIGHTHOUSE_API_KEY) {
+        try {
+            const cid = await uploadToLighthouse(buffer, filename, mimeType);
+            if (cid) return { hash, hashBig: BigInt('0x' + hash), cid };
+        } catch (e) {
+            console.warn('[IPFS] Lighthouse file failed, falling back to Pinata:', e);
+        }
+    }
+
+    // Fallback: legacy Pinata.
+    const jwt = process.env.PINATA_JWT;
+    if (!jwt) throw new Error('Neither LIGHTHOUSE_API_KEY nor PINATA_JWT set — cannot upload files');
 
     const formData = new FormData();
     formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
@@ -276,7 +327,6 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
         keyvalues: { descHash: hash, type: 'file', filename, mimeType, size: String(buffer.length) },
     }));
 
-    // Try v1 API first (old JWT keys), then v3 API (new JWT keys)
     let cid: string;
     const v1Res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',
@@ -287,7 +337,6 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
         const data = await v1Res.json() as { IpfsHash: string };
         cid = data.IpfsHash;
     } else {
-        // v3 API for newer Pinata keys
         const v3Form = new FormData();
         v3Form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
         v3Form.append('name', `enact-file-${hash.slice(0, 8)}`);

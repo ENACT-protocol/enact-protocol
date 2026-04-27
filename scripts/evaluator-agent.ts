@@ -25,7 +25,7 @@ import ed2curve from 'ed2curve';
 const MNEMONIC = process.env.WALLET_MNEMONIC ?? '';
 const LLM_API_KEY = process.env.GROQ_API_KEY ?? '';
 const API_KEY = process.env.TONCENTER_API_KEY ?? '';
-const PINATA_GW = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
+const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
 const PINATA_JWT = process.env.PINATA_JWT ?? '';
 const DRY_RUN = process.argv.includes('--dry-run');
 const INTERVAL = 15_000; // 15 seconds (Catchain 2.0: ~1s finality)
@@ -367,24 +367,43 @@ Submitted result: ${result}`;
                             if (reasonBytes.length <= 32) {
                                 // Short reason — store directly on-chain
                                 reasonHash = BigInt('0x' + reasonBytes.toString('hex').padEnd(64, '0').slice(0, 64));
-                            } else if (PINATA_JWT) {
-                                // Long reason — upload to IPFS, store hash
+                            } else if (process.env.LIGHTHOUSE_API_KEY || PINATA_JWT) {
+                                // Long reason — upload to IPFS, store hash.
+                                // Primary: Lighthouse.storage; fallback: Pinata.
                                 const { createHash } = await import('crypto');
-                                const json = JSON.stringify({ type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString() });
+                                const payload = { type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString() };
+                                const json = JSON.stringify(payload);
                                 const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
-                                const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${PINATA_JWT}` },
-                                    body: JSON.stringify({
-                                        pinataContent: { type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString() },
-                                        pinataMetadata: { name: `enact-reason-${hash.slice(0, 8)}`, keyvalues: { descHash: hash } },
-                                    }),
-                                });
-                                if (res.ok) {
+                                let uploaded = false;
+                                if (process.env.LIGHTHOUSE_API_KEY) {
+                                    try {
+                                        const fd = new FormData();
+                                        fd.append('file', new Blob([json], { type: 'application/json' }), `enact-reason-${hash.slice(0, 8)}.json`);
+                                        const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${process.env.LIGHTHOUSE_API_KEY}` },
+                                            body: fd,
+                                        });
+                                        if (res.ok) uploaded = true;
+                                    } catch (e) {
+                                        log(`  ⚠️ Lighthouse upload failed, falling back to Pinata`);
+                                    }
+                                }
+                                if (!uploaded && PINATA_JWT) {
+                                    const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${PINATA_JWT}` },
+                                        body: JSON.stringify({
+                                            pinataContent: payload,
+                                            pinataMetadata: { name: `enact-reason-${hash.slice(0, 8)}`, keyvalues: { descHash: hash } },
+                                        }),
+                                    });
+                                    if (res.ok) uploaded = true;
+                                }
+                                if (uploaded) {
                                     log(`📌 Reason uploaded to IPFS (${reason.length} chars)`);
                                     reasonHash = BigInt('0x' + hash);
                                 } else {
-                                    // Fallback: truncate
                                     reasonHash = BigInt('0x' + reasonBytes.toString('hex').padEnd(64, '0').slice(0, 64));
                                 }
                             } else {

@@ -61,12 +61,34 @@ async function sendTx(context, to, value, body) {
     return { seqno, wallet: wallet.address.toString() };
 }
 
-/** Convert content to 256-bit hash. If PINATA_JWT is set, uploads to IPFS first. */
+/**
+ * Convert content to 256-bit hash. Uploads to IPFS via Lighthouse
+ * (primary, free 2 GB) or Pinata (legacy fallback) if either key is
+ * configured. Falls back to hex-encoding the first 32 bytes if no
+ * pinning service is available.
+ */
 async function toHash(context, content) {
+    const json = JSON.stringify(content);
+    const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
+
+    // Primary: Lighthouse.storage.
+    const lhKey = context.env?.LIGHTHOUSE_API_KEY;
+    if (lhKey) {
+        try {
+            const fd = new FormData();
+            fd.append('file', new Blob([json], { type: 'application/json' }), `enact-${hash.slice(0, 8)}.json`);
+            const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${lhKey}` },
+                body: fd,
+            });
+            if (res.ok) return BigInt('0x' + hash);
+        } catch {}
+    }
+
+    // Fallback: legacy Pinata JWT.
     const jwt = context.env?.PINATA_JWT;
     if (jwt) {
-        const json = JSON.stringify(content);
-        const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
         const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
@@ -78,7 +100,8 @@ async function toHash(context, content) {
         if (!res.ok) throw new Error(`Pinata upload failed: ${res.status}`);
         return BigInt('0x' + hash);
     }
-    // Fallback: hex-encode first 32 bytes
+
+    // Last resort: hex-encode first 32 bytes.
     const text = typeof content === 'string' ? content : (content.description ?? content.result ?? JSON.stringify(content));
     return BigInt('0x' + Buffer.from(text).toString('hex').padEnd(64, '0').slice(0, 64));
 }
