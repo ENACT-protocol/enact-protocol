@@ -379,10 +379,12 @@ Submitted result: ${result}`;
                                     try {
                                         const fd = new FormData();
                                         fd.append('file', new Blob([json], { type: 'application/json' }), `enact-reason-${hash.slice(0, 8)}.json`);
-                                        const res = await fetch('https://node.lighthouse.storage/api/v0/add', {
+                                        // Endpoint per official Lighthouse SDK config: upload.lighthouse.storage.
+                                        const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
                                             method: 'POST',
                                             headers: { 'Authorization': `Bearer ${process.env.LIGHTHOUSE_API_KEY}` },
                                             body: fd,
+                                            signal: AbortSignal.timeout(45000),
                                         });
                                         if (res.ok) uploaded = true;
                                     } catch (e) {
