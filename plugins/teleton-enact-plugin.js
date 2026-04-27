@@ -78,7 +78,7 @@ async function toHash(context, content) {
             const fd = new FormData();
             fd.append('file', new Blob([json], { type: 'application/json' }), `enact-${hash.slice(0, 8)}.json`);
             // Endpoint per official Lighthouse SDK config: upload.lighthouse.storage.
-            const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
+            const res = await fetch('https://upload.lighthouse.storage/api/v0/add?cid-version=1', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${lhKey}` },
                 body: fd,
