@@ -274,11 +274,15 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
     if (process.env.LIGHTHOUSE_API_KEY) {
         try {
             const buffer = Buffer.from(json, 'utf-8');
+            const t0 = Date.now();
             const cid = await uploadToLighthouse(buffer, `enact-${hash.slice(0, 8)}.json`, 'application/json');
+            console.log(`[IPFS] Lighthouse JSON upload OK in ${Date.now()-t0}ms cid=${cid ?? 'null'}`);
             if (cid) return { hash, hashBig: BigInt('0x' + hash), cid };
         } catch (e) {
             console.warn('[IPFS] Lighthouse JSON failed, falling back to Pinata:', e);
         }
+    } else {
+        console.log('[IPFS] LIGHTHOUSE_API_KEY not set, using Pinata');
     }
 
     // Fallback 1: legacy Pinata JWT.
@@ -307,36 +311,54 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
 // indexer / explorer can render the document without an external
 // metadata lookup (Lighthouse has no Pinata-style search-by-hash API).
 async function saveDescriptionToSupabase(jobAddress: string, description: string, descCid: string | null, descHash: string): Promise<void> {
-    if (!descCid) return; // nothing to write — fall back to indexer search
+    console.log(`[IPFS-SAVE] desc start addr=${jobAddress.slice(0, 12)} cid=${descCid ?? 'null'} hash=${descHash.slice(0, 12)}`);
+    if (!descCid) {
+        console.log('[IPFS-SAVE] desc skipped: no CID (Lighthouse not used or failed)');
+        return;
+    }
     const sb = await getBotSb();
-    if (!sb) return;
+    if (!sb) {
+        console.log('[IPFS-SAVE] desc skipped: no Supabase client');
+        return;
+    }
     const ipfsUrl = `${PINATA_GW}/${descCid}`;
     try {
-        await sb.from('jobs').upsert({
+        const { error } = await sb.from('jobs').upsert({
             address: jobAddress,
             description_text: description,
             description_ipfs_url: ipfsUrl,
             desc_hash: descHash,
         }, { onConflict: 'address' });
+        if (error) console.warn('[IPFS-SAVE] desc upsert error:', error.message);
+        else console.log(`[IPFS-SAVE] desc OK url=${ipfsUrl}`);
     } catch (e) {
-        console.warn('[IPFS] Supabase description upsert failed:', e);
+        console.warn('[IPFS-SAVE] desc upsert threw:', e);
     }
 }
 
 async function saveResultToSupabase(jobAddress: string, resultText: string, resultCid: string | null, resultHash: string): Promise<void> {
-    if (!resultCid) return;
+    console.log(`[IPFS-SAVE] result start addr=${jobAddress.slice(0, 12)} cid=${resultCid ?? 'null'} hash=${resultHash.slice(0, 12)}`);
+    if (!resultCid) {
+        console.log('[IPFS-SAVE] result skipped: no CID');
+        return;
+    }
     const sb = await getBotSb();
-    if (!sb) return;
+    if (!sb) {
+        console.log('[IPFS-SAVE] result skipped: no Supabase client');
+        return;
+    }
     const ipfsUrl = `${PINATA_GW}/${resultCid}`;
     try {
-        await sb.from('jobs').upsert({
+        const { error } = await sb.from('jobs').upsert({
             address: jobAddress,
             result_text: resultText,
             result_ipfs_url: ipfsUrl,
             result_hash: resultHash,
         }, { onConflict: 'address' });
+        if (error) console.warn('[IPFS-SAVE] result upsert error:', error.message);
+        else console.log(`[IPFS-SAVE] result OK url=${ipfsUrl}`);
     } catch (e) {
-        console.warn('[IPFS] Supabase result upsert failed:', e);
+        console.warn('[IPFS-SAVE] result upsert threw:', e);
     }
 }
 
