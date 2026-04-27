@@ -137,7 +137,7 @@ async function uploadToLighthouse(buffer: Buffer, filename: string, mimeType: st
     const fd = new FormData();
     fd.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
     // Endpoint per official SDK config: upload.lighthouse.storage.
-    const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
+    const res = await fetch('https://upload.lighthouse.storage/api/v0/add?cid-version=1', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${key}` },
         body: fd,
@@ -236,7 +236,7 @@ async function uploadFileToIPFS(filePath: string): Promise<{ cid: string; hash: 
     return { cid: data.IpfsHash, hash, filename, mimeType, size };
 }
 
-const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
+const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 
 async function fetchFromIPFS(cid: string): Promise<any> {
     const res = await fetch(`${IPFS_GW}/${cid}`);

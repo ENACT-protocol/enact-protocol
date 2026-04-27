@@ -232,11 +232,13 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// IPFS HTTP gateway used to fetch CIDs back. Defaults to Lighthouse's
-// public gateway since that's the primary upload provider in v2;
-// falls back to ipfs.io. Reuses the historical PINATA_GATEWAY env var
-// for backward compatibility with existing deployments.
-const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
+// IPFS HTTP gateway used to fetch CIDs back and compose the
+// description_ipfs_url stored in Supabase. Default ipfs.io resolves
+// any pinned CID via the global DHT — more reliable than a
+// provider-specific gateway when a freshly-uploaded CID has not
+// propagated to that provider's local cache yet.
+// Override with IPFS_GATEWAY env var if you self-host a gateway.
+const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 const descCache = new Map<string, string>();
 
 /** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */
@@ -249,12 +251,14 @@ async function uploadToLighthouse(buffer: Buffer, filename: string, mimeType: st
     if (!key) return null;
     const fd = new FormData();
     fd.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
-    const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
+    // cid-version=1 matches lighthouse-web3 SDK default and produces
+    // bafy... CIDs that resolve cleanly through subdomain gateways
+    // (cf-ipfs.com, dweb.link, etc.) — Qm... v0 CIDs sometimes lag
+    // behind the propagation cycle of those providers.
+    const res = await fetch('https://upload.lighthouse.storage/api/v0/add?cid-version=1', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${key}` },
         body: fd,
-        // IPFS pinning includes CID computation server-side — give it
-        // a generous window before Pinata fallback kicks in.
         signal: AbortSignal.timeout(45000),
     });
     if (!res.ok) {

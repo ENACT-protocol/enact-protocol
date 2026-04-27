@@ -142,7 +142,7 @@ export class EnactClient {
         const fd = new FormData();
         fd.append('file', new Blob([buffer], { type: mimeType }), filename);
         // Endpoint per official SDK config: upload.lighthouse.storage.
-        const res = await fetch('https://upload.lighthouse.storage/api/v0/add', {
+        const res = await fetch('https://upload.lighthouse.storage/api/v0/add?cid-version=1', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${this.lighthouseApiKey}` },
             body: fd,
