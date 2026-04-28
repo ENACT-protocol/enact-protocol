@@ -111,26 +111,17 @@ export default function JobPage() {
                   </div>
                 </InfoCol>
                 <InfoCol label="Client">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <div className="[&_.break-all]:text-white"><ClickAddr addr={job.client} truncate /></div>
-                    <AgentBadge address={job.client} />
-                  </div>
+                  <div className="[&_.break-all]:text-white"><ClickAddr addr={job.client} truncate /></div>
                 </InfoCol>
                 <InfoCol label="Provider">
                   {job.provider && job.provider !== 'none'
-                    ? <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="[&_.break-all]:text-white"><ClickAddr addr={job.provider} truncate /></div>
-                        <AgentBadge address={job.provider} />
-                      </div>
+                    ? <div className="[&_.break-all]:text-white"><ClickAddr addr={job.provider} truncate /></div>
                     : <span className="text-[#52525B] text-xs">Not assigned</span>}
                 </InfoCol>
                 <InfoCol label="Evaluator">
                   {job.evaluator === AI_EVALUATOR
                     ? <span className="inline-flex items-center gap-1.5"><CopyableAddr addr={AI_EVALUATOR} label="AI Evaluator" /><TonscanLink addr={AI_EVALUATOR} size={12} /></span>
-                    : <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="[&_.break-all]:text-white"><ClickAddr addr={job.evaluator} truncate /></div>
-                        <AgentBadge address={job.evaluator} />
-                      </div>}
+                    : <div className="[&_.break-all]:text-white"><ClickAddr addr={job.evaluator} truncate /></div>}
                 </InfoCol>
                 <InfoCol label="Factory">
                   <Link href={`/explorer/factory/${job.type === 'ton' ? FACTORY : JETTON_FACTORY}`} className="text-[#0098EA] text-xs hover:underline">{job.type === 'ton' ? 'JobFactory' : 'JettonJobFactory'}</Link>

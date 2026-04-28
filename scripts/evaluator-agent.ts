@@ -9,10 +9,12 @@
  *   npx ts-node scripts/evaluator-agent.ts --dry-run
  *
  * Env:
- *   WALLET_MNEMONIC  — evaluator wallet (24 words)
- *   GEMINI_API_KEY   — Google Gemini API key
- *   TONCENTER_API_KEY — TON RPC key
- *   PINATA_GATEWAY   — IPFS gateway (optional)
+ *   WALLET_MNEMONIC      — evaluator wallet (24 words)
+ *   GROQ_API_KEY         — Groq API key (Llama-3.3-70b)
+ *   TONCENTER_API_KEY    — TON RPC key
+ *   LIGHTHOUSE_API_KEY   — Lighthouse.storage API key (primary IPFS provider)
+ *   PINATA_JWT           — Pinata JWT (fallback IPFS provider)
+ *   IPFS_GATEWAY / PINATA_GATEWAY — public IPFS gateway URL (optional)
  */
 
 import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
@@ -25,8 +27,9 @@ import ed2curve from 'ed2curve';
 const MNEMONIC = process.env.WALLET_MNEMONIC ?? '';
 const LLM_API_KEY = process.env.GROQ_API_KEY ?? '';
 const API_KEY = process.env.TONCENTER_API_KEY ?? '';
-const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
+const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
 const PINATA_JWT = process.env.PINATA_JWT ?? '';
+const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY ?? '';
 const DRY_RUN = process.argv.includes('--dry-run');
 const INTERVAL = 15_000; // 15 seconds (Catchain 2.0: ~1s finality)
 
@@ -58,7 +61,7 @@ function decodeHex(hash: string): string | null {
     return null;
 }
 
-async function fetchFromPinata(hash: string, label: string = 'content'): Promise<string | null> {
+async function fetchFromIPFS(hash: string, label: string = 'content'): Promise<string | null> {
     // Try hex decode first (legacy: short text stored directly as hex)
     const hex = decodeHex(hash);
     if (hex) {
@@ -66,13 +69,45 @@ async function fetchFromPinata(hash: string, label: string = 'content'): Promise
         return hex;
     }
 
-    // Try Pinata metadata search
+    const tagged = (filename: string) => `enact-${hash.slice(0, 8)}.json` === filename;
+    const extractContent = (data: any): string => data.description ?? data.result ?? JSON.stringify(data);
+
+    // Primary: Lighthouse.storage. Bot uploads with filename `enact-<hash8>.json`,
+    // search the Lighthouse upload list for that filename.
+    if (LIGHTHOUSE_API_KEY) {
+        try {
+            log(`  🔍 ${label}: searching Lighthouse for hash ${hash.slice(0, 16)}...`);
+            const lhRes = await fetch(`https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null`, {
+                headers: { 'Authorization': `Bearer ${LIGHTHOUSE_API_KEY}` },
+                signal: AbortSignal.timeout(10000),
+            });
+            if (lhRes.ok) {
+                const data = await lhRes.json() as { fileList: Array<{ cid: string; fileName: string }> };
+                const match = data.fileList?.find(f => tagged(f.fileName));
+                if (match) {
+                    log(`  📌 ${label}: found Lighthouse CID ${match.cid}`);
+                    const ipfsRes = await fetch(`${IPFS_GW}/${match.cid}`, { signal: AbortSignal.timeout(8000) });
+                    if (ipfsRes.ok) {
+                        const json = await ipfsRes.json();
+                        return extractContent(json);
+                    }
+                } else {
+                    log(`  ⚠️ ${label}: no Lighthouse pin matched ${hash.slice(0, 8)}, falling back to Pinata...`);
+                }
+            } else {
+                log(`  ⚠️ ${label}: Lighthouse API error ${lhRes.status}, falling back to Pinata`);
+            }
+        } catch (err: any) {
+            log(`  ⚠️ ${label}: Lighthouse error: ${err.message}, falling back to Pinata`);
+        }
+    }
+
+    // Fallback: Pinata metadata search
     if (!PINATA_JWT) {
-        log(`  ⚠️ ${label}: PINATA_JWT not set, cannot search IPFS`);
+        if (!LIGHTHOUSE_API_KEY) log(`  ⚠️ ${label}: neither LIGHTHOUSE_API_KEY nor PINATA_JWT set, cannot search IPFS`);
         return null;
     }
     try {
-        // Bot stores all uploads with keyvalues: { descHash: sha256 }
         const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=1&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
         log(`  🔍 ${label}: searching Pinata for hash ${hash.slice(0, 16)}...`);
         const res = await fetch(url, {
@@ -83,15 +118,10 @@ async function fetchFromPinata(hash: string, label: string = 'content'): Promise
             const pins = await res.json() as { rows: Array<{ ipfs_pin_hash: string }> };
             if (pins.rows?.length > 0) {
                 const cid = pins.rows[0].ipfs_pin_hash;
-                log(`  📌 ${label}: found CID ${cid}`);
-                const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
-                if (ipfsRes.ok) {
-                    const data = await ipfsRes.json();
-                    return data.description ?? data.result ?? JSON.stringify(data);
-                }
+                log(`  📌 ${label}: found Pinata CID ${cid}`);
+                const ipfsRes = await fetch(`${IPFS_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
+                if (ipfsRes.ok) return extractContent(await ipfsRes.json());
             } else {
-                log(`  ⚠️ ${label}: no pin found by keyvalues, trying name search...`);
-                // Fallback: search by name prefix (enact-{hash8})
                 const nameUrl = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[name]=enact-${hash.slice(0, 8)}`;
                 const nameRes = await fetch(nameUrl, {
                     headers: { 'Authorization': `Bearer ${PINATA_JWT}` },
@@ -101,12 +131,9 @@ async function fetchFromPinata(hash: string, label: string = 'content'): Promise
                     const namePins = await nameRes.json() as { rows: Array<{ ipfs_pin_hash: string }> };
                     if (namePins.rows?.length > 0) {
                         const cid = namePins.rows[0].ipfs_pin_hash;
-                        log(`  📌 ${label}: found by name, CID ${cid}`);
-                        const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
-                        if (ipfsRes.ok) {
-                            const data = await ipfsRes.json();
-                            return data.description ?? data.result ?? JSON.stringify(data);
-                        }
+                        log(`  📌 ${label}: found Pinata by name, CID ${cid}`);
+                        const ipfsRes = await fetch(`${IPFS_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
+                        if (ipfsRes.ok) return extractContent(await ipfsRes.json());
                     } else {
                         log(`  ❌ ${label}: no pin found at all`);
                     }
@@ -280,8 +307,8 @@ async function main() {
                         log(`\n📋 ${jobKey} (${jobAddrStr.slice(0, 12)}...): SUBMITTED — evaluating...`);
 
                         // Load description and result from IPFS
-                        const description = await fetchFromPinata(status.descHash, 'description') ?? '(no description)';
-                        let result = await fetchFromPinata(status.resultHash, 'result') ?? '(no result)';
+                        const description = await fetchFromIPFS(status.descHash, 'description') ?? '(no description)';
+                        let result = await fetchFromIPFS(status.resultHash, 'result') ?? '(no result)';
 
                         // Detect and decrypt encrypted results
                         let wasEncrypted = false;
