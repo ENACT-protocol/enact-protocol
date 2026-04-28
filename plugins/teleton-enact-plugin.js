@@ -10,12 +10,18 @@
  *   teleton start
  */
 
-import { TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
-import { mnemonicToPrivateKey } from '@ton/crypto';
+import { TonClient, WalletContractV5R1, internal, SendMode, storeOutList } from '@ton/ton';
+import { mnemonicToPrivateKey, sign } from '@ton/crypto';
 import { Address, beginCell, toNano } from '@ton/core';
 import { createHash } from 'crypto';
 import nacl from 'tweetnacl';
 import ed2curve from 'ed2curve';
+
+// Agentic Wallet (TON Tech) — opcode of the body parsed by
+// onExternalMessage. Signed-request layout: walletNftIndex(256) +
+// validUntil(32) + seqno(32) + Maybe(^OutActionsCell) + Maybe(^extraActions)
+// + signature(512) appended at end. See sdk/src/providers/AgenticWalletProvider.ts.
+const AGENTIC_EXTERNAL_OPCODE = 0xbf235204;
 
 const OPCODES = {
     createJob: 0x00000010,
@@ -49,7 +55,69 @@ async function getWallet(context) {
     return { client, wallet, keyPair, contract: client.open(wallet) };
 }
 
+/**
+ * Read agentic-wallet config from the plugin context, when present.
+ * Activated via:
+ *   context.agenticWallet = { secretKey: <hex>, address: '<EQ...>' }
+ * or env vars:
+ *   AGENTIC_WALLET_SECRET_KEY (hex, 128 chars)
+ *   AGENTIC_WALLET_ADDRESS    (EQ.../0:...)
+ * When set, sendTx routes through the operator key instead of the
+ * mnemonic wallet.
+ */
+function getAgenticConfig(context) {
+    const raw = context.agenticWallet ?? {};
+    const skHex = raw.secretKey ?? context.env?.AGENTIC_WALLET_SECRET_KEY ?? null;
+    const addr = raw.address ?? context.env?.AGENTIC_WALLET_ADDRESS ?? null;
+    if (!skHex || !addr) return null;
+    const sk = Buffer.from(String(skHex).trim(), 'hex');
+    if (sk.length !== 64) return null;
+    return { secretKey: sk, address: Address.parse(addr) };
+}
+
+async function sendAgenticExternal(client, walletAddr, secretKey, to, value, body) {
+    const seqRes = await client.runMethod(walletAddr, 'seqno');
+    const seqno = seqRes.stack.readNumber();
+    const idxRes = await client.runMethod(walletAddr, 'get_subwallet_id');
+    const nftIndex = idxRes.stack.readBigNumber();
+    const validUntil = Math.floor(Date.now() / 1000) + 60;
+    const actions = [{
+        type: 'sendMsg',
+        mode: SendMode.PAY_GAS_SEPARATELY,
+        outMsg: internal({ to, value, body, bounce: true }),
+    }];
+    const outActions = beginCell().store(storeOutList(actions)).endCell();
+    const signedBody = beginCell()
+        .storeUint(AGENTIC_EXTERNAL_OPCODE, 32)
+        .storeUint(nftIndex, 256)
+        .storeUint(validUntil, 32)
+        .storeUint(seqno, 32)
+        .storeMaybeRef(outActions)
+        .storeMaybeRef(null)
+        .endCell();
+    const signature = sign(signedBody.hash(), secretKey);
+    const finalBody = beginCell().storeBuilder(signedBody.asBuilder()).storeBuffer(signature).endCell();
+    await client.sendFile(
+        beginCell()
+            .storeUint(0b10, 2)
+            .storeUint(0, 2)
+            .storeAddress(walletAddr)
+            .storeCoins(0)
+            .storeBit(false)
+            .storeBit(true)
+            .storeRef(finalBody)
+            .endCell()
+            .toBoc(),
+    );
+}
+
 async function sendTx(context, to, value, body) {
+    const agentic = getAgenticConfig(context);
+    if (agentic) {
+        const client = await getClient(context);
+        await sendAgenticExternal(client, agentic.address, agentic.secretKey, Address.parse(to), value, body);
+        return { mode: 'agentic-wallet', wallet: agentic.address.toString() };
+    }
     const { wallet, keyPair, contract } = await getWallet(context);
     const seqno = await contract.getSeqno();
     await contract.sendTransfer({
