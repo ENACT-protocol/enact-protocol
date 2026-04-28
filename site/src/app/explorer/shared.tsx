@@ -231,7 +231,7 @@ export function TonscanLink({ addr, size = 13 }: { addr: string; size?: number }
   );
 }
 
-export function ClickAddr({ addr, truncate = false }: { addr: string; truncate?: boolean }) {
+export function ClickAddr({ addr, truncate = false, showAgentBadge = true }: { addr: string; truncate?: boolean; showAgentBadge?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -240,6 +240,7 @@ export function ClickAddr({ addr, truncate = false }: { addr: string; truncate?:
         {copied ? <span className="text-[#4ADE80]">Copied!</span> : <span className="break-all">{truncate ? truncAddr(addr) : addr}</span>}
       </span>
       <TonscanLink addr={addr} />
+      {showAgentBadge && <AgentBadge address={addr} />}
     </span>
   );
 }
@@ -580,27 +581,79 @@ export function useAgenticWallet(address: string | null | undefined): AgenticWal
 
 export function AgentBadge({ address }: { address: string | null | undefined }) {
   const info = useAgenticWallet(address);
+  const [open, setOpen] = useState(false);
   if (!info) return null;
-  const tooltip = info.isRevoked
-    ? `Agentic Wallet (revoked) — owner ${truncAddr(info.ownerAddress)}`
-    : `Agentic Wallet — operated by AI agent, owned by ${truncAddr(info.ownerAddress)}`;
+  const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
   return (
-    <a
-      href="https://github.com/the-ton-tech/agentic-wallet-contract"
-      target="_blank"
-      rel="noopener noreferrer"
-      title={tooltip}
-      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors ${
-        info.isRevoked
-          ? 'text-[#9CA3AF] bg-[rgba(156,163,175,0.08)] border-[rgba(156,163,175,0.2)] hover:bg-[rgba(156,163,175,0.15)]'
-          : 'text-[#34D399] bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.2)] hover:bg-[rgba(52,211,153,0.15)]'
-      }`}
+    <span
+      className="relative inline-flex align-middle"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
-      <Bot size={10} strokeWidth={2.2} />
-      <span className="font-mono uppercase tracking-wider">
-        {info.isRevoked ? 'Agent (revoked)' : 'Agent'}
+      <span
+        className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors cursor-default ${
+          info.isRevoked
+            ? 'text-[#9CA3AF] bg-[rgba(156,163,175,0.08)] border-[rgba(156,163,175,0.2)]'
+            : 'text-[#34D399] bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.2)]'
+        }`}
+      >
+        <Bot size={10} strokeWidth={2.2} />
+        <span className="font-mono uppercase tracking-wider">
+          {info.isRevoked ? 'Agent (revoked)' : 'Agent'}
+        </span>
       </span>
-    </a>
+      {open && (
+        <div
+          role="tooltip"
+          className="absolute z-50 left-0 top-full mt-1.5 w-[280px] rounded-lg border bg-[#0A0A0E] shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-3 text-xs"
+          style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+        >
+          <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-[rgba(255,255,255,0.06)]">
+            <Bot size={12} strokeWidth={2.2} style={{ color: accent }} />
+            <span className="font-medium text-white text-[11px]">Agentic Wallet</span>
+            <span
+              className={`ml-auto text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded`}
+              style={{ color: accent, background: `${accent}14`, border: `1px solid ${accent}33` }}
+            >
+              {info.isRevoked ? 'Revoked' : 'Active'}
+            </span>
+          </div>
+          <p className="text-[#A1A1AA] text-[11px] leading-snug mb-2.5">
+            Split-key TON wallet — owner controls the SBT, operator (AI agent) signs transactions. Owner can revoke the operator at any time.
+          </p>
+          <div className="space-y-1.5">
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Owner</div>
+              <a
+                href={tonscanUrl(info.ownerAddress)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[#A1A1AA] hover:text-white text-[10.5px] inline-flex items-center gap-1"
+              >
+                {truncAddr(info.ownerAddress)}
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 17L17 7M9 7h8v8" /></svg>
+              </a>
+            </div>
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Operator key</div>
+              <span className="font-mono text-[#A1A1AA] text-[10.5px] break-all">
+                {info.operatorPublicKey.slice(0, 12)}…{info.operatorPublicKey.slice(-6)}
+              </span>
+            </div>
+          </div>
+          <a
+            href="https://github.com/the-ton-tech/agentic-wallet-contract"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-2.5 pt-2 border-t border-[rgba(255,255,255,0.06)] text-[10px] text-[#71717A] hover:text-white"
+          >
+            Learn about TON Tech Agentic Wallets →
+          </a>
+        </div>
+      )}
+    </span>
   );
 }
 
