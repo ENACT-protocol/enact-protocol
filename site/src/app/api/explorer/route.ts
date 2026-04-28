@@ -498,7 +498,13 @@ export async function GET() {
     responseCache = { data, fetchedAt: now };
 
     return NextResponse.json(data, {
-      headers: { 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' },
+      headers: {
+        'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+        'X-Enact-Lighthouse': process.env.LIGHTHOUSE_API_KEY ? 'on' : 'off',
+        'X-Enact-LhSubdomain': process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN ? 'on' : 'off',
+        'X-Enact-Pinata': process.env.PINATA_JWT ? 'on' : 'off',
+        'X-Enact-Build': 'gateway-race-v1',
+      },
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
