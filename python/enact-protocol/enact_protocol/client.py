@@ -28,6 +28,7 @@ from .constants import (
     USDT_DECIMALS,
     USDT_MASTER_ADDRESS,
 )
+from .agentic_wallet import AgenticWalletProvider
 from .crypto import decrypt_result as _decrypt_envelope
 from .crypto import encrypt_result
 from .ipfs import PinataClient
@@ -76,6 +77,7 @@ class EnactClient:
         factory_address: Optional[str] = None,
         jetton_factory_address: Optional[str] = None,
         usdt_master_address: Optional[str] = None,
+        agentic_wallet: Optional[AgenticWalletProvider] = None,
     ) -> None:
         self._endpoint = endpoint
         self._api_key = api_key
@@ -90,6 +92,13 @@ class EnactClient:
             is_testnet=False,
             base_url=endpoint.rsplit("/api/", 1)[0] if "/api/" in endpoint else None,
         )
+        # When set, every write routes through the operator key signing an
+        # ExternalSignedRequest instead of the mnemonic-based wallet v5 path.
+        self._agentic_wallet = agentic_wallet
+        if agentic_wallet is not None and agentic_wallet._client is not self._client:
+            # Reuse the client we just constructed so callers don't have to
+            # pre-build their own ToncenterV2Client.
+            agentic_wallet._client = self._client
         self._wallet_lock = asyncio.Lock()
         self._wallet: Optional[WalletV5R1] = None
         self._wallet_secret_key: Optional[bytes] = None
@@ -126,6 +135,8 @@ class EnactClient:
 
     async def get_wallet_address(self) -> str:
         """User-friendly address (non-bounceable) for the configured wallet."""
+        if self._agentic_wallet is not None:
+            return self._agentic_wallet.get_address().to_str(is_bounceable=False)
         wallet = await self._ensure_wallet()
         return wallet.address.to_str(is_bounceable=False)
 
@@ -486,6 +497,12 @@ class EnactClient:
         return await WalletV5R1.get_seqno(self._client, wallet.address)
 
     async def _send(self, to: Address, value_nano: int, body: Cell) -> str:
+        if self._agentic_wallet is not None:
+            # Operator signs an ExternalSignedRequest; the wallet contract
+            # forwards an internal message to ``to`` exactly like a v5 send.
+            return await self._agentic_wallet.send_transaction(
+                to=to, value_nano=value_nano, body=body, bounce=True
+            )
         wallet = await self._ensure_wallet()
         initial_seqno = await self._get_seqno(wallet)
         message = wallet.create_wallet_internal_message(
