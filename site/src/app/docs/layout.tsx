@@ -238,7 +238,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                       >
                         <span className="flex-1 truncate">{item.name}</span>
                         {badge && (
-                          <span className="shrink-0 px-1.5 py-px text-[9px] font-mono font-semibold tracking-[0.08em] uppercase rounded-md bg-gradient-to-b from-[rgba(0,152,234,0.18)] to-[rgba(0,152,234,0.08)] text-[#5BB8F0] border border-[rgba(0,152,234,0.25)]">
+                          <span className="shrink-0 px-1.5 py-px text-[9px] font-mono font-semibold tracking-[0.08em] uppercase rounded-md bg-gradient-to-b from-[rgba(0,152,234,0.18)] to-[rgba(0,152,234,0.08)] text-white border border-[rgba(0,152,234,0.25)]">
                             {badge}
                           </span>
                         )}
