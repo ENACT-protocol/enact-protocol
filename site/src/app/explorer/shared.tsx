@@ -567,7 +567,6 @@ export interface AgenticWalletInfo {
   nftItemIndex: string;
   revokedAt: string;
   isRevoked: boolean;
-  createdAt?: number; // unix seconds, 0 when unknown
 }
 
 const _agenticCache = new Map<string, AgenticWalletInfo | { isAgenticWallet: false }>();
@@ -703,14 +702,6 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Operator key</div>
               <OperatorKeyCopy publicKey={info.operatorPublicKey} />
             </div>
-            {info.createdAt && info.createdAt > 0 ? (
-              <div>
-                <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Created</div>
-                <span className="font-mono text-[#A1A1AA] text-[10.5px]">
-                  {new Date(info.createdAt * 1000).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            ) : null}
           </div>
           <a
             href="https://github.com/the-ton-tech/agentic-wallet-contract"

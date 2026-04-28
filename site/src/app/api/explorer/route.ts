@@ -9,7 +9,16 @@ const API_KEY = process.env.TONCENTER_API_KEY || '';
 // gateway.lighthouse.storage is paywalled (402), ipfs.io is unreliable for fresh
 // Lighthouse pins. Keep ipfs.io as the human-facing default (works once the CID
 // propagates to public gateways) and use a race-fetch helper for our own reads.
-const PINATA_GW = 'https://ipfs.io/ipfs';
+// Public-facing gateway used in stored ipfsUrl values (rendered as clickable
+// links in the UI). gateway.lighthouse.storage is paywalled (402); ipfs.io
+// frequently returns 504 / "no providers found" for fresh Lighthouse pins
+// because they haven't propagated to the public DHT yet. The Lighthouse
+// per-account subdomain (set via LIGHTHOUSE_GATEWAY_SUBDOMAIN env) resolves
+// instantly. Internal reads still go through fetchIpfsJson which races
+// multiple gateways; this constant only affects the human-clickable link.
+const PINATA_GW = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
+  ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
+  : 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 
 // Race a CID across multiple IPFS gateways. The first 2xx response wins.
@@ -101,15 +110,52 @@ async function resolveFromList(hash: string, list: Array<{ cid: string; fileName
   return { text, ipfsUrl: `${PINATA_GW}/${match.cid}` };
 }
 
+// Rewrite a stored ipfsUrl to the current public gateway — fixes legacy rows
+// that point at ipfs.io (which 504s on fresh Lighthouse pins) when we now
+// have a Lighthouse subdomain configured.
+function rewriteIpfsUrl(stored: string | null | undefined): string | null {
+  if (!stored) return null;
+  const m = stored.match(/\/ipfs\/([^/?#]+)/);
+  if (!m) return stored;
+  const cid = m[1];
+  return `${PINATA_GW}/${cid}`;
+}
+
 // After Supabase transform, fill in any text==null for jobs that have a non-zero
 // hash. Writes results back to Supabase so subsequent requests skip the work.
 async function backfillMissingContent(jobs: any[], sb: any) {
   const list = await getLighthouseList();
-  if (list.length === 0) return;
 
   await Promise.all(jobs.map(async (j) => {
     const tasks: Promise<void>[] = [];
     const updates: Record<string, any> = {};
+
+    // Rewrite stale ipfs.io URLs in already-resolved rows to the current PINATA_GW.
+    for (const key of ['description', 'resultContent', 'reasonContent'] as const) {
+      const c: any = j[key];
+      if (!c?.ipfsUrl) continue;
+      const fresh = rewriteIpfsUrl(c.ipfsUrl);
+      if (fresh && fresh !== c.ipfsUrl) {
+        c.ipfsUrl = fresh;
+        const col = key === 'description' ? 'description_ipfs_url' : key === 'resultContent' ? 'result_ipfs_url' : 'reason_ipfs_url';
+        updates[col] = fresh;
+      }
+    }
+    if (j.description?.file?.ipfsUrl) {
+      const fresh = rewriteIpfsUrl(j.description.file.ipfsUrl);
+      if (fresh) j.description.file.ipfsUrl = fresh;
+    }
+    if (j.resultContent?.file?.ipfsUrl) {
+      const fresh = rewriteIpfsUrl(j.resultContent.file.ipfsUrl);
+      if (fresh) j.resultContent.file.ipfsUrl = fresh;
+    }
+
+    if (list.length === 0) {
+      if (Object.keys(updates).length > 0) {
+        await sb.from('jobs').update(updates).eq('address', j.address).then(() => {}, () => {});
+      }
+      return;
+    }
 
     if (!j.description?.text && j.descHash && j.descHash !== ZERO_HASH && j.description?.source === 'hash') {
       tasks.push(resolveFromList(j.descHash, list).then(r => {
@@ -505,7 +551,7 @@ export async function GET() {
         'X-Enact-Lighthouse': process.env.LIGHTHOUSE_API_KEY ? 'on' : 'off',
         'X-Enact-LhSubdomain': process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN ? 'on' : 'off',
         'X-Enact-Pinata': process.env.PINATA_JWT ? 'on' : 'off',
-        'X-Enact-Build': 'gateway-race-v1',
+        'X-Enact-Build': 'gateway-race-v2',
       },
     });
   } catch (err: unknown) {

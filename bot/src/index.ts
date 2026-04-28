@@ -238,7 +238,11 @@ function escapeHtml(s: string): string {
 // provider-specific gateway when a freshly-uploaded CID has not
 // propagated to that provider's local cache yet.
 // Override with IPFS_GATEWAY env var if you self-host a gateway.
-const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+const PINATA_GW = process.env.IPFS_GATEWAY
+    || process.env.PINATA_GATEWAY
+    || (process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
+        ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
+        : 'https://ipfs.io/ipfs');
 const descCache = new Map<string, string>();
 
 // Race a CID across multiple IPFS gateways. The first 2xx response wins.
