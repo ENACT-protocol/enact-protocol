@@ -62,6 +62,8 @@ export class EnactClient {
     private pinataJwt: string | null = null;
     private lighthouseApiKey: string | null = null;
     private hasApiKey: boolean = false;
+    /** Optional Agentic Wallet signer used in place of the mnemonic-based wallet. */
+    private agenticWallet: import('./providers/AgenticWalletProvider').AgenticWalletProvider | null = null;
     readonly factoryAddress: string;
     readonly jettonFactoryAddress: string;
 
@@ -73,6 +75,11 @@ export class EnactClient {
         lighthouseApiKey?: string;
         /** Legacy Pinata JWT — kept as fallback if Lighthouse is not configured. */
         pinataJwt?: string;
+        /** Agentic Wallet signer — alternative to `mnemonic`. When set, the
+         *  client uses the operator key to sign every transaction and the
+         *  on-chain agentic wallet acts as the sender. Owner retains
+         *  control via the SBT collection. */
+        agenticWallet?: import('./providers/AgenticWalletProvider').AgenticWalletProvider;
         factoryAddress?: string;
         jettonFactoryAddress?: string;
     }) {
@@ -85,6 +92,7 @@ export class EnactClient {
         this.jettonFactoryAddress = options?.jettonFactoryAddress ?? JETTON_FACTORY_ADDRESS;
         this.pinataJwt = options?.pinataJwt ?? null;
         this.lighthouseApiKey = options?.lighthouseApiKey ?? null;
+        this.agenticWallet = options?.agenticWallet ?? null;
 
         if (options?.mnemonic) {
             this.walletPromise = this._initWallet(options.mnemonic);
@@ -113,6 +121,11 @@ export class EnactClient {
     }
 
     private async _send(to: Address, value: bigint, body: Cell) {
+        // Agentic wallet path: signed external request, no mnemonic.
+        if (this.agenticWallet) {
+            await this.agenticWallet.sendTransaction([{ to, value, body, bounce: true }]);
+            return;
+        }
         const w = await this._ensureWallet();
         const opened = this.client.open(w.contract);
 
@@ -223,6 +236,7 @@ export class EnactClient {
 
     /** Get wallet address (requires mnemonic) */
     async getWalletAddress(): Promise<string> {
+        if (this.agenticWallet) return this.agenticWallet.getAddress().toString({ bounceable: false });
         const w = await this._ensureWallet();
         return w.contract.address.toString({ bounceable: false });
     }
