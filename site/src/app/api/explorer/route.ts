@@ -54,6 +54,97 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+// Per-request Lighthouse list cache: avoids hammering the API once per job
+// when the Supabase row exists but `description_text` is null (e.g. legacy
+// indexer wrote null before the Lighthouse fix).
+let _lhListCache: { ts: number; list: Array<{ cid: string; fileName: string }> } | null = null;
+async function getLighthouseList(): Promise<Array<{ cid: string; fileName: string }>> {
+  if (!process.env.LIGHTHOUSE_API_KEY) return [];
+  const now = Date.now();
+  if (_lhListCache && now - _lhListCache.ts < 30_000) return _lhListCache.list;
+  try {
+    const res = await fetch('https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null', {
+      headers: { Authorization: `Bearer ${process.env.LIGHTHOUSE_API_KEY}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { fileList?: Array<{ cid: string; fileName: string }> };
+    const list = data.fileList ?? [];
+    _lhListCache = { ts: now, list };
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+// Resolve a hash directly from a precomputed Lighthouse list (no per-call list fetch).
+// Used by the Supabase backfill path so 173 jobs share one Lighthouse listing.
+async function resolveFromList(hash: string, list: Array<{ cid: string; fileName: string }>): Promise<{ text: string | null; ipfsUrl: string | null }> {
+  if (!hash || hash === ZERO_HASH) return { text: null, ipfsUrl: null };
+  // Hex-decoded short text
+  try {
+    const clean = hash.replace(/0+$/, '');
+    if (clean.length >= 4) {
+      const bytes = Buffer.from(clean, 'hex').toString('utf-8').replace(/\0/g, '');
+      if (/^[\x20-\x7E\n\r\t]+$/.test(bytes) && bytes.length > 2) return { text: bytes, ipfsUrl: null };
+    }
+  } catch {}
+  const tag = hash.slice(0, 8);
+  const match = list.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+  if (!match || !match.fileName.endsWith('.json')) return { text: null, ipfsUrl: null };
+  const d = await fetchIpfsJson(match.cid);
+  if (!d) return { text: null, ipfsUrl: `${PINATA_GW}/${match.cid}` };
+  if (d.type === 'job_result_encrypted') return { text: null, ipfsUrl: `${PINATA_GW}/${match.cid}` };
+  const text = d.description ?? d.result ?? d.reason ?? null;
+  return { text, ipfsUrl: `${PINATA_GW}/${match.cid}` };
+}
+
+// After Supabase transform, fill in any text==null for jobs that have a non-zero
+// hash. Writes results back to Supabase so subsequent requests skip the work.
+async function backfillMissingContent(jobs: any[], sb: any) {
+  const list = await getLighthouseList();
+  if (list.length === 0) return;
+
+  await Promise.all(jobs.map(async (j) => {
+    const tasks: Promise<void>[] = [];
+    const updates: Record<string, any> = {};
+
+    if (!j.description?.text && j.descHash && j.descHash !== ZERO_HASH && j.description?.source === 'hash') {
+      tasks.push(resolveFromList(j.descHash, list).then(r => {
+        if (r.text) {
+          j.description = { text: r.text, source: 'ipfs', ipfsUrl: r.ipfsUrl, ...(j.description?.file ? { file: j.description.file } : {}) };
+          updates.description_text = r.text;
+          if (r.ipfsUrl) updates.description_ipfs_url = r.ipfsUrl;
+        }
+      }));
+    }
+    if (!j.resultContent?.text && !j.resultContent?.encrypted && j.resultHash && j.resultHash !== ZERO_HASH && j.resultContent?.source === 'hash') {
+      tasks.push(resolveFromList(j.resultHash, list).then(r => {
+        if (r.text) {
+          j.resultContent = { text: r.text, source: 'ipfs', ipfsUrl: r.ipfsUrl, ...(j.resultContent?.file ? { file: j.resultContent.file } : {}) };
+          updates.result_text = r.text;
+          if (r.ipfsUrl) updates.result_ipfs_url = r.ipfsUrl;
+        }
+      }));
+    }
+    if (!j.reasonContent?.text && j.reasonHash && j.reasonHash !== ZERO_HASH && j.reasonContent?.source === 'hash') {
+      tasks.push(resolveFromList(j.reasonHash, list).then(r => {
+        if (r.text) {
+          j.reasonContent = { text: r.text, source: 'ipfs', ipfsUrl: r.ipfsUrl };
+          updates.reason_text = r.text;
+          if (r.ipfsUrl) updates.reason_ipfs_url = r.ipfsUrl;
+        }
+      }));
+    }
+
+    if (tasks.length === 0) return;
+    await Promise.all(tasks);
+    if (Object.keys(updates).length > 0) {
+      await sb.from('jobs').update(updates).eq('address', j.address).then(() => {}, () => {});
+    }
+  }));
+}
+
 async function fetchFromSupabase() {
   const sb = getSupabase();
   if (!sb) throw new Error('Supabase not configured');
@@ -116,6 +207,11 @@ async function fetchFromSupabase() {
 
   const tonJobs = jobs.filter((j: any) => j.factory_type === 'ton').map(transform);
   const jettonJobs = jobs.filter((j: any) => j.factory_type === 'usdt').map(transform);
+
+  // Self-heal: legacy indexer wrote description_text=null for jobs whose
+  // CIDs only resolved through a paywalled or unreliable gateway. Refetch
+  // missing fields here and write them back to Supabase.
+  await backfillMissingContent([...tonJobs, ...jettonJobs], sb);
 
   const activityEvents = (activity ?? []).map((e: any) => ({
     jobId: e.job_id, type: e.factory_type, address: e.job_address,
