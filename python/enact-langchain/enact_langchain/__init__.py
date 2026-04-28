@@ -18,7 +18,7 @@ Quick start::
 """
 from __future__ import annotations
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 from .tools import (
     CancelJobTool,
@@ -26,10 +26,12 @@ from .tools import (
     CreateJettonJobTool,
     CreateJobTool,
     DecryptJobResultTool,
+    DetectAgenticWalletTool,
     EnactToolBase,
     EvaluateJobTool,
     FundJettonJobTool,
     FundJobTool,
+    GenerateAgentKeypairTool,
     GetJettonJobCountTool,
     GetJobAddressTool,
     GetJobCountTool,
@@ -77,4 +79,6 @@ __all__ = [
     "CreateJettonJobTool",
     "SetJettonWalletTool",
     "FundJettonJobTool",
+    "GenerateAgentKeypairTool",
+    "DetectAgenticWalletTool",
 ]

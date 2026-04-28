@@ -63,10 +63,11 @@ Put a human-in-the-loop check in front of any write tool in production.
 
 ## Tool catalog
 
-**Read (9):**
+**Read (11):**
 `enact_get_wallet_address`, `enact_get_job_count`, `enact_get_jetton_job_count`,
 `enact_get_job_address`, `enact_list_jobs`, `enact_list_jetton_jobs`,
-`enact_get_job_status`, `enact_get_wallet_public_key`, `enact_decrypt_job_result`.
+`enact_get_job_status`, `enact_get_wallet_public_key`, `enact_decrypt_job_result`,
+`enact_generate_agent_keypair`, `enact_detect_agentic_wallet`.
 
 **Write TON (10):**
 `enact_create_job`, `enact_fund_job`, `enact_take_job`, `enact_submit_result`,
@@ -75,6 +76,18 @@ Put a human-in-the-loop check in front of any write tool in production.
 
 **Write USDT (3):**
 `enact_create_jetton_job`, `enact_set_jetton_wallet`, `enact_fund_jetton_job`.
+
+## Agentic Wallets
+
+`enact_generate_agent_keypair` returns a fresh ed25519 keypair plus a
+`agents.ton.org/create` deeplink so the user can mint a TON Tech Agentic
+Wallet on top of the operator key — no mnemonic ever touches the agent.
+`enact_detect_agentic_wallet` probes any TON address for the agentic-wallet
+get-methods and returns the owner, operator pubkey, NFT index, and revoked
+state. After the wallet is minted and funded, configure
+`enact_protocol.AgenticWalletProvider` directly on the underlying
+`EnactClient` to route every write through the operator key. See the
+[Agentic Wallets docs](https://enact.info/docs/agentic-wallets).
 
 ## Links
 

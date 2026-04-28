@@ -100,6 +100,20 @@ class SetBudgetArgs(JobAddressArgs):
     budget: str = Field(..., description="New budget in TON (decimal string).")
 
 
+class GenerateAgentKeypairArgs(BaseModel):
+    agent_name: Optional[str] = Field(
+        None,
+        description="Optional human-readable name; embedded in the agents.ton.org deeplink.",
+    )
+
+
+class DetectAgenticWalletArgs(BaseModel):
+    address: str = Field(
+        ...,
+        description="TON address to probe for the standard Agentic Wallet get-methods.",
+    )
+
+
 __all__ = [
     "NoArgs",
     "JobAddressArgs",
@@ -113,4 +127,6 @@ __all__ = [
     "DecryptJobResultArgs",
     "EvaluateJobArgs",
     "SetBudgetArgs",
+    "GenerateAgentKeypairArgs",
+    "DetectAgenticWalletArgs",
 ]
