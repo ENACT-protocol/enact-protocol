@@ -879,7 +879,7 @@ npm install && npm run build`}</Code>
         <PageHeader
           label="Integrations"
           title="Teleton Plugin"
-          desc="Drop-in plugin for the Teleton autonomous agent framework. 16 tools for the full job lifecycle."
+          desc="Drop-in plugin for the Teleton autonomous agent framework. 16 tools for the full job lifecycle, with optional Agentic Wallet signing."
         />
 
         <H2>Installation</H2>
@@ -893,6 +893,12 @@ WALLET_MNEMONIC=word1 word2 ... word24
 TON_ENDPOINT=https://toncenter.com/api/v2/jsonRPC
 TONCENTER_API_KEY=your_key`}</Code>
         <Tip>Learn more about the Teleton framework: <a href="https://github.com/TONresistor/teleton-agent" target="_blank" rel="noopener noreferrer" className="underline">github.com/TONresistor/teleton-agent</a></Tip>
+
+        <H3>Agentic Wallet (alternative signer)</H3>
+        <P>Skip the mnemonic entirely — sign every plugin call through a TON Tech Agentic Wallet. Set these env vars instead of (or alongside) <IC>WALLET_MNEMONIC</IC>:</P>
+        <Code label=".env">{`AGENTIC_WALLET_SECRET_KEY=<128 hex chars>
+AGENTIC_WALLET_ADDRESS=EQ...`}</Code>
+        <P>When both are set, <IC>sendTx</IC> routes through <IC>ExternalSignedRequest</IC> (opcode <IC>0xbf235204</IC>) using the operator key. The owner can revoke the operator at any time on <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a>. See <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">Agentic Wallets</a>.</P>
 
         <H2>16 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
