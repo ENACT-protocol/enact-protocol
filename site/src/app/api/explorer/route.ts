@@ -5,8 +5,43 @@ import { EnactClient } from '@enact-protocol/sdk';
 const FACTORY = 'EQAFHodWCzrYJTbrbJp1lMDQLfypTHoJCd0UcerjsdxPECjX';
 const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const API_KEY = process.env.TONCENTER_API_KEY || '';
-const PINATA_GW = 'https://ipfs.io/ipfs'; // Always use public gateway for reading
+// Public gateway for non-authenticated viewers (file links shown in UI).
+// gateway.lighthouse.storage is paywalled (402), ipfs.io is unreliable for fresh
+// Lighthouse pins. Keep ipfs.io as the human-facing default (works once the CID
+// propagates to public gateways) and use a race-fetch helper for our own reads.
+const PINATA_GW = 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
+
+// Race a CID across multiple IPFS gateways. The first 2xx response wins.
+// Lighthouse per-account subdomain is fastest because the account already
+// holds the pin; public gateways serve as backup once the CID propagates.
+async function fetchIpfsJson(cid: string, timeoutMs = 6000): Promise<Record<string, any> | null> {
+  const sub = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN; // e.g. "numerous-gorilla-z5as6"
+  const urls: string[] = [];
+  if (sub) urls.push(`https://${sub}.lighthouseweb3.xyz/ipfs/${cid}`);
+  urls.push(
+    `https://w3s.link/ipfs/${cid}`,
+    `https://nftstorage.link/ipfs/${cid}`,
+    `https://dweb.link/ipfs/${cid}`,
+    `https://ipfs.io/ipfs/${cid}`,
+  );
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const fetches = urls.map(async (u): Promise<Record<string, any>> => {
+      const r = await fetch(u, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`${u}: ${r.status}`);
+      return await r.json() as Record<string, any>;
+    });
+    const json = await Promise.any(fetches);
+    return json;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    ctrl.abort();
+  }
+}
 
 const BUILD_VERSION = 'v2'; // Bump to invalidate terminalCache on redeploy
 
@@ -151,19 +186,16 @@ async function tryLighthouse(hash: string): Promise<{ text: string | null; sourc
     const ipfsUrl = `${PINATA_GW}/${match.cid}`;
     const isJson = match.fileName.endsWith('.json');
     if (isJson) {
-      try {
-        const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
-        if (cr.ok) {
-          const d = await cr.json() as Record<string, any>;
-          if (d.type === 'job_result_encrypted') return { text: null, source: 'ipfs', ipfsUrl, encrypted: true };
-          const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
-          if (d.file?.cid) {
-            const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
-            return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: d.file.mimeType || 'application/octet-stream', size: d.file.size || 0 } };
-          }
-          return { text, source: 'ipfs', ipfsUrl };
+      const d = await fetchIpfsJson(match.cid);
+      if (d) {
+        if (d.type === 'job_result_encrypted') return { text: null, source: 'ipfs', ipfsUrl, encrypted: true };
+        const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
+        if (d.file?.cid) {
+          const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+          return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: d.file.mimeType || 'application/octet-stream', size: d.file.size || 0 } };
         }
-      } catch {}
+        return { text, source: 'ipfs', ipfsUrl };
+      }
     }
     // Binary file path: filename like enact-file-<hash8>.<ext>
     return {
@@ -213,23 +245,19 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
               fileResult = { text: null, source: 'ipfs', ipfsUrl, file: { filename: kv.filename || 'file', mimeType: kv.mimeType || 'application/octet-stream', size: parseInt(kv.size || '0') } };
               continue;
             }
-            try {
-              const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
-              if (cr.ok) {
-                const d = await cr.json() as Record<string, any>;
-                // Detect encrypted results
-                if (d.type === 'job_result_encrypted') {
-                  return { text: null, source: 'ipfs', ipfsUrl, encrypted: true } as any;
-                }
-                const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
-                if (d.file?.cid) {
-                  const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
-                  const mime = d.file.mimeType || 'application/octet-stream';
-                  return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: mime, size: d.file.size || 0 } };
-                }
-                return { text, source: 'ipfs', ipfsUrl };
+            const d = await fetchIpfsJson(cid);
+            if (d) {
+              if (d.type === 'job_result_encrypted') {
+                return { text: null, source: 'ipfs', ipfsUrl, encrypted: true } as any;
               }
-            } catch {}
+              const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
+              if (d.file?.cid) {
+                const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+                const mime = d.file.mimeType || 'application/octet-stream';
+                return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: mime, size: d.file.size || 0 } };
+              }
+              return { text, source: 'ipfs', ipfsUrl };
+            }
           }
           if (fileResult) return fileResult;
         }

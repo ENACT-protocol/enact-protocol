@@ -241,6 +241,38 @@ function escapeHtml(s: string): string {
 const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 const descCache = new Map<string, string>();
 
+// Race a CID across multiple IPFS gateways. The first 2xx response wins.
+// gateway.lighthouse.storage is paywalled (402), ipfs.io is unreliable for
+// fresh Lighthouse pins. Lighthouse per-account subdomain (set via
+// LIGHTHOUSE_GATEWAY_SUBDOMAIN env) resolves instantly — public gateways
+// serve as backup once the CID propagates.
+async function fetchIpfsJson(cid: string, timeoutMs = 6000): Promise<Record<string, any> | null> {
+    const sub = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN;
+    const urls: string[] = [];
+    if (sub) urls.push(`https://${sub}.lighthouseweb3.xyz/ipfs/${cid}`);
+    urls.push(
+        `https://w3s.link/ipfs/${cid}`,
+        `https://nftstorage.link/ipfs/${cid}`,
+        `https://dweb.link/ipfs/${cid}`,
+        `https://ipfs.io/ipfs/${cid}`,
+    );
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+        const fetches = urls.map(async (u): Promise<Record<string, any>> => {
+            const r = await fetch(u, { signal: ctrl.signal });
+            if (!r.ok) throw new Error(`${u}: ${r.status}`);
+            return await r.json() as Record<string, any>;
+        });
+        return await Promise.any(fetches);
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+        ctrl.abort();
+    }
+}
+
 /** Upload text to IPFS via Pinata, return SHA-256 hash as BigInt */
 // Lighthouse low-level upload — single multipart POST, Bearer token,
 // returns { Hash: <CID> }. Free tier 2 GB permanent IPFS pinning.
@@ -443,14 +475,10 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
 /** Resolve file reference from IPFS JSON (if any) */
 async function resolveFileFromCID(cid: string | null): Promise<{ url: string; filename: string } | null> {
     if (!cid) return null;
-    try {
-        const res = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(3000) });
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data.file?.cid) {
-            return { url: data.file.ipfsUrl || `${PINATA_GW}/${data.file.cid}`, filename: data.file.filename || 'file' };
-        }
-    } catch {}
+    const data = await fetchIpfsJson(cid);
+    if (data?.file?.cid) {
+        return { url: data.file.ipfsUrl || `${PINATA_GW}/${data.file.cid}`, filename: data.file.filename || 'file' };
+    }
     return null;
 }
 
@@ -598,23 +626,15 @@ async function decodeDesc(hash: string): Promise<string | null> {
         // Try 2: Lighthouse — primary IPFS provider
         const lhCid = await lighthouseFindCID(hash);
         if (lhCid) {
-            try {
-                const ipfsRes = await fetch(`${PINATA_GW}/${lhCid}`, { signal: AbortSignal.timeout(3000) });
-                if (ipfsRes.ok) {
-                    const ct = ipfsRes.headers.get('content-type') || '';
-                    if (ct.includes('json') || ct.includes('text')) {
-                        const data = await ipfsRes.json().catch(() => null);
-                        if (data) {
-                            const content = data.description ?? data.result ?? null;
-                            if (content) {
-                                const result = escapeHtml(String(content).slice(0, 200));
-                                descCache.set(hash, result);
-                                return result;
-                            }
-                        }
-                    }
+            const data = await fetchIpfsJson(lhCid);
+            if (data) {
+                const content = data.description ?? data.result ?? data.reason ?? null;
+                if (content) {
+                    const result = escapeHtml(String(content).slice(0, 200));
+                    descCache.set(hash, result);
+                    return result;
                 }
-            } catch {}
+            }
         }
         // Try 3: Pinata metadata search (MCP tags uploads with descHash)
         const jwt = process.env.PINATA_JWT;
@@ -632,20 +652,16 @@ async function decodeDesc(hash: string): Promise<string | null> {
                     for (const pin of pins.rows as any[]) {
                         const kv = pin.metadata?.keyvalues;
                         if (kv?.type === 'file') { filePin = pin; continue; }
-                        // Try to fetch JSON content
-                        try {
-                            const cid = pin.ipfs_pin_hash;
-                            const ipfsRes = await fetch(`${PINATA_GW}/${cid}`, { signal: AbortSignal.timeout(3000) });
-                            if (ipfsRes.ok) {
-                                const data = await ipfsRes.json();
-                                const content = data.description ?? data.result ?? null;
-                                if (content) {
-                                    const result = escapeHtml(String(content).slice(0, 200));
-                                    descCache.set(hash, result);
-                                    return result;
-                                }
+                        const cid = pin.ipfs_pin_hash;
+                        const data = await fetchIpfsJson(cid);
+                        if (data) {
+                            const content = data.description ?? data.result ?? data.reason ?? null;
+                            if (content) {
+                                const result = escapeHtml(String(content).slice(0, 200));
+                                descCache.set(hash, result);
+                                return result;
                             }
-                        } catch { /* not JSON */ }
+                        }
                     }
                     // Fallback: if only file found, show filename
                     if (filePin) {

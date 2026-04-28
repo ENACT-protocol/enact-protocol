@@ -1,4 +1,8 @@
-const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
+// Public-facing gateway used in stored ipfsUrl (rendered as a clickable link
+// in the UI). gateway.lighthouse.storage is paywalled (402); use ipfs.io as
+// the public default. Reads happen via fetchIpfsJson which races multiple
+// gateways and ignores this constant.
+const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 
 export interface ResolvedContent {
@@ -8,6 +12,35 @@ export interface ResolvedContent {
 
 function extractText(d: Record<string, any>): string {
   return d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
+}
+
+// Race a CID across multiple IPFS gateways. The first 2xx response wins.
+// Lighthouse per-account subdomain is fastest; public gateways are backup.
+async function fetchIpfsJson(cid: string, timeoutMs = 8000): Promise<Record<string, any> | null> {
+  const sub = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN; // e.g. "numerous-gorilla-z5as6"
+  const urls: string[] = [];
+  if (sub) urls.push(`https://${sub}.lighthouseweb3.xyz/ipfs/${cid}`);
+  urls.push(
+    `https://w3s.link/ipfs/${cid}`,
+    `https://nftstorage.link/ipfs/${cid}`,
+    `https://dweb.link/ipfs/${cid}`,
+    `https://ipfs.io/ipfs/${cid}`,
+  );
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const fetches = urls.map(async (u): Promise<Record<string, any>> => {
+      const r = await fetch(u, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`${u}: ${r.status}`);
+      return await r.json() as Record<string, any>;
+    });
+    return await Promise.any(fetches);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    ctrl.abort();
+  }
 }
 
 async function tryLighthouse(hash: string): Promise<ResolvedContent | null> {
@@ -25,13 +58,8 @@ async function tryLighthouse(hash: string): Promise<ResolvedContent | null> {
     if (!match) return null;
     const ipfsUrl = `${IPFS_GW}/${match.cid}`;
     if (!match.fileName.endsWith('.json')) return { text: null, ipfsUrl };
-    try {
-      const contentRes = await fetch(ipfsUrl, { signal: AbortSignal.timeout(8000) });
-      if (contentRes.ok) {
-        const d = await contentRes.json() as Record<string, any>;
-        return { text: extractText(d), ipfsUrl };
-      }
-    } catch {}
+    const d = await fetchIpfsJson(match.cid);
+    if (d) return { text: extractText(d), ipfsUrl };
     return { text: null, ipfsUrl };
   } catch {
     return null;
@@ -51,13 +79,8 @@ async function tryPinata(hash: string): Promise<ResolvedContent | null> {
     if (!pins.rows?.length) return null;
     const cid = pins.rows[0].ipfs_pin_hash;
     const ipfsUrl = `${IPFS_GW}/${cid}`;
-    try {
-      const contentRes = await fetch(ipfsUrl, { signal: AbortSignal.timeout(8000) });
-      if (contentRes.ok) {
-        const d = await contentRes.json() as Record<string, any>;
-        return { text: extractText(d), ipfsUrl };
-      }
-    } catch {}
+    const d = await fetchIpfsJson(cid);
+    if (d) return { text: extractText(d), ipfsUrl };
     return { text: null, ipfsUrl };
   } catch {
     return null;

@@ -27,7 +27,36 @@ import ed2curve from 'ed2curve';
 const MNEMONIC = process.env.WALLET_MNEMONIC ?? '';
 const LLM_API_KEY = process.env.GROQ_API_KEY ?? '';
 const API_KEY = process.env.TONCENTER_API_KEY ?? '';
-const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://gateway.lighthouse.storage/ipfs';
+// gateway.lighthouse.storage is paywalled (402). ipfs.io is the public default;
+// reads happen via fetchIpfsJson which races multiple gateways.
+const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+
+async function fetchIpfsJson(cid: string, timeoutMs = 8000): Promise<any | null> {
+    const sub = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN;
+    const urls: string[] = [];
+    if (sub) urls.push(`https://${sub}.lighthouseweb3.xyz/ipfs/${cid}`);
+    urls.push(
+        `https://w3s.link/ipfs/${cid}`,
+        `https://nftstorage.link/ipfs/${cid}`,
+        `https://dweb.link/ipfs/${cid}`,
+        `https://ipfs.io/ipfs/${cid}`,
+    );
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+        const fetches = urls.map(async (u) => {
+            const r = await fetch(u, { signal: ctrl.signal });
+            if (!r.ok) throw new Error(`${u}: ${r.status}`);
+            return await r.json();
+        });
+        return await Promise.any(fetches);
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+        ctrl.abort();
+    }
+}
 const PINATA_JWT = process.env.PINATA_JWT ?? '';
 const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY ?? '';
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -70,7 +99,7 @@ async function fetchFromIPFS(hash: string, label: string = 'content'): Promise<s
     }
 
     const tagged = (filename: string) => `enact-${hash.slice(0, 8)}.json` === filename;
-    const extractContent = (data: any): string => data.description ?? data.result ?? JSON.stringify(data);
+    const extractContent = (data: any): string => data.description ?? data.result ?? data.reason ?? JSON.stringify(data);
 
     // Primary: Lighthouse.storage. Bot uploads with filename `enact-<hash8>.json`,
     // search the Lighthouse upload list for that filename.
@@ -86,11 +115,9 @@ async function fetchFromIPFS(hash: string, label: string = 'content'): Promise<s
                 const match = data.fileList?.find(f => tagged(f.fileName));
                 if (match) {
                     log(`  📌 ${label}: found Lighthouse CID ${match.cid}`);
-                    const ipfsRes = await fetch(`${IPFS_GW}/${match.cid}`, { signal: AbortSignal.timeout(8000) });
-                    if (ipfsRes.ok) {
-                        const json = await ipfsRes.json();
-                        return extractContent(json);
-                    }
+                    const json = await fetchIpfsJson(match.cid);
+                    if (json) return extractContent(json);
+                    log(`  ⚠️ ${label}: CID ${match.cid} not reachable on any gateway, falling back to Pinata`);
                 } else {
                     log(`  ⚠️ ${label}: no Lighthouse pin matched ${hash.slice(0, 8)}, falling back to Pinata...`);
                 }
@@ -119,8 +146,8 @@ async function fetchFromIPFS(hash: string, label: string = 'content'): Promise<s
             if (pins.rows?.length > 0) {
                 const cid = pins.rows[0].ipfs_pin_hash;
                 log(`  📌 ${label}: found Pinata CID ${cid}`);
-                const ipfsRes = await fetch(`${IPFS_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
-                if (ipfsRes.ok) return extractContent(await ipfsRes.json());
+                const json = await fetchIpfsJson(cid);
+                if (json) return extractContent(json);
             } else {
                 const nameUrl = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[name]=enact-${hash.slice(0, 8)}`;
                 const nameRes = await fetch(nameUrl, {
@@ -132,8 +159,8 @@ async function fetchFromIPFS(hash: string, label: string = 'content'): Promise<s
                     if (namePins.rows?.length > 0) {
                         const cid = namePins.rows[0].ipfs_pin_hash;
                         log(`  📌 ${label}: found Pinata by name, CID ${cid}`);
-                        const ipfsRes = await fetch(`${IPFS_GW}/${cid}`, { signal: AbortSignal.timeout(8000) });
-                        if (ipfsRes.ok) return extractContent(await ipfsRes.json());
+                        const json = await fetchIpfsJson(cid);
+                        if (json) return extractContent(json);
                     } else {
                         log(`  ❌ ${label}: no pin found at all`);
                     }

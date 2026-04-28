@@ -45,14 +45,30 @@ function getClient(): TonClient {
 // ─── IPFS Content Resolution ───
 
 async function fetchFromIPFS(cid: string): Promise<any> {
-    const gateways = [IPFS_GW, 'https://dweb.link/ipfs', 'https://cloudflare-ipfs.com/ipfs'];
-    for (const gw of gateways) {
-        try {
-            const res = await fetch(`${gw}/${cid}`, { signal: AbortSignal.timeout(8000) });
-            if (res.ok) return await res.json();
-        } catch {}
+    const sub = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN;
+    const urls: string[] = [];
+    if (sub) urls.push(`https://${sub}.lighthouseweb3.xyz/ipfs/${cid}`);
+    urls.push(
+        `https://w3s.link/ipfs/${cid}`,
+        `https://nftstorage.link/ipfs/${cid}`,
+        `https://dweb.link/ipfs/${cid}`,
+        `${IPFS_GW}/${cid}`,
+    );
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+        const fetches = urls.map(async (u) => {
+            const r = await fetch(u, { signal: ctrl.signal });
+            if (!r.ok) throw new Error(`${u}: ${r.status}`);
+            return await r.json();
+        });
+        return await Promise.any(fetches);
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+        ctrl.abort();
     }
-    return null;
 }
 
 interface ResolvedContent {
@@ -61,6 +77,32 @@ interface ResolvedContent {
     fileCid: string | null;
     fileName: string | null;
     encrypted?: boolean;
+}
+
+async function tryLighthouse(hash: string): Promise<ResolvedContent | null> {
+    if (!process.env.LIGHTHOUSE_API_KEY) return null;
+    try {
+        const lhRes = await fetch('https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null', {
+            headers: { Authorization: `Bearer ${process.env.LIGHTHOUSE_API_KEY}` },
+            signal: AbortSignal.timeout(8000),
+        });
+        if (!lhRes.ok) return null;
+        const data = await lhRes.json() as { fileList?: Array<{ cid: string; fileName: string }> };
+        if (!data.fileList?.length) return null;
+        const tag = hash.slice(0, 8);
+        const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+        if (!match) return null;
+        const ipfsUrl = `${IPFS_GW}/${match.cid}`;
+        if (!match.fileName.endsWith('.json')) return { text: null, ipfsUrl, fileCid: match.cid, fileName: match.fileName };
+        const d = await fetchFromIPFS(match.cid);
+        if (d) {
+            if (d.type === 'job_result_encrypted') return { text: null, ipfsUrl, fileCid: null, fileName: null, encrypted: true };
+            return { text: d.description ?? d.result ?? d.reason ?? null, ipfsUrl, fileCid: d.file?.cid || null, fileName: d.file?.filename || null };
+        }
+        return { text: null, ipfsUrl, fileCid: null, fileName: null };
+    } catch {
+        return null;
+    }
 }
 
 async function resolveContent(hash: string): Promise<ResolvedContent> {
@@ -72,6 +114,9 @@ async function resolveContent(hash: string): Promise<ResolvedContent> {
             if (/^[\x20-\x7E\n\r\t]+$/.test(bytes) && bytes.length > 2) return { text: bytes, ipfsUrl: null, fileCid: null, fileName: null };
         }
     } catch {}
+    // Lighthouse first (primary provider in the SDK)
+    const lh = await tryLighthouse(hash);
+    if (lh) return lh;
     if (process.env.PINATA_JWT) {
         try {
             const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;

@@ -25,14 +25,46 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 async function fetchIPFS(cid: string): Promise<any> {
-    const gws = [IPFS_GW, 'https://dweb.link/ipfs', 'https://cloudflare-ipfs.com/ipfs'];
-    for (const gw of gws) {
-        try {
-            const res = await fetch(`${gw}/${cid}`, { signal: AbortSignal.timeout(10000) });
-            if (res.ok) return await res.json();
-        } catch {}
+    const sub = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN;
+    const urls: string[] = [];
+    if (sub) urls.push(`https://${sub}.lighthouseweb3.xyz/ipfs/${cid}`);
+    urls.push(
+        `https://w3s.link/ipfs/${cid}`,
+        `https://nftstorage.link/ipfs/${cid}`,
+        `https://dweb.link/ipfs/${cid}`,
+        `${IPFS_GW}/${cid}`,
+    );
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    try {
+        const fetches = urls.map(async (u) => {
+            const r = await fetch(u, { signal: ctrl.signal });
+            if (!r.ok) throw new Error(`${u}: ${r.status}`);
+            return await r.json();
+        });
+        return await Promise.any(fetches);
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+        ctrl.abort();
     }
-    return null;
+}
+
+async function lighthouseSearch(hash: string): Promise<{ cid: string; fileName: string } | null> {
+    const key = process.env.LIGHTHOUSE_API_KEY;
+    if (!key) return null;
+    try {
+        const res = await fetch('https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null', {
+            headers: { Authorization: `Bearer ${key}` },
+            signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json() as { fileList?: Array<{ cid: string; fileName: string }> };
+        const tag = hash.slice(0, 8);
+        const match = data.fileList?.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+        return match ? { cid: match.cid, fileName: match.fileName } : null;
+    } catch { return null; }
 }
 
 async function resolveHash(hash: string): Promise<{ text: string | null; fileCid: string | null; fileName: string | null; ipfsUrl: string | null }> {
@@ -49,7 +81,21 @@ async function resolveHash(hash: string): Promise<{ text: string | null; fileCid
         }
     } catch {}
 
-    // 2. Pinata search
+    // 2. Lighthouse search (primary provider in the SDK)
+    const lh = await lighthouseSearch(hash);
+    if (lh) {
+        if (lh.fileName.endsWith('.json')) {
+            const data = await fetchIPFS(lh.cid);
+            if (data) {
+                const text = data.description ?? data.result ?? data.reason ?? null;
+                return { text, fileCid: data.file?.cid || null, fileName: data.file?.filename || null, ipfsUrl: `${IPFS_GW}/${lh.cid}` };
+            }
+        } else {
+            return { text: null, fileCid: lh.cid, fileName: lh.fileName, ipfsUrl: `${IPFS_GW}/${lh.cid}` };
+        }
+    }
+
+    // 3. Pinata search
     if (PINATA_JWT) {
         try {
             const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
