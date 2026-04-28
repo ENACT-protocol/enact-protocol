@@ -17,7 +17,7 @@ import asyncio
 import json
 from typing import Any, ClassVar, Literal, Optional, Type
 
-from enact_protocol import EnactClient
+from enact_protocol import EnactClient, detect_agentic_wallet, generate_agent_keypair
 from enact_protocol.types import CreateJobParams, EncryptedEnvelope
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict
@@ -26,8 +26,10 @@ from ._schemas import (
     CreateJettonJobArgs,
     CreateJobArgs,
     DecryptJobResultArgs,
+    DetectAgenticWalletArgs,
     EvaluateJobArgs,
     FundJobArgs,
+    GenerateAgentKeypairArgs,
     GetJobAddressArgs,
     GetWalletPublicKeyArgs,
     JobAddressArgs,
@@ -416,6 +418,64 @@ class FundJettonJobTool(EnactToolBase):
         return f"funded_jetton {job_address}"
 
 
+# ──────────────────────── agentic wallets ────────────────────────
+
+
+class GenerateAgentKeypairTool(EnactToolBase):
+    name: str = "enact_generate_agent_keypair"
+    description: str = (
+        "Generate a fresh ed25519 keypair to use as a TON Tech Agentic Wallet "
+        "operator. Returns publicKey + secretKey (hex) and a deeplink to "
+        "agents.ton.org/create with the publicKey prefilled. The user opens "
+        "the link, mints the wallet, then funds it. Store the secretKey "
+        "securely — anyone with it can sign within the operator scope until "
+        "the owner revokes it."
+    )
+    args_schema: Optional[Type[BaseModel]] = GenerateAgentKeypairArgs
+
+    async def _arun(self, agent_name: Optional[str] = None) -> str:
+        return _json_dump(generate_agent_keypair(agent_name))
+
+
+class DetectAgenticWalletTool(EnactToolBase):
+    name: str = "enact_detect_agentic_wallet"
+    description: str = (
+        "Probe a TON address to determine whether it is a TON Tech Agentic "
+        "Wallet. Calls the standard get-methods (get_nft_data, "
+        "get_public_key, get_origin_public_key, get_authority_address, "
+        "get_revoked_time). Returns is_agentic_wallet=false if any method "
+        "throws (treat as a regular wallet). When true, returns owner "
+        "address, operator pubkey, collection address, NFT index, and "
+        "revoked state."
+    )
+    args_schema: Optional[Type[BaseModel]] = DetectAgenticWalletArgs
+
+    async def _arun(self, address: str) -> str:
+        info = await detect_agentic_wallet(self.client._client, address)
+        # Convert bytes fields to hex for JSON serialization.
+        return json.dumps(
+            {
+                "is_agentic_wallet": info.is_agentic_wallet,
+                "owner_address": info.owner_address,
+                "operator_public_key": (
+                    info.operator_public_key.hex()
+                    if info.operator_public_key is not None
+                    else None
+                ),
+                "origin_operator_public_key": (
+                    info.origin_operator_public_key.hex()
+                    if info.origin_operator_public_key is not None
+                    else None
+                ),
+                "collection_address": info.collection_address,
+                "nft_item_index": info.nft_item_index,
+                "revoked_at": info.revoked_at,
+                "is_revoked": info.is_revoked,
+            },
+            ensure_ascii=False,
+        )
+
+
 # ──────────────────────────── factory ────────────────────────────
 
 READ_TOOL_CLASSES: list[type[EnactToolBase]] = [
@@ -428,6 +488,8 @@ READ_TOOL_CLASSES: list[type[EnactToolBase]] = [
     GetJobStatusTool,
     GetWalletPublicKeyTool,
     DecryptJobResultTool,  # reads wallet, no transaction
+    GenerateAgentKeypairTool,  # local crypto only, no transaction
+    DetectAgenticWalletTool,  # read-only get-method probes
 ]
 
 WRITE_TOOL_CLASSES: list[type[EnactToolBase]] = [
@@ -478,6 +540,9 @@ __all__ = [
     "GetJobStatusTool",
     "GetWalletPublicKeyTool",
     "DecryptJobResultTool",
+    # agentic wallets
+    "GenerateAgentKeypairTool",
+    "DetectAgenticWalletTool",
     # write
     "CreateJobTool",
     "FundJobTool",
