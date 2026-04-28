@@ -660,38 +660,30 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
 export function AgentWalletPanel({ address, label }: { address: string; label?: string }) {
   const info = useAgenticWallet(address);
   if (!info) return null;
+  const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
   return (
-    <div className="bg-[rgba(52,211,153,0.04)] border border-[rgba(52,211,153,0.18)] rounded-xl p-5">
-      <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-3 flex items-center gap-2">
-        <Bot size={11} strokeWidth={2.2} className="text-[#34D399]" />
-        Agent Wallet Info{label ? ` — ${label}` : ''}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-        <div>
-          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Owner</div>
-          <a href={tonscanUrl(info.ownerAddress)} target="_blank" rel="noopener noreferrer" className="font-mono text-[#A1A1AA] hover:text-white text-xs break-all">
-            {info.ownerAddress}
-          </a>
-        </div>
-        <div>
-          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Operator Key</div>
-          <span className="font-mono text-[#A1A1AA] text-xs break-all">
-            {info.operatorPublicKey.slice(0, 16)}…{info.operatorPublicKey.slice(-8)}
-          </span>
-        </div>
-        <div>
-          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Collection</div>
-          <a href={tonscanUrl(info.collectionAddress)} target="_blank" rel="noopener noreferrer" className="font-mono text-[#A1A1AA] hover:text-white text-xs break-all">
-            {truncAddr(info.collectionAddress)}
-          </a>
-        </div>
-        <div>
-          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Status</div>
-          <span className={`text-xs ${info.isRevoked ? 'text-[#9CA3AF]' : 'text-[#34D399]'}`}>
-            {info.isRevoked ? 'Revoked' : 'Active'}
-          </span>
-        </div>
-      </div>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-1 text-xs">
+      <span className="inline-flex items-center gap-1.5">
+        <Bot size={11} strokeWidth={2.2} style={{ color: accent }} />
+        <span className="text-[#A1A1AA]">{label ? `${label} ` : ''}Agent</span>
+        <span
+          className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded"
+          style={{ color: accent, background: `${accent}14`, border: `1px solid ${accent}33` }}
+        >
+          {info.isRevoked ? 'Revoked' : 'Active'}
+        </span>
+      </span>
+      <span className="inline-flex items-center gap-1 text-[#52525B]">
+        <span className="text-[10px]">owner</span>
+        <a href={tonscanUrl(info.ownerAddress)} target="_blank" rel="noopener noreferrer" className="font-mono text-[#A1A1AA] hover:text-white">
+          {truncAddr(info.ownerAddress)}
+        </a>
+      </span>
+      <span className="inline-flex items-center gap-1 text-[#52525B]">
+        <span className="text-[10px]">key</span>
+        <span className="font-mono text-[#A1A1AA]">{info.operatorPublicKey.slice(0, 8)}…{info.operatorPublicKey.slice(-4)}</span>
+      </span>
+      <a href="https://github.com/the-ton-tech/agentic-wallet-contract" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#52525B] hover:text-white">about ↗</a>
     </div>
   );
 }

@@ -132,7 +132,56 @@ async function fetchTxsForJob(address: string): Promise<any[]> {
   } catch { return []; }
 }
 
-async function resolveContent(hash: string): Promise<{ text: string | null; source: string; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number } }> {
+async function tryLighthouse(hash: string): Promise<{ text: string | null; source: string; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number }; encrypted?: boolean } | null> {
+  if (!process.env.LIGHTHOUSE_API_KEY) return null;
+  try {
+    // Lighthouse search: list user files and match by filename prefix.
+    // SDK uploads with `enact-<hash8>.json` (descriptions/results) or
+    // `enact-file-<hash8>.<ext>` (binary files).
+    const lhRes = await fetch('https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null', {
+      headers: { Authorization: `Bearer ${process.env.LIGHTHOUSE_API_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!lhRes.ok) return null;
+    const data = await lhRes.json() as { fileList?: Array<{ cid: string; fileName: string; mimeType?: string; fileSizeInBytes?: string }> };
+    if (!data.fileList?.length) return null;
+    const tag = hash.slice(0, 8);
+    const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+    if (!match) return null;
+    const ipfsUrl = `${PINATA_GW}/${match.cid}`;
+    const isJson = match.fileName.endsWith('.json');
+    if (isJson) {
+      try {
+        const cr = await fetch(ipfsUrl, { signal: AbortSignal.timeout(5000) });
+        if (cr.ok) {
+          const d = await cr.json() as Record<string, any>;
+          if (d.type === 'job_result_encrypted') return { text: null, source: 'ipfs', ipfsUrl, encrypted: true };
+          const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
+          if (d.file?.cid) {
+            const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+            return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: d.file.mimeType || 'application/octet-stream', size: d.file.size || 0 } };
+          }
+          return { text, source: 'ipfs', ipfsUrl };
+        }
+      } catch {}
+    }
+    // Binary file path: filename like enact-file-<hash8>.<ext>
+    return {
+      text: null,
+      source: 'ipfs',
+      ipfsUrl,
+      file: {
+        filename: match.fileName,
+        mimeType: match.mimeType || 'application/octet-stream',
+        size: parseInt(match.fileSizeInBytes || '0'),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveContent(hash: string): Promise<{ text: string | null; source: string; ipfsUrl?: string; file?: { filename: string; mimeType: string; size: number }; encrypted?: boolean }> {
   if (!hash || hash === ZERO_HASH) return { text: null, source: 'hash' };
   try {
     const clean = hash.replace(/0+$/, '');
@@ -141,6 +190,11 @@ async function resolveContent(hash: string): Promise<{ text: string | null; sour
       if (/^[\x20-\x7E\n\r\t]+$/.test(bytes) && bytes.length > 2) return { text: bytes, source: 'hex' };
     }
   } catch {}
+
+  // Try Lighthouse first (primary provider in the SDK + bot).
+  const lh = await tryLighthouse(hash);
+  if (lh) return lh;
+
   if (process.env.PINATA_JWT) {
     try {
       if (!/^[0-9a-fA-F]{1,64}$/.test(hash)) return { text: null, source: 'hash' };
