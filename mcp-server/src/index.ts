@@ -4,8 +4,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 import { z } from 'zod';
 import { createHash } from 'crypto';
-import { Address, beginCell, Cell, toNano, TonClient, WalletContractV5R1, internal, SendMode } from '@ton/ton';
-import { mnemonicToPrivateKey } from '@ton/crypto';
+import { Address, beginCell, Cell, toNano, TonClient, WalletContractV5R1, internal, SendMode, storeOutList } from '@ton/ton';
+import { keyPairFromSeed, mnemonicToPrivateKey, sign } from '@ton/crypto';
+import { randomBytes } from 'crypto';
 import { config } from './config.js';
 import nacl from 'tweetnacl';
 import ed2curve from 'ed2curve';
@@ -83,6 +84,16 @@ let client: TonClient;
 let wallet: WalletContractV5R1 | undefined;
 let keyPair: { publicKey: Buffer; secretKey: Buffer } | undefined;
 
+/**
+ * Optional Agentic Wallet signer. Activated by the
+ * `configure_agentic_wallet` tool; once set every subsequent
+ * transaction tool routes through this signer instead of the
+ * mnemonic wallet. Cleared on process restart.
+ */
+let agenticOperatorSecretKey: Buffer | undefined;
+let agenticWalletAddress: Address | undefined;
+let agenticWalletNftIndex: bigint | undefined;
+
 async function init() {
     client = new TonClient({ endpoint: config.endpoint, apiKey: config.apiKey });
     if (config.walletMnemonic.length > 0) {
@@ -107,6 +118,21 @@ function prepareTransaction(to: Address, value: bigint, body: Cell) {
 }
 
 async function sendTransaction(to: Address, value: bigint, body: Cell) {
+    // Agentic Wallet path takes precedence: signed external request
+    // with operator key, no mnemonic involved. The provider is
+    // inlined here (rather than imported from sdk/) so the MCP
+    // server stays self-contained and the SDK npm package is not a
+    // hard runtime dependency.
+    if (agenticOperatorSecretKey && agenticWalletAddress) {
+        await sendAgenticExternal(agenticWalletAddress, agenticOperatorSecretKey, [
+            { to, value, body, bounce: true },
+        ]);
+        return {
+            status: 'executed' as const,
+            mode: 'agentic-wallet' as const,
+            walletAddress: agenticWalletAddress.toString(),
+        };
+    }
     if (wallet && keyPair) {
         const contract = client.open(wallet);
         const seqno = await contract.getSeqno();
@@ -123,6 +149,115 @@ async function sendTransaction(to: Address, value: bigint, body: Cell) {
         message: 'Transaction prepared. Sign and send with your wallet.',
         ...prepareTransaction(to, value, body),
     };
+}
+
+// ─── Agentic Wallet helpers ───
+// See sdk/src/providers/AgenticWalletProvider.ts for the full
+// reference implementation; the helpers below are an inlined,
+// dependency-free copy used by the MCP transaction path.
+
+const EXTERNAL_SIGNED_REQUEST_OPCODE = 0xbf235204;
+
+async function fetchAgenticSeqno(addr: Address): Promise<number> {
+    const r = await client.runMethod(addr, 'seqno');
+    return r.stack.readNumber();
+}
+
+async function fetchAgenticNftIndex(addr: Address): Promise<bigint> {
+    const r = await client.runMethod(addr, 'get_subwallet_id');
+    return r.stack.readBigNumber();
+}
+
+async function sendAgenticExternal(
+    walletAddress: Address,
+    operatorSecretKey: Buffer,
+    messages: { to: Address; value: bigint; body?: Cell; bounce?: boolean }[],
+): Promise<void> {
+    if (operatorSecretKey.length !== 64) {
+        throw new Error('operatorSecretKey must be the 64-byte ed25519 secret key');
+    }
+    const seqno = await fetchAgenticSeqno(walletAddress);
+    const nftIndex = agenticWalletNftIndex ?? (await fetchAgenticNftIndex(walletAddress));
+    if (agenticWalletNftIndex === undefined) agenticWalletNftIndex = nftIndex;
+    const validUntil = Math.floor(Date.now() / 1000) + 60;
+
+    const actions = messages.map((m) => ({
+        type: 'sendMsg' as const,
+        mode: SendMode.PAY_GAS_SEPARATELY,
+        outMsg: internal({ to: m.to, value: m.value, body: m.body, bounce: m.bounce ?? true }),
+    }));
+    const outActions = beginCell().store(storeOutList(actions as any)).endCell();
+
+    const signedBody = beginCell()
+        .storeUint(EXTERNAL_SIGNED_REQUEST_OPCODE, 32)
+        .storeUint(nftIndex, 256)
+        .storeUint(validUntil, 32)
+        .storeUint(seqno, 32)
+        .storeMaybeRef(outActions)
+        .storeMaybeRef(null)
+        .endCell();
+
+    const signature = sign(signedBody.hash(), operatorSecretKey);
+    const finalBody = beginCell().storeBuilder(signedBody.asBuilder()).storeBuffer(signature).endCell();
+
+    await client.sendFile(
+        beginCell()
+            .storeUint(0b10, 2)
+            .storeUint(0, 2)
+            .storeAddress(walletAddress)
+            .storeCoins(0)
+            .storeBit(false)
+            .storeBit(true)
+            .storeRef(finalBody)
+            .endCell()
+            .toBoc(),
+    );
+}
+
+interface AgenticDetectionResult {
+    isAgenticWallet: boolean;
+    ownerAddress?: string;
+    operatorPublicKey?: string;
+    originOperatorPublicKey?: string;
+    collectionAddress?: string;
+    nftItemIndex?: string;
+    revokedAt?: string;
+    isRevoked?: boolean;
+}
+
+async function detectAgenticWalletMcp(addressStr: string): Promise<AgenticDetectionResult> {
+    try {
+        const addr = Address.parse(addressStr);
+        const [pkRes, originRes, nftRes, authRes, revokedRes] = await Promise.all([
+            client.runMethod(addr, 'get_public_key'),
+            client.runMethod(addr, 'get_origin_public_key'),
+            client.runMethod(addr, 'get_nft_data'),
+            client.runMethod(addr, 'get_authority_address'),
+            client.runMethod(addr, 'get_revoked_time'),
+        ]);
+        const operatorPubBig = pkRes.stack.readBigNumber();
+        const originPubBig = originRes.stack.readBigNumber();
+        nftRes.stack.readNumber();
+        const nftItemIndex = nftRes.stack.readBigNumber();
+        const collectionFromNft = nftRes.stack.readAddress();
+        const ownerAddress = nftRes.stack.readAddress();
+        nftRes.stack.skip(1);
+        const collectionAddress = authRes.stack.readAddress() ?? collectionFromNft;
+        const revokedAt = revokedRes.stack.readBigNumber();
+        const toHex = (n: bigint) => n.toString(16).padStart(64, '0');
+        return {
+            isAgenticWallet: true,
+            ownerAddress: ownerAddress.toString({ bounceable: false }),
+            operatorPublicKey: toHex(operatorPubBig),
+            originOperatorPublicKey: toHex(originPubBig),
+            collectionAddress: collectionAddress.toString(),
+            nftItemIndex: nftItemIndex.toString(),
+            revokedAt: revokedAt.toString(),
+            isRevoked: operatorPubBig === 0n,
+        };
+    } catch {
+        return { isAgenticWallet: false };
+    }
 }
 
 // ─── IPFS via Lighthouse.storage (primary) + Pinata (fallback) ───
@@ -876,6 +1011,67 @@ server.tool(
                 text: JSON.stringify({ totalJettonJobs: nextId, jobs }, null, 2),
             }],
         };
+    }
+);
+
+server.tool(
+    'configure_agentic_wallet',
+    'Switch the MCP signer to a TON Tech Agentic Wallet (split-key wallet v5 deployed as an SBT). After this call every subsequent transaction tool (create_job, take_job, submit_result, evaluate_job, cancel_job, claim_job, etc.) routes through the operator key instead of the configured mnemonic. Pass operator_secret_key=null to revert to the mnemonic-based signer.',
+    {
+        operator_secret_key: z.string().nullable().describe('Hex-encoded 64-byte ed25519 secret key (concatenation of seed + public key, as produced by @ton/crypto keyPairFromSeed). Pass null to clear.'),
+        agentic_wallet_address: z.string().nullable().describe('Address of the deployed Agentic Wallet contract (EQ... or 0:...). Pass null to clear.'),
+    },
+    async ({ operator_secret_key, agentic_wallet_address }) => {
+        if (operator_secret_key == null || agentic_wallet_address == null) {
+            agenticOperatorSecretKey = undefined;
+            agenticWalletAddress = undefined;
+            agenticWalletNftIndex = undefined;
+            return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: true, mode: 'mnemonic', message: 'Agentic wallet cleared — falling back to configured mnemonic.' }) }] };
+        }
+        const sk = Buffer.from(operator_secret_key.trim(), 'hex');
+        if (sk.length !== 64) {
+            return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: 'operator_secret_key must be 64 bytes (128 hex chars)' }) }] };
+        }
+        agenticOperatorSecretKey = sk;
+        agenticWalletAddress = Address.parse(agentic_wallet_address);
+        agenticWalletNftIndex = undefined; // re-fetch on next send
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+            ok: true,
+            mode: 'agentic-wallet',
+            walletAddress: agenticWalletAddress.toString(),
+            note: 'All subsequent transaction tools will sign with the operator key. Use configure_agentic_wallet with null arguments to switch back to the mnemonic.',
+        }) }] };
+    }
+);
+
+server.tool(
+    'detect_agentic_wallet',
+    'Probe an address to determine whether it is a TON Tech Agentic Wallet. Calls get_nft_data, get_public_key, get_origin_public_key, get_authority_address, get_revoked_time on the contract. Returns isAgenticWallet=false if any method throws (= treat as a regular wallet). When true, includes ownerAddress, operatorPublicKey, originOperatorPublicKey, collectionAddress, nftItemIndex, revokedAt, isRevoked.',
+    {
+        address: z.string().describe('Address to probe (EQ... or 0:...).'),
+    },
+    async ({ address }) => {
+        const result = await detectAgenticWalletMcp(address);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    }
+);
+
+server.tool(
+    'generate_agent_keypair',
+    'Generate a fresh ed25519 keypair to use as Agentic Wallet operator. Returns publicKey and secretKey (hex), plus a deeplink to agents.ton.org/create with the publicKey prefilled so the user can mint a new wallet on top of this operator key. The secretKey must be stored securely — anyone with it can spend from the wallet within the operator scope.',
+    {
+        agent_name: z.string().optional().describe('Optional human-readable name for the agent. Used in the agents.ton.org deeplink.'),
+    },
+    async ({ agent_name }) => {
+        const kp = keyPairFromSeed(randomBytes(32));
+        const params = new URLSearchParams({ operatorPublicKey: kp.publicKey.toString('hex') });
+        if (agent_name) params.set('name', agent_name);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+            publicKey: kp.publicKey.toString('hex'),
+            secretKey: kp.secretKey.toString('hex'),
+            createDeeplink: `https://agents.ton.org/create?${params.toString()}`,
+            warning: 'Store the secretKey securely. Anyone with this key can sign transactions on the wallet within the operator scope. The owner of the SBT can revoke this operator key at any time on agents.ton.org.',
+        }) }] };
     }
 );
 
