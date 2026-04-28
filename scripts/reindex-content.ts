@@ -62,7 +62,7 @@ async function lighthouseSearch(hash: string): Promise<{ cid: string; fileName: 
         if (!res.ok) return null;
         const data = await res.json() as { fileList?: Array<{ cid: string; fileName: string }> };
         const tag = hash.slice(0, 8);
-        const match = data.fileList?.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+        const match = data.fileList?.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
         return match ? { cid: match.cid, fileName: match.fileName } : null;
     } catch { return null; }
 }

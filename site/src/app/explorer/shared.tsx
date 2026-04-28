@@ -211,6 +211,34 @@ export function AIBadge({ addr }: { addr?: string }) {
   );
 }
 
+export function OperatorKeyCopy({ publicKey }: { publicKey: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    navigator.clipboard.writeText(publicKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      onClick={onCopy}
+      className="font-mono text-[#A1A1AA] hover:text-white text-[10.5px] inline-flex items-center gap-1 cursor-pointer"
+      title={copied ? 'Copied!' : `Click to copy full public key (${publicKey.length} hex chars)`}
+    >
+      <span className="break-all">
+        {copied ? 'Copied!' : `${publicKey.slice(0, 12)}…${publicKey.slice(-6)}`}
+      </span>
+      {!copied && (
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export function CopyHash({ hash }: { hash: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -539,6 +567,7 @@ export interface AgenticWalletInfo {
   nftItemIndex: string;
   revokedAt: string;
   isRevoked: boolean;
+  createdAt?: number; // unix seconds, 0 when unknown
 }
 
 const _agenticCache = new Map<string, AgenticWalletInfo | { isAgenticWallet: false }>();
@@ -672,10 +701,16 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
             </div>
             <div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Operator key</div>
-              <span className="font-mono text-[#A1A1AA] text-[10.5px] break-all">
-                {info.operatorPublicKey.slice(0, 12)}…{info.operatorPublicKey.slice(-6)}
-              </span>
+              <OperatorKeyCopy publicKey={info.operatorPublicKey} />
             </div>
+            {info.createdAt && info.createdAt > 0 ? (
+              <div>
+                <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Created</div>
+                <span className="font-mono text-[#A1A1AA] text-[10.5px]">
+                  {new Date(info.createdAt * 1000).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ) : null}
           </div>
           <a
             href="https://github.com/the-ton-tech/agentic-wallet-contract"

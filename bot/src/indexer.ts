@@ -90,7 +90,7 @@ async function tryLighthouse(hash: string): Promise<ResolvedContent | null> {
         const data = await lhRes.json() as { fileList?: Array<{ cid: string; fileName: string }> };
         if (!data.fileList?.length) return null;
         const tag = hash.slice(0, 8);
-        const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+        const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
         if (!match) return null;
         const ipfsUrl = `${IPFS_GW}/${match.cid}`;
         if (!match.fileName.endsWith('.json')) return { text: null, ipfsUrl, fileCid: match.cid, fileName: match.fileName };

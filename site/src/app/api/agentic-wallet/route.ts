@@ -47,13 +47,22 @@ export async function GET(req: Request) {
 
     try {
         const client = getClient();
-        const [pkRes, originRes, nftRes, authRes, revokedRes] = await Promise.all([
+        // First inbound transaction marks the wallet's creation time. v3 API
+        // returns it cheaply via `sort=asc&limit=1`; fall back to 0 on error.
+        const firstTxUrl = `https://toncenter.com/api/v3/transactions?account=${encodeURIComponent(addr.toString())}&limit=1&sort=asc`;
+        const firstTxFetch = fetch(firstTxUrl, {
+            headers: API_KEY ? { 'X-API-Key': API_KEY } : {},
+            signal: AbortSignal.timeout(5000),
+        }).then(r => r.ok ? r.json() as Promise<{ transactions?: Array<{ now?: number }> }> : null).catch(() => null);
+        const [pkRes, originRes, nftRes, authRes, revokedRes, firstTxData] = await Promise.all([
             client.runMethod(addr, 'get_public_key'),
             client.runMethod(addr, 'get_origin_public_key'),
             client.runMethod(addr, 'get_nft_data'),
             client.runMethod(addr, 'get_authority_address'),
             client.runMethod(addr, 'get_revoked_time'),
+            firstTxFetch,
         ]);
+        const createdAt = firstTxData?.transactions?.[0]?.now ?? 0;
         const operatorPubBig = pkRes.stack.readBigNumber();
         const originPubBig = originRes.stack.readBigNumber();
         nftRes.stack.readNumber(); // init flag
@@ -83,6 +92,7 @@ export async function GET(req: Request) {
                 nftItemIndex: nftItemIndex.toString(),
                 revokedAt: revokedAt.toString(),
                 isRevoked: operatorPubBig === BigInt(0),
+                createdAt,
             },
             { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' } },
         );

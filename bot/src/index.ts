@@ -535,7 +535,7 @@ async function lighthouseFindCID(hash: string): Promise<string | null> {
         if (!lhRes.ok) return null;
         const data = await lhRes.json() as { fileList?: Array<{ cid: string; fileName: string }> };
         const tag = hash.slice(0, 8);
-        const match = data.fileList?.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+        const match = data.fileList?.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
         return match?.cid ?? null;
     } catch { return null; }
 }

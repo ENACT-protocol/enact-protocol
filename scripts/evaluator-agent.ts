@@ -98,7 +98,13 @@ async function fetchFromIPFS(hash: string, label: string = 'content'): Promise<s
         return hex;
     }
 
-    const tagged = (filename: string) => `enact-${hash.slice(0, 8)}.json` === filename;
+    // SDK uploads jobs as `enact-<tag>.json`, files as `enact-file-<tag>.<ext>`,
+    // AI evaluator's own rejection reasons as `enact-reason-<tag>.json`.
+    const tag = hash.slice(0, 8);
+    const tagged = (filename: string) =>
+        filename.startsWith(`enact-${tag}`) ||
+        filename.startsWith(`enact-file-${tag}`) ||
+        filename.startsWith(`enact-reason-${tag}`);
     const extractContent = (data: any): string => data.description ?? data.result ?? data.reason ?? JSON.stringify(data);
 
     // Primary: Lighthouse.storage. Bot uploads with filename `enact-<hash8>.json`,

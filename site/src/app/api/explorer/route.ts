@@ -90,7 +90,9 @@ async function resolveFromList(hash: string, list: Array<{ cid: string; fileName
     }
   } catch {}
   const tag = hash.slice(0, 8);
-  const match = list.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+  // SDK uploads with `enact-<tag>.json`, attached files as `enact-file-<tag>.<ext>`,
+  // and the AI evaluator writes rejection reasons as `enact-reason-<tag>.json`.
+  const match = list.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
   if (!match || !match.fileName.endsWith('.json')) return { text: null, ipfsUrl: null };
   const d = await fetchIpfsJson(match.cid);
   if (!d) return { text: null, ipfsUrl: `${PINATA_GW}/${match.cid}` };
@@ -277,7 +279,7 @@ async function tryLighthouse(hash: string): Promise<{ text: string | null; sourc
     const data = await lhRes.json() as { fileList?: Array<{ cid: string; fileName: string; mimeType?: string; fileSizeInBytes?: string }> };
     if (!data.fileList?.length) return null;
     const tag = hash.slice(0, 8);
-    const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+    const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
     if (!match) return null;
     const ipfsUrl = `${PINATA_GW}/${match.cid}`;
     const isJson = match.fileName.endsWith('.json');
