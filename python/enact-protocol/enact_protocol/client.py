@@ -31,7 +31,7 @@ from .constants import (
 from .agentic_wallet import AgenticWalletProvider
 from .crypto import decrypt_result as _decrypt_envelope
 from .crypto import encrypt_result
-from .ipfs import PinataClient
+from .ipfs import IPFSClient, IpfsUploader
 from .types import (
     CreateJobParams,
     EncryptedEnvelope,
@@ -74,6 +74,8 @@ class EnactClient:
         api_key: Optional[str] = None,
         mnemonic: Optional[str] = None,
         pinata_jwt: Optional[str] = None,
+        lighthouse_api_key: Optional[str] = None,
+        ipfs_uploader: Optional[IpfsUploader] = None,
         factory_address: Optional[str] = None,
         jetton_factory_address: Optional[str] = None,
         usdt_master_address: Optional[str] = None,
@@ -82,7 +84,14 @@ class EnactClient:
         self._endpoint = endpoint
         self._api_key = api_key
         self._mnemonic = mnemonic
-        self._pinata = PinataClient(pinata_jwt)
+        # Provider-agnostic IPFS client. Priority on every upload:
+        # ipfs_uploader callback → Lighthouse → Pinata. With none configured,
+        # uploads are skipped and only the on-chain SHA-256 hash is computed.
+        self._pinata = IPFSClient(
+            lighthouse_api_key=lighthouse_api_key,
+            pinata_jwt=pinata_jwt,
+            ipfs_uploader=ipfs_uploader,
+        )
         self.factory_address = factory_address or FACTORY_ADDRESS
         self.jetton_factory_address = jetton_factory_address or JETTON_FACTORY_ADDRESS
         self.usdt_master_address = usdt_master_address or USDT_MASTER_ADDRESS

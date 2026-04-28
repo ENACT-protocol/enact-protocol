@@ -13,7 +13,7 @@ Quick start::
 """
 from __future__ import annotations
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"
 
 from .agentic_wallet import (
     EXTERNAL_SIGNED_REQUEST_OPCODE,
@@ -34,7 +34,15 @@ from .constants import (
     STATE_NAMES,
 )
 from .crypto import decrypt_result, encrypt_result
-from .ipfs import PinataClient, PinnedFile, compute_uint256_hash
+from .ipfs import (
+    IPFSClient,
+    IpfsUploader,
+    LighthouseClient,
+    PinataClient,
+    PinnedFile,
+    UploadResult,
+    compute_uint256_hash,
+)
 from .types import (
     CreateJobParams,
     EncryptedEnvelope,
@@ -66,8 +74,12 @@ __all__ = [
     "encrypt_result",
     "decrypt_result",
     # ipfs
+    "IPFSClient",
+    "IpfsUploader",
+    "LighthouseClient",
     "PinataClient",
     "PinnedFile",
+    "UploadResult",
     "compute_uint256_hash",
     # agentic wallet
     "AgenticWalletProvider",
