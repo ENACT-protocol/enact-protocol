@@ -45,7 +45,7 @@ const sidebar = [
     { name: 'Telegram Bot', slug: 'telegram-bot' },
     { name: 'Teleton Plugin', slug: 'teleton' },
     { name: 'Open Wallet Standard', slug: 'ows' },
-    { name: 'Agentic Wallets', slug: 'agentic-wallets' },
+    { name: 'Agentic Wallets', slug: 'agentic-wallets', badge: 'NEW' as const },
     { name: 'Agent Skills', slug: 'agent-skills' },
     { name: 'LangChain', slug: 'langchain' },
   ]},
@@ -222,20 +222,26 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   {group.items.map(item => {
                     const href = `/docs/${item.slug}`;
                     const active = pathname === href;
+                    const badge = (item as { badge?: string }).badge;
                     return (
                       <Link
                         key={item.slug}
                         href={href}
                         onClick={() => setSidebarOpen(false)}
                         className={`
-                          block text-[13px] py-2 pl-10 pr-4 mx-2 rounded-lg transition-all duration-150
+                          flex items-center gap-2 text-[13px] py-2 pl-10 pr-4 mx-2 rounded-lg transition-all duration-150
                           ${active
                             ? 'text-[#0098EA] bg-[rgba(0,152,234,0.08)]'
                             : 'text-[#A1A1AA] hover:text-[#F4F4F5]'
                           }
                         `}
                       >
-                        {item.name}
+                        <span className="flex-1 truncate">{item.name}</span>
+                        {badge && (
+                          <span className="shrink-0 px-1.5 py-px text-[9px] font-mono font-semibold tracking-[0.08em] uppercase rounded-md bg-gradient-to-b from-[rgba(0,152,234,0.18)] to-[rgba(0,152,234,0.08)] text-[#5BB8F0] border border-[rgba(0,152,234,0.25)]">
+                            {badge}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
