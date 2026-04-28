@@ -93,6 +93,10 @@ def _build_out_actions_cell(messages: list[tuple[int, Cell]]) -> Cell:
     return next_cell
 
 
+_CELL_MAX_BITS = 1023
+_CELL_MAX_REFS = 4
+
+
 def _build_internal_message_cell(
     *,
     to: Address,
@@ -100,28 +104,45 @@ def _build_internal_message_cell(
     body: Cell,
     bounce: bool = True,
 ) -> Cell:
-    """Serialize a MessageRelaxed (info + state_init=null + body=^Cell).
+    """Serialize a MessageRelaxed.
 
-    Matches the binary layout produced by ``@ton/core`` ``internal()``.
+    Mirrors ``@ton/core``'s ``storeMessageRelaxed`` exactly: body is inlined
+    (Either left = 0, no ref) when its bits + refs fit in the remaining cell
+    budget; otherwise wrapped as ``^Cell`` (Either right = 1).
     """
     info = begin_cell()
-    # int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool src:MsgAddressInt
-    info.store_uint(0, 1)        # tag $0
+    info.store_uint(0, 1)        # int_msg_info$0
     info.store_uint(1, 1)        # ihr_disabled = true
-    info.store_bit(bounce)       # bounce
+    info.store_bit(bounce)
     info.store_uint(0, 1)        # bounced = false
-    info.store_address(None)     # src — addr_none (wallet fills it in)
-    info.store_address(to)       # dest
-    info.store_coins(value_nano) # value
-    info.store_uint(0, 1)        # extra_currencies = empty (Maybe ExtraCurrencyCollection)
+    info.store_address(None)     # src = addr_none
+    info.store_address(to)
+    info.store_coins(value_nano)
+    info.store_uint(0, 1)        # extra_currencies (Maybe) = nothing
     info.store_coins(0)          # ihr_fee
     info.store_coins(0)          # fwd_fee
     info.store_uint(0, 64)       # created_lt
     info.store_uint(0, 32)       # created_at
-    info.store_uint(0, 1)        # init = nothing (Maybe)
-    # body inlined as ^Cell
-    info.store_uint(1, 1)        # body = right (^Cell)
-    info.store_ref(body)
+    info.store_uint(0, 1)        # init (Maybe StateInit) = nothing
+
+    # Tally what's already written so we know whether we can inline body.
+    used_bits = len(info.bits)
+    used_refs = len(info.refs)
+    body_bits = len(body.bits)
+    body_refs = len(body.refs)
+    can_inline = (
+        used_bits + 1 + body_bits <= _CELL_MAX_BITS
+        and used_refs + body_refs <= _CELL_MAX_REFS
+    )
+    if can_inline:
+        info.store_uint(0, 1)  # body = left (inline)
+        # Append body bits + body refs into the parent cell.
+        info.store_bits(body.bits)
+        for ref in body.refs:
+            info.store_ref(ref)
+    else:
+        info.store_uint(1, 1)  # body = right (^Cell)
+        info.store_ref(body)
     return info.end_cell()
 
 
