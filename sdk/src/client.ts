@@ -56,11 +56,38 @@ interface WalletState {
     secretKey: Buffer;
 }
 
+/**
+ * Custom IPFS uploader callback. Lets users plug in any IPFS provider
+ * (Web3.Storage, NFT.Storage, Filebase, Quicknode, own backend, …) without
+ * the SDK hardcoding a vendor.
+ *
+ * The SDK calls this once per upload. Implementations must:
+ *   - pin `buffer` so it is publicly fetchable from `gatewayUrl` indefinitely
+ *   - return an object containing `cid` (and optionally `gatewayUrl`)
+ *
+ * The on-chain hash stays SHA-256 of the JSON content (computed by the SDK,
+ * not the uploader). This keeps the contract storage layout unchanged across
+ * any provider.
+ *
+ * @example
+ *   const ipfsUploader: IpfsUploader = async (buffer, filename) => {
+ *     const cid = await myWeb3StorageClient.put(buffer, { name: filename });
+ *     return { cid, gatewayUrl: `https://w3s.link/ipfs/${cid}` };
+ *   };
+ */
+export type IpfsUploader = (
+    buffer: Buffer,
+    filename: string,
+    mimeType: string,
+) => Promise<{ cid: string; gatewayUrl?: string }>;
+
 export class EnactClient {
     private client: TonClient;
     private walletPromise: Promise<WalletState> | null = null;
     private pinataJwt: string | null = null;
     private lighthouseApiKey: string | null = null;
+    /** Optional user-supplied uploader — overrides Lighthouse + Pinata when set. */
+    private ipfsUploader: IpfsUploader | null = null;
     private hasApiKey: boolean = false;
     /** Optional Agentic Wallet signer used in place of the mnemonic-based wallet. */
     private agenticWallet: import('./providers/AgenticWalletProvider').AgenticWalletProvider | null = null;
@@ -75,6 +102,12 @@ export class EnactClient {
         lighthouseApiKey?: string;
         /** Legacy Pinata JWT — kept as fallback if Lighthouse is not configured. */
         pinataJwt?: string;
+        /**
+         * Custom IPFS uploader callback. Set this to plug in any provider
+         * (Web3.Storage, NFT.Storage, your own backend). Takes precedence
+         * over `lighthouseApiKey` and `pinataJwt`. See {@link IpfsUploader}.
+         */
+        ipfsUploader?: IpfsUploader;
         /** Agentic Wallet signer — alternative to `mnemonic`. When set, the
          *  client uses the operator key to sign every transaction and the
          *  on-chain agentic wallet acts as the sender. Owner retains
@@ -92,6 +125,7 @@ export class EnactClient {
         this.jettonFactoryAddress = options?.jettonFactoryAddress ?? JETTON_FACTORY_ADDRESS;
         this.pinataJwt = options?.pinataJwt ?? null;
         this.lighthouseApiKey = options?.lighthouseApiKey ?? null;
+        this.ipfsUploader = options?.ipfsUploader ?? null;
         this.agenticWallet = options?.agenticWallet ?? null;
 
         if (options?.mnemonic) {
@@ -172,19 +206,26 @@ export class EnactClient {
     private async _uploadToIPFS(content: object): Promise<bigint> {
         const json = JSON.stringify(content);
         const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
+        const filename = `enact-${hash.slice(0, 8)}.json`;
+        const buffer = Buffer.from(json, 'utf-8');
 
-        // Primary: Lighthouse.storage.
+        // Highest priority: user-supplied uploader (any provider).
+        if (this.ipfsUploader) {
+            await this.ipfsUploader(buffer, filename, 'application/json');
+            return BigInt('0x' + hash);
+        }
+
+        // Primary built-in: Lighthouse.storage.
         if (this.lighthouseApiKey) {
             try {
-                const buffer = Buffer.from(json, 'utf-8');
-                await this._uploadToLighthouse(buffer, `enact-${hash.slice(0, 8)}.json`, 'application/json');
+                await this._uploadToLighthouse(buffer, filename, 'application/json');
                 return BigInt('0x' + hash);
             } catch {
                 // Fall through to Pinata.
             }
         }
 
-        // Fallback: legacy Pinata JWT.
+        // Fallback built-in: legacy Pinata JWT.
         if (this.pinataJwt) {
             const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
                 method: 'POST',
@@ -201,21 +242,32 @@ export class EnactClient {
     }
 
     private async _uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: bigint; cid: string; filename: string; mimeType: string; size: number }> {
-        if (!this.lighthouseApiKey && !this.pinataJwt) throw new Error('lighthouseApiKey or pinataJwt required for file uploads');
+        if (!this.ipfsUploader && !this.lighthouseApiKey && !this.pinataJwt) {
+            throw new Error('Configure ipfsUploader, lighthouseApiKey, or pinataJwt before uploading files');
+        }
         const hash = createHash('sha256').update(buffer).digest('hex');
         const ext = filename.split('.').pop()?.toLowerCase() || '';
         const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', pdf: 'application/pdf', txt: 'text/plain', zip: 'application/zip' };
         const mimeType = mimeTypes[ext] || 'application/octet-stream';
+        // Tag the upload with the SDK's hash-prefix naming so Explorer / bot
+        // / AI evaluator can find it: filename `enact-file-<hash8>.<ext>`.
+        const taggedFilename = filename.startsWith('enact-') ? filename : `enact-file-${hash.slice(0, 8)}-${filename}`;
 
-        // Primary: Lighthouse.storage.
+        // Highest priority: user-supplied uploader.
+        if (this.ipfsUploader) {
+            const r = await this.ipfsUploader(buffer, taggedFilename, mimeType);
+            return { hash: BigInt('0x' + hash), cid: r.cid, filename, mimeType, size: buffer.length };
+        }
+
+        // Primary built-in: Lighthouse.storage.
         if (this.lighthouseApiKey) {
             try {
-                const cid = await this._uploadToLighthouse(buffer, filename, mimeType);
+                const cid = await this._uploadToLighthouse(buffer, taggedFilename, mimeType);
                 if (cid) return { hash: BigInt('0x' + hash), cid, filename, mimeType, size: buffer.length };
             } catch {}
         }
 
-        // Fallback: Pinata.
+        // Fallback built-in: Pinata.
         if (!this.pinataJwt) throw new Error('Lighthouse upload failed and no Pinata fallback configured');
         const formData = new FormData();
         formData.append('file', new Blob([buffer], { type: mimeType }), filename);
@@ -309,7 +361,7 @@ export class EnactClient {
         const countBefore = await this.getJobCount();
 
         let descHash: bigint;
-        if (params.file && (this.lighthouseApiKey || this.pinataJwt)) {
+        if (params.file && (this.ipfsUploader || this.lighthouseApiKey || this.pinataJwt)) {
             const f = await this._uploadFileToIPFS(params.file.buffer, params.file.filename);
             // JSON with text + file reference → hash goes to contract
             descHash = await this._uploadToIPFS({
@@ -356,7 +408,7 @@ export class EnactClient {
     /** Submit a result for a job. Optionally attach a file. */
     async submitResult(jobAddress: string, result: string, file?: { buffer: Buffer; filename: string }): Promise<void> {
         let resultHash: bigint;
-        if (file && (this.lighthouseApiKey || this.pinataJwt)) {
+        if (file && (this.ipfsUploader || this.lighthouseApiKey || this.pinataJwt)) {
             const f = await this._uploadFileToIPFS(file.buffer, file.filename);
             // JSON with text + file reference → hash goes to contract
             resultHash = await this._uploadToIPFS({
@@ -391,7 +443,7 @@ export class EnactClient {
 
         // Build result content (same as unencrypted)
         let resultContent: string = result;
-        if (file && (this.lighthouseApiKey || this.pinataJwt)) {
+        if (file && (this.ipfsUploader || this.lighthouseApiKey || this.pinataJwt)) {
             const f = await this._uploadFileToIPFS(file.buffer, file.filename);
             resultContent = JSON.stringify({
                 result,
@@ -440,7 +492,7 @@ export class EnactClient {
     /** Evaluate a job (approve or reject). */
     async evaluateJob(jobAddress: string, approved: boolean, reason?: string): Promise<void> {
         let reasonHash: bigint;
-        if (reason && (this.lighthouseApiKey || this.pinataJwt)) {
+        if (reason && (this.ipfsUploader || this.lighthouseApiKey || this.pinataJwt)) {
             reasonHash = await this._uploadToIPFS({
                 type: 'evaluation_reason', reason, evaluatedAt: new Date().toISOString(),
             });

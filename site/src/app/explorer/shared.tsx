@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Bot, Paperclip } from 'lucide-react';
 
 export const AI_EVALUATOR = 'UQCDP52RhgJmylkjOBSJGqCsaTwRo9XFzrr6opHUg4mqkQAu';
@@ -581,40 +582,72 @@ export function useAgenticWallet(address: string | null | undefined): AgenticWal
 
 export function AgentBadge({ address }: { address: string | null | undefined }) {
   const info = useAgenticWallet(address);
-  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'below' | 'above' } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   if (!info) return null;
   const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
+
+  const POPUP_W = 280;
+  const POPUP_H_EST = 200;
+  const updatePos = () => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = r.left;
+    if (left + POPUP_W + 12 > vw) left = Math.max(8, vw - POPUP_W - 8);
+    const spaceBelow = vh - r.bottom;
+    const placement: 'below' | 'above' = spaceBelow > POPUP_H_EST + 16 ? 'below' : 'above';
+    const top = placement === 'below' ? r.bottom + 6 : r.top - 6;
+    setPos({ top, left, placement });
+  };
+
   return (
-    <span
-      className="relative inline-flex align-middle"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
+    <>
       <span
-        className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors cursor-default ${
-          info.isRevoked
-            ? 'text-[#9CA3AF] bg-[rgba(156,163,175,0.08)] border-[rgba(156,163,175,0.2)]'
-            : 'text-[#34D399] bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.2)]'
-        }`}
+        ref={anchorRef}
+        className="inline-flex align-middle"
+        onMouseEnter={() => updatePos()}
+        onMouseLeave={() => setPos(null)}
       >
-        <Bot size={10} strokeWidth={2.2} />
-        <span className="font-mono uppercase tracking-wider">
-          {info.isRevoked ? 'Agent (revoked)' : 'Agent'}
+        <span
+          className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors cursor-default ${
+            info.isRevoked
+              ? 'text-[#9CA3AF] bg-[rgba(156,163,175,0.08)] border-[rgba(156,163,175,0.2)]'
+              : 'text-[#34D399] bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.2)]'
+          }`}
+        >
+          <Bot size={10} strokeWidth={2.2} />
+          <span className="font-mono uppercase tracking-wider">
+            {info.isRevoked ? 'Agent (revoked)' : 'Agent'}
+          </span>
         </span>
       </span>
-      {open && (
+      {mounted && pos && createPortal(
         <div
           role="tooltip"
-          className="absolute z-50 left-0 top-full mt-1.5 w-[280px] rounded-lg border bg-[#0A0A0E] shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-3 text-xs"
-          style={{ borderColor: 'rgba(255,255,255,0.08)' }}
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
+          className="rounded-lg border bg-[#0A0A0E] shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-3 text-xs"
+          style={{
+            position: 'fixed',
+            top: pos.placement === 'below' ? pos.top : undefined,
+            bottom: pos.placement === 'above' ? window.innerHeight - pos.top : undefined,
+            left: pos.left,
+            width: POPUP_W,
+            zIndex: 9999,
+            borderColor: 'rgba(255,255,255,0.08)',
+            pointerEvents: 'auto',
+          }}
+          onMouseEnter={() => updatePos()}
+          onMouseLeave={() => setPos(null)}
         >
           <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-[rgba(255,255,255,0.06)]">
             <Bot size={12} strokeWidth={2.2} style={{ color: accent }} />
             <span className="font-medium text-white text-[11px]">Agentic Wallet</span>
             <span
-              className={`ml-auto text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded`}
+              className="ml-auto text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded"
               style={{ color: accent, background: `${accent}14`, border: `1px solid ${accent}33` }}
             >
               {info.isRevoked ? 'Revoked' : 'Active'}
@@ -651,9 +684,10 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
           >
             Learn about TON Tech Agentic Wallets →
           </a>
-        </div>
+        </div>,
+        document.body,
       )}
-    </span>
+    </>
   );
 }
 
