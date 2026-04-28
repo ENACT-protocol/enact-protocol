@@ -52,8 +52,11 @@ import { EnactClient } from "@enact-protocol/sdk"
 const client = new EnactClient()
 const jobs = await client.listJobs()
 
-// With write operations
+// With write operations — pick one signer
 const writer = new EnactClient({ mnemonic: "your 24 words" })
+// or sign through a TON Tech Agentic Wallet (no mnemonic in the agent):
+//   import { AgenticWalletProvider } from "@enact-protocol/sdk"
+//   const writer = new EnactClient({ client, agenticWallet: new AgenticWalletProvider({...}) })
 const job = await writer.createJob({
   description: "Translate to French",
   budget: "0.1",
