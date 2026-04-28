@@ -1585,6 +1585,26 @@ await client.fundJettonJob(job)`}</Code>
   apiKey: "your_key",
 })`}</Code>
 
+        <H2>IPFS — pick any provider</H2>
+        <P>Two built-in providers (Lighthouse primary, Pinata fallback) plus a pluggable callback for any other IPFS service:</P>
+        <Code label="TypeScript">{`// (1) Built-in: Lighthouse + Pinata fallback
+new EnactClient({
+  lighthouseApiKey: "lh_...",   // primary
+  pinataJwt: "eyJ...",          // fallback (optional)
+})
+
+// (2) Custom — Web3.Storage, NFT.Storage, your backend, anything
+import type { IpfsUploader } from "@enact-protocol/sdk"
+
+const w3up: IpfsUploader = async (buffer, filename, mimeType) => {
+  const file = new File([buffer], filename, { type: mimeType })
+  const cid = await myW3upClient.uploadFile(file)
+  return { cid: cid.toString(), gatewayUrl: \`https://w3s.link/ipfs/\${cid}\` }
+}
+
+new EnactClient({ ipfsUploader: w3up })`}</Code>
+        <P>Priority on every upload: <IC>ipfsUploader</IC> → <IC>lighthouseApiKey</IC> → <IC>pinataJwt</IC>. The on-chain hash stays SHA-256 of the JSON content regardless of provider — contract storage is unchanged.</P>
+
         <H2>Agentic Wallet (alternative signer)</H2>
         <P>Sign every write through a <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallet</a> instead of a raw mnemonic. The owner mints an SBT on <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a> with the operator public key; the SDK signs every transaction with the operator key. Owner-revocable, deposit-capped, no contract redeploy on key rotation.</P>
         <Code label="TypeScript">{`import { TonClient } from "@ton/ton"
@@ -1742,6 +1762,24 @@ await client.fund_jetton_job(job_addr)`}</Code>
     endpoint="https://toncenter.com/api/v2/jsonRPC",
     api_key="your_key",
 )`}</Code>
+
+        <H2>IPFS — pick any provider</H2>
+        <P>Built-in Lighthouse + Pinata, or plug in any IPFS service via <IC>ipfs_uploader</IC> (Web3.Storage, NFT.Storage, your own backend):</P>
+        <Code label="Python">{`# (1) Built-in: Lighthouse primary, Pinata fallback
+EnactClient(
+    lighthouse_api_key="lh_...",   # primary
+    pinata_jwt="eyJ...",           # fallback (optional)
+)
+
+# (2) Custom uploader — any provider
+from enact_protocol import IpfsUploader, UploadResult
+
+async def my_uploader(buffer: bytes, filename: str, mime_type: str) -> UploadResult:
+    cid = await my_w3up_client.upload_file(buffer)
+    return UploadResult(cid=str(cid))
+
+EnactClient(ipfs_uploader=my_uploader)`}</Code>
+        <P>Priority on every upload: <IC>ipfs_uploader</IC> → <IC>lighthouse_api_key</IC> → <IC>pinata_jwt</IC>. The on-chain hash stays SHA-256 of the JSON content regardless of provider.</P>
 
         <H2>Agentic Wallet</H2>
         <P>Sign every write through a <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallet</a> instead of a raw mnemonic. The owner mints the wallet at <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a> with the operator public key; the operator (this SDK) signs every transaction. Owner-revocable, deposit-capped, no contract redeploy on key rotation. Pass an <IC>AgenticWalletProvider</IC> on the constructor:</P>

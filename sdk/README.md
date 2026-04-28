@@ -76,6 +76,29 @@ await client.setJettonWallet(jobAddress);
 await client.fundJettonJob(jobAddress);
 ```
 
+## IPFS — any provider
+
+Built-in support for **Lighthouse** (primary) and **Pinata** (fallback). Plus a `ipfsUploader` callback for any other service — Web3.Storage, NFT.Storage, Filebase, your own backend:
+
+```typescript
+import type { IpfsUploader } from "@enact-protocol/sdk";
+
+// Built-in: Lighthouse + Pinata fallback
+new EnactClient({
+  lighthouseApiKey: "lh_...",  // primary
+  pinataJwt: "eyJ...",         // fallback (optional)
+});
+
+// Custom: any provider
+const uploader: IpfsUploader = async (buffer, filename, mimeType) => {
+  const cid = await myW3upClient.uploadFile(new File([buffer], filename, { type: mimeType }));
+  return { cid: cid.toString(), gatewayUrl: `https://w3s.link/ipfs/${cid}` };
+};
+new EnactClient({ ipfsUploader: uploader });
+```
+
+Priority on every upload: `ipfsUploader` → `lighthouseApiKey` → `pinataJwt`. On-chain hash stays SHA-256 of the JSON content regardless of provider — contract storage is unchanged.
+
 ## Agentic Wallet (No Mnemonic)
 
 Sign every ENACT transaction through a [TON Tech Agentic Wallet](https://github.com/the-ton-tech/agentic-wallet-contract) — owner-revocable, deposit-capped, no mnemonic in the agent process:
