@@ -495,7 +495,24 @@ async function waitForJobUpdate(jobAddress: string, check: (row: any) => boolean
     return null;
 }
 
-/** Find IPFS URL for a hash — check Supabase first, then Pinata */
+/** Lighthouse search by filename prefix (enact-<hash8> / enact-file-<hash8>). */
+async function lighthouseFindCID(hash: string): Promise<string | null> {
+    const key = process.env.LIGHTHOUSE_API_KEY;
+    if (!key) return null;
+    try {
+        const lhRes = await fetch('https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null', {
+            headers: { Authorization: `Bearer ${key}` },
+            signal: AbortSignal.timeout(5000),
+        });
+        if (!lhRes.ok) return null;
+        const data = await lhRes.json() as { fileList?: Array<{ cid: string; fileName: string }> };
+        const tag = hash.slice(0, 8);
+        const match = data.fileList?.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`));
+        return match?.cid ?? null;
+    } catch { return null; }
+}
+
+/** Find IPFS CID for a hash — Supabase → Lighthouse → Pinata */
 async function findCID(hash: string): Promise<string | null> {
     if (!hash || hash === '0'.repeat(64)) return null;
     // Try Supabase first
@@ -519,7 +536,10 @@ async function findCID(hash: string): Promise<string | null> {
             }
         }
     } catch {}
-    // Fallback to Pinata
+    // Fallback 1: Lighthouse
+    const lhCid = await lighthouseFindCID(hash);
+    if (lhCid) return lhCid;
+    // Fallback 2: Pinata
     const jwt = process.env.PINATA_JWT;
     if (!jwt) return null;
     try {
@@ -575,7 +595,28 @@ async function decodeDesc(hash: string): Promise<string | null> {
                 return result;
             }
         }
-        // Try 2: Pinata metadata search (MCP tags uploads with descHash)
+        // Try 2: Lighthouse — primary IPFS provider
+        const lhCid = await lighthouseFindCID(hash);
+        if (lhCid) {
+            try {
+                const ipfsRes = await fetch(`${PINATA_GW}/${lhCid}`, { signal: AbortSignal.timeout(3000) });
+                if (ipfsRes.ok) {
+                    const ct = ipfsRes.headers.get('content-type') || '';
+                    if (ct.includes('json') || ct.includes('text')) {
+                        const data = await ipfsRes.json().catch(() => null);
+                        if (data) {
+                            const content = data.description ?? data.result ?? null;
+                            if (content) {
+                                const result = escapeHtml(String(content).slice(0, 200));
+                                descCache.set(hash, result);
+                                return result;
+                            }
+                        }
+                    }
+                }
+            } catch {}
+        }
+        // Try 3: Pinata metadata search (MCP tags uploads with descHash)
         const jwt = process.env.PINATA_JWT;
         if (jwt) {
             const url = `https://api.pinata.cloud/data/pinList?status=pinned&pageLimit=5&metadata[keyvalues]={"descHash":{"value":"${hash}","op":"eq"}}`;
