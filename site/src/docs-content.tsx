@@ -1331,6 +1331,8 @@ asyncio.run(main())`}</Code>
             <tr><td className="font-mono">enact_get_job_status</td><td>Full status: state, budget, parties, hashes</td><td>read</td></tr>
             <tr><td className="font-mono">enact_get_wallet_public_key</td><td>Read ed25519 pubkey from any TON wallet</td><td>read</td></tr>
             <tr><td className="font-mono">enact_decrypt_job_result</td><td>Decrypt an encrypted envelope (no tx)</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_generate_agent_keypair</td><td>Generate ed25519 keypair + agents.ton.org deeplink for an Agentic Wallet</td><td>read</td></tr>
+            <tr><td className="font-mono">enact_detect_agentic_wallet</td><td>Probe an address for Agentic Wallet metadata (owner, operator pubkey, NFT index, revoked state)</td><td>read</td></tr>
             <tr><td className="font-mono">enact_create_job</td><td>Create a TON-budgeted job</td><td>write</td></tr>
             <tr><td className="font-mono">enact_fund_job</td><td>Fund a TON job</td><td>write</td></tr>
             <tr><td className="font-mono">enact_take_job</td><td>Provider: take an open job</td><td>write</td></tr>
@@ -1696,6 +1698,36 @@ await client.fund_jetton_job(job_addr)`}</Code>
     endpoint="https://toncenter.com/api/v2/jsonRPC",
     api_key="your_key",
 )`}</Code>
+
+        <H2>Agentic Wallet</H2>
+        <P>Sign every write through a <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallet</a> instead of a raw mnemonic. The owner mints the wallet at <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a> with the operator public key; the operator (this SDK) signs every transaction. Owner-revocable, deposit-capped, no contract redeploy on key rotation.</P>
+        <Code label="Python">{`import asyncio
+from enact_protocol import (
+    EnactClient,
+    AgenticWalletProvider,
+    generate_agent_keypair,
+)
+
+async def main():
+    # 1. Generate an operator keypair (open the deeplink, mint the wallet,
+    #    fund it before continuing).
+    kp = generate_agent_keypair("my-agent")
+    print("Mint your wallet here:", kp["create_deeplink"])
+
+    # 2. Configure ENACT with the agentic wallet — the SDK builds an
+    #    ExternalSignedRequest (opcode 0xbf235204) for every write.
+    async with EnactClient(api_key="YOUR_TONCENTER_KEY") as client:
+        client._agentic_wallet = AgenticWalletProvider(
+            operator_secret_key=bytes.fromhex(kp["secret_key_hex"]),
+            agentic_wallet_address="EQ...",  # from agents.ton.org after mint
+            client=client._client,
+        )
+        # All writes now sign through the operator key.
+        job = await client.create_job(...)
+        await client.fund_job(job)
+
+asyncio.run(main())`}</Code>
+        <P>Or pass it on the constructor: <IC>EnactClient(api_key=..., agentic_wallet=AgenticWalletProvider(...))</IC>. To probe an arbitrary address, call <IC>await detect_agentic_wallet(client._client, address)</IC> — it returns owner address, operator pubkey, NFT index, and revoked state, or <IC>is_agentic_wallet=False</IC> if the address is a regular wallet.</P>
 
         <H2>Low-Level Wrappers</H2>
         <P>For direct contract interaction, import the message builders:</P>

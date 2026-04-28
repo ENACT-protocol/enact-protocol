@@ -400,7 +400,7 @@ export default function Home() {
               {[
                 ['MCP Server','Model Context Protocol for LLMs. 19 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client','/docs/mcp-server'],
                 ['Python SDK','Full-parity Python port of the NPM SDK. TON + USDT jobs, encrypted results, IPFS.','pip install enact-protocol','/docs/python-sdk'],
-                ['LangChain','22 tools for any LangChain-compatible agent. Read-only by default; write opt-in.','pip install enact-langchain','/docs/langchain'],
+                ['LangChain','24 tools for any LangChain-compatible agent. Read-only by default; write opt-in.','pip install enact-langchain','/docs/langchain'],
                 ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot','/docs/telegram-bot'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 16 tools — full lifecycle + USDT.','cp plugin → ~/.teleton/plugins/','/docs/teleton'],
                 ['Open Wallet Standard','Secure key management by MoonPay. Private keys never leave the vault.','OWS SDK · Policy Engine · TON + 8 chains','/docs/ows'],
