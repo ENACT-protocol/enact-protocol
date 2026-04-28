@@ -45,6 +45,7 @@ const sidebar = [
     { name: 'Telegram Bot', slug: 'telegram-bot' },
     { name: 'Teleton Plugin', slug: 'teleton' },
     { name: 'Open Wallet Standard', slug: 'ows' },
+    { name: 'Agentic Wallets', slug: 'agentic-wallets' },
     { name: 'Agent Skills', slug: 'agent-skills' },
     { name: 'LangChain', slug: 'langchain' },
   ]},

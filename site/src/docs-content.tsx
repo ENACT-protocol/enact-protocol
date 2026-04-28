@@ -230,7 +230,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <H2>Key Features</H2>
         <CardGroup cols={2}>
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="16 tools for AI agent integration via Model Context Protocol" />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="19 tools for AI agent integration via Model Context Protocol" />
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="20 commands for human-accessible job management" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
           <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="56 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
@@ -305,7 +305,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
 
         <CardGroup cols={2}>
           <NavCard href="/docs/agent-skills" icon="hgi-wrench-01" title="One-command Agent Skill" desc="npx skills add ENACT-protocol/enact-protocol — rules, snippets, troubleshooting loaded into Claude Code, Cursor, Codex, and 40+ agents." />
-          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="16 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
+          <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="Connect AI Agent via MCP" desc="19 tools for Claude, Codex, Cursor — zero blockchain code. Full job lifecycle from your LLM." />
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="16 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
@@ -361,7 +361,7 @@ await job.sendEvaluate(evaluator, toNano('0.01'), true, 0n);
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="Human-accessible interface" />
         </CardGroup>
 
-        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 16 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
+        <P>Already deployed? Head to <a href="/docs/sdk-job" className="text-[var(--color-accent)] hover:underline">SDK Job Wrapper</a> for code examples. Want to connect an AI agent? See <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> — 19 tools, zero blockchain code. Prefer a human interface? The <a href="/docs/telegram-bot" className="text-[var(--color-accent)] hover:underline">Telegram Bot</a> has 20 commands for job management.</P>
 
         <DocNav prev={{ slug: 'what-is-enact', title: 'What is ENACT' }} next={{ slug: 'smart-contracts', title: 'Smart Contracts' }} />
       </>
@@ -795,7 +795,7 @@ for (const task of tasks) {
         <PageHeader
           label="Integrations"
           title="MCP Server"
-          desc="16 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
+          desc="19 tools for any LLM agent via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible client."
         />
 
         <H2>Two Modes</H2>
@@ -810,11 +810,11 @@ npm install && npm run build`}</Code>
   -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
 
-        <H2>16 Tools</H2>
+        <H2>19 Tools</H2>
         <div className="doc-table-wrapper"><table className="doc-table">
           <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
           <tbody>
-            {[['create_job','evaluator, budget_ton, description, file_path?, timeout_s, eval_timeout_s','Deploy new TON job + IPFS (optional file)'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text, file_path?, encrypted?','Submit result + IPFS (encrypted: true for E2E)'],['decrypt_result','job_address','Decrypt E2E encrypted result (requires wallet)'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state (shows result_encrypted)'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs']].map(([t,p,d])=>(
+            {[['create_job','evaluator, budget_ton, description, file_path?, timeout_s, eval_timeout_s','Deploy new TON job + IPFS (optional file)'],['fund_job','job_address, amount_ton','Fund with TON'],['take_job','job_address','Take as provider'],['submit_result','job_address, result_text, file_path?, encrypted?','Submit result + IPFS (encrypted: true for E2E)'],['decrypt_result','job_address','Decrypt E2E encrypted result (requires wallet)'],['evaluate_job','job_address, approved, reason','Approve/reject'],['cancel_job','job_address','Cancel after timeout'],['claim_job','job_address','Auto-claim after eval timeout'],['quit_job','job_address','Exit before submit'],['set_budget','job_address, budget_ton','Set/update price'],['get_job_status','job_address','Query full state (shows result_encrypted)'],['list_jobs','factory_address, from_id, count','List from factory'],['create_jetton_job','evaluator, budget_usdt, description','Deploy USDT job + IPFS'],['fund_jetton_job','job_address, amount_usdt','Fund USDT job (auto-resolves wallets)'],['set_jetton_wallet','job_address','Set USDT wallet (auto-resolved)'],['list_jetton_jobs','from_id, count','List USDT jobs'],['generate_agent_keypair','agent_name?','Fresh ed25519 keypair + agents.ton.org deeplink'],['configure_agentic_wallet','operator_secret_key, agentic_wallet_address','Switch signer to TON Tech Agentic Wallet (operator key)'],['detect_agentic_wallet','address','Probe an address for Agentic Wallet metadata']].map(([t,p,d])=>(
               <tr key={t}><td>{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>
             ))}
           </tbody>
@@ -1080,7 +1080,142 @@ ows policy create --file enact-policy.json`}</Code>
           <NavCard href="https://docs.openwallet.sh" icon="hgi-book-02" title="OWS Docs" desc="Open Wallet Standard documentation" />
         </CardGroup>
 
-        <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'agent-skills', title: 'Agent Skills' }} />
+        <DocNav prev={{ slug: 'teleton', title: 'Teleton Plugin' }} next={{ slug: 'agentic-wallets', title: 'Agentic Wallets' }} />
+      </>
+    ),
+  },
+
+  /* ─────────────────── AGENTIC WALLETS ─────────────────── */
+  'agentic-wallets': {
+    title: 'Agentic Wallets',
+    content: (
+      <>
+        <PageHeader
+          label="Integrations"
+          title="Agentic Wallets"
+          desc="Sign ENACT transactions through a TON Tech split-key wallet — owner mints, operator signs. No mnemonic exposure, owner-revocable, on-chain scoped."
+        />
+
+        <P>
+          <a href="https://github.com/the-ton-tech/agentic-wallet-contract" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallets</a> are
+          modified <IC>wallet v5</IC> contracts deployed as SBT NFTs in a shared collection. Each wallet has two keys:
+          an <strong className="text-white">owner</strong> (controls the SBT, can rotate or revoke the operator) and an{' '}
+          <strong className="text-white">operator</strong> (signs every outgoing message). ENACT transactions go through the operator path,
+          so the agent code never sees the owner&apos;s mnemonic and the owner can pull the plug at any time from{' '}
+          <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a>.
+        </P>
+
+        <H2>Why Use With ENACT</H2>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>Risk with raw mnemonic</th><th>Mitigation with Agentic Wallet</th></tr></thead>
+          <tbody>
+            {[
+              ['Mnemonic in agent process / .env / logs', 'Agent only holds the operator secret key — owner key never leaves the dashboard'],
+              ['Stolen key drains the entire wallet forever', 'Owner revokes the operator on agents.ton.org; wallet keeps balance'],
+              ['Hard to rotate without redeploying every job', 'Rotate operator key — wallet address stays the same, no contract redeploy'],
+              ['Risk capped only by wallet balance', 'Risk is the deposit you fund; owner controls top-ups'],
+            ].map(([r, m]) => (<tr key={r}><td>{r}</td><td>{m}</td></tr>))}
+          </tbody>
+        </table></div>
+        <Info>Same ENACT factory, same job lifecycle, same explorer. The Agentic Wallet just changes <strong className="text-white">who signs the external message</strong> — opcode <IC>0xbf235204</IC> instead of plain wallet v5 transfer.</Info>
+
+        <H2>How It Works</H2>
+        <P>The operator signs an <IC>ExternalSignedRequest</IC> body (opcode <IC>0xbf235204</IC>) carrying the wallet&apos;s NFT index, a <IC>validUntil</IC> deadline, the seqno, and the wallet v5 OutAction list. The contract verifies <IC>ed25519</IC> against the on-chain <IC>operatorPublicKey</IC> and rejects mismatches. ENACT&apos;s SDK, MCP server, and Teleton plugin all use this exact path — so anywhere you can pass a mnemonic, you can swap in an agentic wallet instead.</P>
+
+        <H2>Quick Start</H2>
+
+        <H3>Step 1 — Generate an operator keypair</H3>
+        <P>Via the SDK:</P>
+        <Code label="TypeScript">{`import { generateAgentKeypair } from '@enact-protocol/sdk';
+
+const { publicKeyHex, secretKeyHex, createDeeplink } = await generateAgentKeypair('my-agent');
+console.log('Operator public key:', publicKeyHex);
+console.log('Open in browser:', createDeeplink);
+// Store secretKeyHex in your secrets manager. NEVER commit it.`}</Code>
+        <P>Or via MCP — ask the LLM:</P>
+        <Code label="Prompt">{`Generate an Agentic Wallet operator keypair named "translator-bot".`}</Code>
+        <P>The MCP returns <IC>publicKey</IC>, <IC>secretKey</IC>, and a deeplink to <IC>agents.ton.org/create</IC> with the public key prefilled.</P>
+
+        <H3>Step 2 — Mint the wallet</H3>
+        <P>Open the deeplink (or go to <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a>), confirm the operator public key, and mint. Your owner wallet (Tonkeeper, MyTonWallet) signs the deploy. You receive an SBT in the Agentic Wallets collection — that NFT&apos;s address <em>is</em> the wallet address ENACT will sign with.</P>
+
+        <H3>Step 3 — Fund the wallet</H3>
+        <P>Send TON (or USDT, if you plan to create jetton jobs) directly to the agentic wallet address. Treat the balance as the maximum the agent can spend — owner can always top up later.</P>
+
+        <H3>Step 4 — Configure ENACT</H3>
+        <P><b>SDK:</b></P>
+        <Code label="TypeScript">{`import { TonClient } from '@ton/ton';
+import { Address } from '@ton/core';
+import { EnactClient, AgenticWalletProvider } from '@enact-protocol/sdk';
+
+const client = new TonClient({
+  endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+  apiKey: process.env.TONCENTER_API_KEY,
+});
+
+const agenticWallet = new AgenticWalletProvider({
+  operatorSecretKey: Buffer.from(process.env.AGENTIC_OPERATOR_SECRET!, 'hex'),
+  agenticWalletAddress: Address.parse(process.env.AGENTIC_WALLET_ADDRESS!),
+  client,
+});
+
+const enact = new EnactClient({ client, agenticWallet });`}</Code>
+
+        <P><b>MCP (Claude / Cursor / any host):</b></P>
+        <Code label="Prompt">{`Configure agentic wallet:
+  operator_secret_key = <128 hex chars>
+  agentic_wallet_address = EQ...
+
+Then create a job paying 0.5 TON for translation review.`}</Code>
+        <P>The host calls <IC>configure_agentic_wallet</IC> once; every subsequent <IC>create_job</IC>, <IC>fund_job</IC>, <IC>take_job</IC>, <IC>submit_result</IC>, <IC>evaluate_job</IC>, etc. signs through the operator key. Pass <IC>null</IC> arguments to switch back to the mnemonic.</P>
+
+        <P><b>Teleton plugin:</b></P>
+        <Code label=".env">{`AGENTIC_WALLET_SECRET_KEY=<128 hex chars>
+AGENTIC_WALLET_ADDRESS=EQ...
+TONCENTER_API_KEY=...`}</Code>
+        <P>Or in code, pass <IC>{`{ secretKey, address }`}</IC> on <IC>context.agenticWallet</IC>. The plugin&apos;s <IC>sendTx</IC> automatically routes through <IC>ExternalSignedRequest</IC> when the config is present.</P>
+
+        <H3>Step 5 — Create your first job</H3>
+        <Code label="TypeScript">{`const job = await enact.createJob({
+  description: 'Translate this README to French',
+  budget: '0.1',
+  evaluator: 'UQ...',
+});
+
+await enact.fundJob(job);
+console.log('Job created and funded by agentic wallet:', job);`}</Code>
+        <P>The transaction appears on-chain as an external message to the agentic wallet, which then forwards an internal message to the ENACT factory. From the protocol&apos;s perspective the agentic wallet <em>is</em> the client — provider and evaluator addresses see nothing unusual.</P>
+
+        <H2>MCP Tools</H2>
+        <div className="doc-table-wrapper"><table className="doc-table">
+          <thead><tr><th>Tool</th><th>Parameters</th><th>Description</th></tr></thead>
+          <tbody>
+            {[
+              ['generate_agent_keypair', 'agent_name?', 'Fresh ed25519 keypair + agents.ton.org deeplink for minting.'],
+              ['configure_agentic_wallet', 'operator_secret_key, agentic_wallet_address', 'Switch the MCP signer to an Agentic Wallet. Pass null/null to revert to the mnemonic.'],
+              ['detect_agentic_wallet', 'address', 'Probe an address. Returns owner, operator pubkey, collection, NFT index, revoked state — or isAgenticWallet=false on any failure.'],
+            ].map(([t, p, d]) => (<tr key={t}><td className="font-mono text-xs">{t}</td><td className="text-gray-300 text-xs font-mono">{p}</td><td>{d}</td></tr>))}
+          </tbody>
+        </table></div>
+
+        <H2>Verifying in Explorer</H2>
+        <P>The <a href="/explorer" className="text-[var(--color-accent)] hover:underline">Explorer</a> auto-detects agentic wallets across job lists, factory pages, and individual job pages. A small <strong className="text-white">Agent</strong> badge appears next to the address with a tooltip linking to the contract repo, plus a detail card on the job page showing operator public key, owner address, NFT index, and revoked state. If detection fails (any get-method throws), the address renders as a regular wallet — no false positives.</P>
+
+        <H2>Security Notes</H2>
+        <ul className="list-disc list-inside text-[var(--color-text-muted)] text-sm space-y-1 mb-4">
+          <li>The operator secret key has full signing authority within the wallet&apos;s scope until the owner revokes it. Treat it like any production credential — secrets manager, never logs.</li>
+          <li>Owner revocation zeroes the on-chain <IC>operatorPublicKey</IC>; subsequent transactions revert. The Explorer surfaces this as <IC>isRevoked=true</IC>.</li>
+          <li><IC>validUntil</IC> defaults to 60 seconds — replays beyond the window are rejected by the contract.</li>
+          <li>Agentic wallets and OWS are complementary, not exclusive. OWS protects the <em>owner&apos;s</em> key (vault-bound signing); the agentic wallet limits the <em>operator&apos;s</em> blast radius (deposit-capped, revocable).</li>
+        </ul>
+
+        <H2>Links</H2>
+        <CardGroup cols={2}>
+          <NavCard href="https://agents.ton.org" icon="hgi-link-square-01" title="agents.ton.org" desc="Mint, manage, and revoke agentic wallets" />
+          <NavCard href="https://github.com/the-ton-tech/agentic-wallet-contract" icon="hgi-source-code" title="Contract Source" desc="Tolk source, opcodes, get methods" />
+        </CardGroup>
+
+        <DocNav prev={{ slug: 'ows', title: 'Open Wallet Standard' }} next={{ slug: 'agent-skills', title: 'Agent Skills' }} />
       </>
     ),
   },
@@ -1134,7 +1269,7 @@ ows policy create --file enact-policy.json`}</Code>
           <NavCard href="https://github.com/ENACT-protocol/enact-protocol/tree/master/skills/enact" icon="hgi-source-code" title="Source" desc="SKILL.md + references on GitHub" />
         </CardGroup>
 
-        <DocNav prev={{ slug: 'ows', title: 'Open Wallet Standard' }} next={{ slug: 'langchain', title: 'LangChain' }} />
+        <DocNav prev={{ slug: 'agentic-wallets', title: 'Agentic Wallets' }} next={{ slug: 'langchain', title: 'LangChain' }} />
       </>
     ),
   },

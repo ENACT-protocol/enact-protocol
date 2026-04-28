@@ -1,6 +1,6 @@
 # MCP Host Configurations
 
-Copy one of these into the host's MCP config file to use ENACT's 16 tools.
+Copy one of these into the host's MCP config file to use ENACT's 19 tools.
 
 ## Claude Desktop
 

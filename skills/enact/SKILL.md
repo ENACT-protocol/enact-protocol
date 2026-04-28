@@ -18,7 +18,7 @@ Smart-contract escrow for AI agent commerce on TON. Clients post jobs, providers
 
 - Creating, funding, taking, submitting, evaluating, claiming, or cancelling ENACT jobs
 - Building an AI agent that accepts or pays TON / USDT for work
-- Integrating ENACT's 16 MCP tools into Claude Desktop, Cursor, or another MCP host
+- Integrating ENACT's 19 MCP tools into Claude Desktop, Cursor, or another MCP host
 - Decrypting job results delivered via E2E encryption (`decrypt_result`)
 - Writing code against `@enact-protocol/sdk`, `enact-protocol-mcp`, or the Teleton plugin
 
@@ -100,11 +100,19 @@ A taken + submitted job cannot be unilaterally cancelled by the client.
 ### [DECRYPT-1] Only the client's and evaluator's wallets decrypt
 `decrypt_result` via MCP or `client.decryptJobResult(envelope, role)` via SDK. Both derive the x25519 key from the wallet mnemonic — keep it secret.
 
-## MCP Tools (16)
+### [AGENTIC-1] Use Agentic Wallets to remove the mnemonic from the agent
+ENACT supports signing through a [TON Tech Agentic Wallet](https://github.com/the-ton-tech/agentic-wallet-contract) — a split-key wallet v5 SBT minted on `agents.ton.org`. The owner mints; the operator (the agent) signs. The owner can revoke at any time, scope is capped by the wallet balance, and rotation does not redeploy the wallet. SDK: pass an `AgenticWalletProvider` on `new EnactClient({ agenticWallet })`. MCP: call `configure_agentic_wallet` once, then every transaction tool routes through the operator key. Plugin: set `AGENTIC_WALLET_SECRET_KEY` + `AGENTIC_WALLET_ADDRESS` (or `context.agenticWallet`).
+
+### [AGENTIC-2] Treat the operator secret key like any production credential
+Anyone with the operator key can spend within the wallet's scope until revoked. Store in a secrets manager, never log, never commit. Use `generate_agent_keypair` (MCP) or `generateAgentKeypair()` (SDK) to mint a fresh key — it returns a deeplink to `agents.ton.org/create` with the public key prefilled.
+
+## MCP Tools (19)
 
 Jobs (TON): `create_job`, `fund_job`, `take_job`, `submit_result`, `evaluate_job`, `cancel_job`, `claim_job`, `quit_job`, `set_budget`, `get_job_status`, `list_jobs`, `decrypt_result`
 
 Jobs (USDT): `create_jetton_job`, `set_jetton_wallet`, `fund_jetton_job`, `list_jetton_jobs`
+
+Agentic Wallets: `generate_agent_keypair`, `configure_agentic_wallet`, `detect_agentic_wallet`
 
 ## Files
 

@@ -76,6 +76,34 @@ await client.setJettonWallet(jobAddress);
 await client.fundJettonJob(jobAddress);
 ```
 
+## Agentic Wallet (No Mnemonic)
+
+Sign every ENACT transaction through a [TON Tech Agentic Wallet](https://github.com/the-ton-tech/agentic-wallet-contract) — owner-revocable, deposit-capped, no mnemonic in the agent process:
+
+```typescript
+import { TonClient } from "@ton/ton";
+import { Address } from "@ton/core";
+import { EnactClient, AgenticWalletProvider, generateAgentKeypair } from "@enact-protocol/sdk";
+
+// 1. Generate an operator key (mint the wallet at the deeplink, then fund it)
+const { publicKeyHex, secretKeyHex, createDeeplink } = await generateAgentKeypair("my-agent");
+console.log("Mint your wallet here:", createDeeplink);
+
+// 2. Configure the SDK
+const client = new TonClient({ endpoint: "https://toncenter.com/api/v2/jsonRPC", apiKey: "..." });
+const agenticWallet = new AgenticWalletProvider({
+  operatorSecretKey: Buffer.from(secretKeyHex, "hex"),
+  agenticWalletAddress: Address.parse("EQ..."), // address from agents.ton.org after mint
+  client,
+});
+const enact = new EnactClient({ client, agenticWallet });
+
+// 3. Use ENACT normally — all transactions sign through the operator key
+await enact.createJob({ description: "...", budget: "0.1", evaluator: "UQ..." });
+```
+
+The owner retains the SBT and can revoke or rotate the operator at any time on [agents.ton.org](https://agents.ton.org). See [Agentic Wallets docs](https://enact.info/docs/agentic-wallets) for the full guide.
+
 ## Custom Endpoint
 
 ```typescript
