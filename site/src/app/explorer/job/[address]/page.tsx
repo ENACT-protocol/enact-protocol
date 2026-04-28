@@ -9,6 +9,7 @@ import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, useExplorerData, buildActivity, STATUS_COLORS, EVENT_DOT_COLORS,
   Badge, Shimmer, TypeIcon, ContentBlock, TonscanLink, ClickAddr, CopyHash,
   BudgetDisplay, fmtDateShort, fmtTimeout, truncAddr, txCount, Job,
+  AgentBadge, AgentWalletPanel,
 } from '../../shared';
 
 /* ── Live countdown timer ── */
@@ -104,17 +105,32 @@ export default function JobPage() {
             {/* ── Info card: single row with 5 columns ── */}
             <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl mb-6 overflow-x-auto">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-[rgba(255,255,255,0.03)]">
-                <InfoCol label="Contract"><div className="[&_.break-all]:text-white"><ClickAddr addr={job.address} truncate /></div></InfoCol>
-                <InfoCol label="Client"><div className="[&_.break-all]:text-white"><ClickAddr addr={job.client} truncate /></div></InfoCol>
+                <InfoCol label="Contract">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="[&_.break-all]:text-white"><ClickAddr addr={job.address} truncate /></div>
+                  </div>
+                </InfoCol>
+                <InfoCol label="Client">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="[&_.break-all]:text-white"><ClickAddr addr={job.client} truncate /></div>
+                    <AgentBadge address={job.client} />
+                  </div>
+                </InfoCol>
                 <InfoCol label="Provider">
                   {job.provider && job.provider !== 'none'
-                    ? <div className="[&_.break-all]:text-white"><ClickAddr addr={job.provider} truncate /></div>
+                    ? <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="[&_.break-all]:text-white"><ClickAddr addr={job.provider} truncate /></div>
+                        <AgentBadge address={job.provider} />
+                      </div>
                     : <span className="text-[#52525B] text-xs">Not assigned</span>}
                 </InfoCol>
                 <InfoCol label="Evaluator">
                   {job.evaluator === AI_EVALUATOR
                     ? <span className="inline-flex items-center gap-1.5"><CopyableAddr addr={AI_EVALUATOR} label="AI Evaluator" /><TonscanLink addr={AI_EVALUATOR} size={12} /></span>
-                    : <div className="[&_.break-all]:text-white"><ClickAddr addr={job.evaluator} truncate /></div>}
+                    : <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="[&_.break-all]:text-white"><ClickAddr addr={job.evaluator} truncate /></div>
+                        <AgentBadge address={job.evaluator} />
+                      </div>}
                 </InfoCol>
                 <InfoCol label="Factory">
                   <Link href={`/explorer/factory/${job.type === 'ton' ? FACTORY : JETTON_FACTORY}`} className="text-[#0098EA] text-xs hover:underline">{job.type === 'ton' ? 'JobFactory' : 'JettonJobFactory'}</Link>
@@ -350,6 +366,13 @@ function TechnicalDetails({ job }: { job: Job }) {
               <TechRow label="Provider" value={job.provider || '—'} copy={!!job.provider} mono />
               <TechRow label="Evaluator" value={job.evaluator} copy mono />
             </div>
+          </div>
+
+          {/* Agent Wallet panels — only render when the address is recognised as an Agentic Wallet. */}
+          <div className="grid grid-cols-1 gap-3">
+            <AgentWalletPanel address={job.client} label="Client" />
+            {job.provider && job.provider !== 'none' && <AgentWalletPanel address={job.provider} label="Provider" />}
+            {job.evaluator !== AI_EVALUATOR && <AgentWalletPanel address={job.evaluator} label="Evaluator" />}
           </div>
 
           {/* Hashes */}

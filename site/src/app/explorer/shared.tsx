@@ -516,3 +516,129 @@ export function useExplorerData() {
 
   return { data, loading, error, refresh: fetchData };
 }
+
+// ─── Agentic Wallet detection + badge ───
+//
+// Background: TON Tech Agentic Wallets are split-key wallet v5
+// contracts deployed as SBTs in an NFT collection. The owner mints
+// the SBT on agents.ton.org and grants an AI agent operator key.
+// We probe a handful of get-methods to recognise these wallets and
+// render an extra badge next to the address in the explorer.
+//
+// Reference: https://github.com/the-ton-tech/agentic-wallet-contract
+
+export interface AgenticWalletInfo {
+  isAgenticWallet: true;
+  address: string;
+  ownerAddress: string;
+  operatorPublicKey: string;
+  originOperatorPublicKey: string;
+  collectionAddress: string;
+  nftItemIndex: string;
+  revokedAt: string;
+  isRevoked: boolean;
+}
+
+const _agenticCache = new Map<string, AgenticWalletInfo | { isAgenticWallet: false }>();
+const _agenticInflight = new Map<string, Promise<AgenticWalletInfo | { isAgenticWallet: false }>>();
+
+async function fetchAgenticInfo(address: string): Promise<AgenticWalletInfo | { isAgenticWallet: false }> {
+  const cached = _agenticCache.get(address);
+  if (cached) return cached;
+  const inflight = _agenticInflight.get(address);
+  if (inflight) return inflight;
+  const p = fetch(`/api/agentic-wallet?address=${encodeURIComponent(address)}`)
+    .then((r) => r.json())
+    .then((j: any) => {
+      const result = j?.isAgenticWallet ? (j as AgenticWalletInfo) : { isAgenticWallet: false as const };
+      _agenticCache.set(address, result);
+      _agenticInflight.delete(address);
+      return result;
+    })
+    .catch(() => {
+      const fallback = { isAgenticWallet: false as const };
+      _agenticCache.set(address, fallback);
+      _agenticInflight.delete(address);
+      return fallback;
+    });
+  _agenticInflight.set(address, p);
+  return p;
+}
+
+export function useAgenticWallet(address: string | null | undefined): AgenticWalletInfo | null {
+  const [info, setInfo] = useState<AgenticWalletInfo | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!address) { setInfo(null); return; }
+    fetchAgenticInfo(address).then((r) => {
+      if (!cancelled) setInfo(r.isAgenticWallet ? r : null);
+    });
+    return () => { cancelled = true; };
+  }, [address]);
+  return info;
+}
+
+export function AgentBadge({ address }: { address: string | null | undefined }) {
+  const info = useAgenticWallet(address);
+  if (!info) return null;
+  const tooltip = info.isRevoked
+    ? `Agentic Wallet (revoked) — owner ${truncAddr(info.ownerAddress)}`
+    : `Agentic Wallet — operated by AI agent, owned by ${truncAddr(info.ownerAddress)}`;
+  return (
+    <a
+      href="https://github.com/the-ton-tech/agentic-wallet-contract"
+      target="_blank"
+      rel="noopener noreferrer"
+      title={tooltip}
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors ${
+        info.isRevoked
+          ? 'text-[#9CA3AF] bg-[rgba(156,163,175,0.08)] border-[rgba(156,163,175,0.2)] hover:bg-[rgba(156,163,175,0.15)]'
+          : 'text-[#34D399] bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.2)] hover:bg-[rgba(52,211,153,0.15)]'
+      }`}
+    >
+      <Bot size={10} strokeWidth={2.2} />
+      <span className="font-mono uppercase tracking-wider">
+        {info.isRevoked ? 'Agent (revoked)' : 'Agent'}
+      </span>
+    </a>
+  );
+}
+
+export function AgentWalletPanel({ address, label }: { address: string; label?: string }) {
+  const info = useAgenticWallet(address);
+  if (!info) return null;
+  return (
+    <div className="bg-[rgba(52,211,153,0.04)] border border-[rgba(52,211,153,0.18)] rounded-xl p-5">
+      <div className="text-[#3F3F46] text-[10px] font-mono uppercase tracking-wider mb-3 flex items-center gap-2">
+        <Bot size={11} strokeWidth={2.2} className="text-[#34D399]" />
+        Agent Wallet Info{label ? ` — ${label}` : ''}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+        <div>
+          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Owner</div>
+          <a href={tonscanUrl(info.ownerAddress)} target="_blank" rel="noopener noreferrer" className="font-mono text-[#A1A1AA] hover:text-white text-xs break-all">
+            {info.ownerAddress}
+          </a>
+        </div>
+        <div>
+          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Operator Key</div>
+          <span className="font-mono text-[#A1A1AA] text-xs break-all">
+            {info.operatorPublicKey.slice(0, 16)}…{info.operatorPublicKey.slice(-8)}
+          </span>
+        </div>
+        <div>
+          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Collection</div>
+          <a href={tonscanUrl(info.collectionAddress)} target="_blank" rel="noopener noreferrer" className="font-mono text-[#A1A1AA] hover:text-white text-xs break-all">
+            {truncAddr(info.collectionAddress)}
+          </a>
+        </div>
+        <div>
+          <div className="text-[#52525B] text-[10px] uppercase tracking-wider mb-0.5">Status</div>
+          <span className={`text-xs ${info.isRevoked ? 'text-[#9CA3AF]' : 'text-[#34D399]'}`}>
+            {info.isRevoked ? 'Revoked' : 'Active'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}

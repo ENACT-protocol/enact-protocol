@@ -9,6 +9,7 @@ import {
   AI_EVALUATOR, FACTORY, JETTON_FACTORY, Job, useExplorerData, buildActivity, txCount,
   Badge, Shimmer, TypeIcon, ClickAddr, TonscanLink,
   BudgetDisplay, truncAddr, fmtDateShort, timeAgo, LiveTimeAgo, STATUS_COLORS, EVENT_DOT_COLORS, AIBadge, FileClip, EncryptedLock,
+  AgentBadge,
 } from '../../shared';
 import { MiniAreaSparkline, useSparklineData } from '../../Charts';
 
@@ -288,8 +289,8 @@ export default function FactoryPage() {
                           <td className="px-5 py-2.5 text-white"><span className="inline-flex items-center gap-1.5 font-medium">#{job.jobId} <TypeIcon type={job.type} size={14} />{job.hasFile && <FileClip />}{job.resultContent?.encrypted && <EncryptedLock />}</span></td>
                           <td className="px-3 py-2.5 hidden sm:table-cell [&_.break-all]:text-white" onClick={e => e.stopPropagation()}><ClickAddr addr={job.address} truncate /></td>
                           <td className="px-3 py-2.5"><Badge status={job.stateName} pending={job.pendingState} /></td>
-                          <td className="px-3 py-2.5 hidden md:table-cell"><ClickAddr addr={job.client} truncate /></td>
-                          <td className="px-3 py-2.5 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <span className="inline-flex items-center gap-1.5 text-[#A1A1AA] text-xs font-mono">AI Evaluator <TonscanLink addr={AI_EVALUATOR} /></span> : <ClickAddr addr={job.evaluator} truncate />}</td>
+                          <td className="px-3 py-2.5 hidden md:table-cell"><div className="flex items-center gap-1.5"><ClickAddr addr={job.client} truncate /><AgentBadge address={job.client} /></div></td>
+                          <td className="px-3 py-2.5 hidden lg:table-cell">{job.evaluator === AI_EVALUATOR ? <span className="inline-flex items-center gap-1.5 text-[#A1A1AA] text-xs font-mono">AI Evaluator <TonscanLink addr={AI_EVALUATOR} /></span> : <div className="flex items-center gap-1.5"><ClickAddr addr={job.evaluator} truncate /><AgentBadge address={job.evaluator} /></div>}</td>
                           <td className="px-3 py-2.5 text-white"><BudgetDisplay job={job} /></td>
                           <td className="px-3 py-2.5 hidden md:table-cell text-[#52525B] text-xs">{txCount(job)}</td>
                           <td className="px-5 py-2.5 text-[#636370] text-xs hidden md:table-cell whitespace-nowrap text-right">{fmtDateShort(job.createdAt)}</td>
