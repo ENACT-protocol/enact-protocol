@@ -234,7 +234,14 @@ class AgenticWalletProvider:
         value_nano: int,
         body: Cell,
         bounce: bool = True,
-        send_mode: int = 1,  # SendMode.PAY_GAS_SEPARATELY = 1
+        # PAY_GAS_SEPARATELY (1) | IGNORE_ERRORS (2) = 3.
+        # The agentic-wallet contract requires IGNORE_ERRORS on every
+        # external-driven send (c5-register-validation.tolk:
+        # ERROR_EXTERNAL_SEND_MESSAGE_MUST_HAVE_IGNORE_ERRORS_SEND_MODE).
+        # Without it the action phase aborts after seqno is committed —
+        # the wallet looks like it processed the external (seqno bumps)
+        # but emits zero internal messages.
+        send_mode: int = 3,
     ) -> str:
         """Sign + broadcast a single internal transfer through the agentic wallet.
 
@@ -281,7 +288,21 @@ class AgenticWalletProvider:
         # the hex form for compatibility with its annotated signature.
         boc_hex = boc.hex()
         await self._client.send_message(boc_hex)
-        return boc_hex
+
+        # Wait for seqno to bump so callers reading post-tx state see it.
+        # Mirrors the v5 mnemonic path. Polls every 1s up to 12s.
+        import asyncio
+        for delay in (1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 3.0):
+            await asyncio.sleep(delay)
+            try:
+                current = await self.fetch_seqno()
+                if current > seqno:
+                    return boc_hex
+            except Exception:
+                continue
+        raise RuntimeError(
+            f"Agentic wallet transaction not confirmed: seqno did not bump from {seqno}"
+        )
 
 
 async def detect_agentic_wallet(
@@ -310,7 +331,12 @@ async def detect_agentic_wallet(
         nft_index = int(nft_stack[1])
         collection_from_nft = nft_stack[2]
         owner_addr = nft_stack[3]
-        collection_addr = auth_stack[0] if auth_stack else collection_from_nft
+        # get_authority_address may return addr_none (None) on SBTs whose
+        # authority is the collection itself — fall back in that case.
+        auth_addr = auth_stack[0] if auth_stack else None
+        collection_addr = (
+            auth_addr if isinstance(auth_addr, Address) else collection_from_nft
+        )
         revoked_at = int(revoked_stack[0])
 
         if not isinstance(owner_addr, Address):

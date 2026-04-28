@@ -61,7 +61,15 @@ export async function GET(req: Request) {
         const collectionFromNft = nftRes.stack.readAddress();
         const ownerAddress = nftRes.stack.readAddress();
         nftRes.stack.skip(1); // content cell — not surfaced in the API response
-        const collectionAddress = authRes.stack.readAddress() ?? collectionFromNft;
+        // get_authority_address may be addr_none on SBTs whose authority is
+        // the collection itself — readAddress() throws on addr_none, so
+        // fall back to the collection address from get_nft_data.
+        let collectionAddress: typeof collectionFromNft;
+        try {
+            collectionAddress = authRes.stack.readAddress() ?? collectionFromNft;
+        } catch {
+            collectionAddress = collectionFromNft;
+        }
         const revokedAt = revokedRes.stack.readBigNumber();
 
         return NextResponse.json(

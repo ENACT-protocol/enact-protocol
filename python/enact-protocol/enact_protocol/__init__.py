@@ -13,7 +13,7 @@ Quick start::
 """
 from __future__ import annotations
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 from .agentic_wallet import (
     EXTERNAL_SIGNED_REQUEST_OPCODE,

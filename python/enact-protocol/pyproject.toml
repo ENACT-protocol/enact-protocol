@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "enact-protocol"
-version = "0.2.1"
+version = "0.2.2"
 description = "Python SDK for ENACT Protocol — trustless escrow for AI agents on TON"
 readme = "README.md"
 license = { text = "MIT" }
