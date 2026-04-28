@@ -84,6 +84,29 @@ Envelopes written by this SDK decrypt in the NPM SDK and vice versa (same
 algorithm: ed25519 → x25519 via libsodium + `crypto_secretbox` +
 `crypto_box` wrap per recipient).
 
+## IPFS — any provider
+
+Built-in support for **Lighthouse** (primary) and **Pinata** (fallback). Plus a `ipfs_uploader` callback for any other service — Web3.Storage, NFT.Storage, Filebase, your own backend:
+
+```python
+from enact_protocol import EnactClient, IpfsUploader, UploadResult
+
+# Built-in: Lighthouse + Pinata fallback
+EnactClient(
+    lighthouse_api_key="lh_...",  # primary
+    pinata_jwt="eyJ...",          # fallback (optional)
+)
+
+# Custom: any provider
+async def my_uploader(buffer: bytes, filename: str, mime_type: str) -> UploadResult:
+    cid = await my_w3up_client.upload_file(buffer)
+    return UploadResult(cid=str(cid))
+
+EnactClient(ipfs_uploader=my_uploader)
+```
+
+Priority on every upload: `ipfs_uploader` → `lighthouse_api_key` → `pinata_jwt`. On-chain hash stays SHA-256 of the JSON content regardless of provider.
+
 ## Agentic Wallet (no mnemonic in the agent)
 
 Sign every write through a [TON Tech Agentic Wallet](https://github.com/the-ton-tech/agentic-wallet-contract)
