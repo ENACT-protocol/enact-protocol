@@ -137,8 +137,14 @@ export class AgenticWalletProvider {
         const walletNftIndex = await this.fetchWalletNftIndex();
         const validUntil = Math.floor(Date.now() / 1000) + this.validitySeconds;
 
+        // The agentic-wallet contract enforces SEND_MODE_IGNORE_ERRORS on
+        // every external-driven send (c5-register-validation.tolk:
+        // "ERROR_EXTERNAL_SEND_MESSAGE_MUST_HAVE_IGNORE_ERRORS_SEND_MODE").
+        // Without it the action phase aborts after seqno is already committed
+        // — the wallet appears to "process" the external (seqno bumps) but
+        // emits zero internal messages.
         const relaxedMessages = messages.map((m) => ({
-            mode: SendMode.PAY_GAS_SEPARATELY,
+            mode: SendMode.PAY_GAS_SEPARATELY | SendMode.IGNORE_ERRORS,
             msg: internal({ to: m.to, value: m.value, body: m.body, bounce: m.bounce ?? true }),
         }));
         const outActions = buildOutActionsCell(relaxedMessages);
@@ -174,6 +180,21 @@ export class AgenticWalletProvider {
                 .endCell()
                 .toBoc(),
         );
+
+        // Wait until seqno bumps so callers can issue a follow-up read
+        // (e.g., factory.getJobCount in EnactClient.createJob) and see
+        // post-transaction state. Mirrors the wait-for-confirmation
+        // behavior of the mnemonic-based v5 path. Polls every 1s up to 12s.
+        for (const delay of [1000, 1000, 1000, 1000, 1500, 1500, 2000, 3000]) {
+            await new Promise((r) => setTimeout(r, delay));
+            try {
+                const current = await this.fetchSeqno();
+                if (current > seqno) return;
+            } catch {
+                // 429 or transient — keep polling
+            }
+        }
+        throw new Error(`Agentic wallet transaction not confirmed: seqno did not bump from ${seqno}`);
     }
 }
 
@@ -218,7 +239,16 @@ export async function detectAgenticWallet(
         const collectionFromNft = nftRes.stack.readAddress();
         const ownerAddress = nftRes.stack.readAddress();
         nftRes.stack.skip(1); // content cell — not needed here
-        const collectionAddress = authRes.stack.readAddress();
+        // get_authority_address can return addr_none (0) for SBTs whose
+        // authority is the collection itself — readAddress() throws on
+        // addr_none, so try it and fall back to the collection from
+        // get_nft_data.
+        let collectionAddress: Address;
+        try {
+            collectionAddress = authRes.stack.readAddress() ?? collectionFromNft;
+        } catch {
+            collectionAddress = collectionFromNft;
+        }
         const revokedAt = revokedRes.stack.readBigNumber();
 
         const toBuf = (n: bigint): Buffer => {
