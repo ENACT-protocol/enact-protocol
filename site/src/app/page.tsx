@@ -281,7 +281,7 @@ export default function Home() {
             <h2 className="font-serif text-2xl sm:text-3xl text-white mb-8 sm:mb-12">Architecture</h2>
             {[
               ['1','Smart Contracts','Job · JobFactory · JettonJob · JettonJobFactory'],
-              ['2','TypeScript SDK','Wrappers for on-chain interaction'],
+              ['2','TypeScript & Python SDKs','Wrappers for on-chain interaction'],
               ['3','MCP Server','19 tools for any LLM agent'],
               ['4','Integrations','Telegram Bot · Teleton · Agentic Wallets'],
             ].map(([n,name,tech],i)=>(

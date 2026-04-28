@@ -1,4 +1,11 @@
+// Per-provider gateway selection: Pinata pins announce to the public DHT
+// reliably and ipfs.io serves them; Lighthouse pins go through the
+// per-account `<sub>.lighthouseweb3.xyz` subdomain because Lighthouse
+// doesn't always announce CIDs to the public network promptly.
 const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+const LH_GW = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
+    ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
+    : IPFS_GW;
 const ZERO_HASH = '0'.repeat(64);
 
 export interface ResolvedContent {
@@ -53,7 +60,7 @@ async function tryLighthouse(hash: string): Promise<ResolvedContent | null> {
     // SDK: enact-<tag>.json, files: enact-file-<tag>.<ext>, AI evaluator reasons: enact-reason-<tag>.json
     const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
     if (!match) return null;
-    const ipfsUrl = `${IPFS_GW}/${match.cid}`;
+    const ipfsUrl = `${LH_GW}/${match.cid}`;
     if (!match.fileName.endsWith('.json')) return { text: null, ipfsUrl };
     const d = await fetchIpfsJson(match.cid);
     if (d) return { text: extractText(d), ipfsUrl };

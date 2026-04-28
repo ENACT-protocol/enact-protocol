@@ -14,7 +14,11 @@ const JETTON_FACTORY = 'EQCgYmwi8uwrG7I6bI3Cdv0ct-bAB1jZ0DQ7C3dX3MYn6VTj';
 const STATE_NAMES = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
 const ZERO_HASH = '0'.repeat(64);
 const API_KEY = process.env.TONCENTER_API_KEY || '';
+// Pinata pins → ipfs.io (DHT-backed); Lighthouse pins → per-account subdomain.
 const IPFS_GW = 'https://ipfs.io/ipfs';
+const LH_GW = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
+    ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
+    : IPFS_GW;
 const WS_URL = `wss://toncenter.com/api/streaming/v2/ws${API_KEY ? '?api_key=' + API_KEY : ''}`;
 
 let supabase: SupabaseClient | null = null;
@@ -92,7 +96,7 @@ async function tryLighthouse(hash: string): Promise<ResolvedContent | null> {
         const tag = hash.slice(0, 8);
         const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
         if (!match) return null;
-        const ipfsUrl = `${IPFS_GW}/${match.cid}`;
+        const ipfsUrl = `${LH_GW}/${match.cid}`;
         if (!match.fileName.endsWith('.json')) return { text: null, ipfsUrl, fileCid: match.cid, fileName: match.fileName };
         const d = await fetchFromIPFS(match.cid);
         if (d) {

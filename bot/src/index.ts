@@ -238,7 +238,13 @@ function escapeHtml(s: string): string {
 // provider-specific gateway when a freshly-uploaded CID has not
 // propagated to that provider's local cache yet.
 // Override with IPFS_GATEWAY env var if you self-host a gateway.
+// Pinata pins serve through ipfs.io reliably; Lighthouse-only pins go
+// through the per-account subdomain because Lighthouse doesn't always
+// announce CIDs to the public DHT.
 const PINATA_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
+const LH_GW = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
+    ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
+    : PINATA_GW;
 const descCache = new Map<string, string>();
 
 // Race a CID across multiple IPFS gateways. The first 2xx response wins.
@@ -301,7 +307,7 @@ async function uploadToLighthouse(buffer: Buffer, filename: string, mimeType: st
     return data.Hash ?? null;
 }
 
-async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: bigint; cid: string | null }> {
+async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: bigint; cid: string | null; provider?: 'lighthouse' | 'pinata' }> {
     const { createHash } = await import('crypto');
     const json = JSON.stringify(content);
     const hash = createHash('sha256').update(json, 'utf-8').digest('hex');
@@ -313,7 +319,7 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
             const t0 = Date.now();
             const cid = await uploadToLighthouse(buffer, `enact-${hash.slice(0, 8)}.json`, 'application/json');
             console.log(`[IPFS] Lighthouse JSON upload OK in ${Date.now()-t0}ms cid=${cid ?? 'null'}`);
-            if (cid) return { hash, hashBig: BigInt('0x' + hash), cid };
+            if (cid) return { hash, hashBig: BigInt('0x' + hash), cid, provider: 'lighthouse' };
         } catch (e) {
             console.warn('[IPFS] Lighthouse JSON failed, falling back to Pinata:', e);
         }
@@ -340,7 +346,7 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
     });
     if (!res.ok) throw new Error(`IPFS upload failed: ${res.status}`);
     const data = await res.json() as { IpfsHash?: string };
-    return { hash, hashBig: BigInt('0x' + hash), cid: data.IpfsHash ?? null };
+    return { hash, hashBig: BigInt('0x' + hash), cid: data.IpfsHash ?? null, provider: 'pinata' };
 }
 
 // Save description metadata + CID directly into Supabase so the
@@ -352,7 +358,7 @@ async function uploadToIPFS(content: object): Promise<{ hash: string; hashBig: b
 // indexer can populate from on-chain state. We retry briefly so the
 // helper can be called immediately after factory.sendCreateJob —
 // indexer typically inserts the row within ~1-2 s of the WS event.
-async function saveDescriptionToSupabase(jobAddress: string, description: string, descCid: string | null, descHash: string): Promise<void> {
+async function saveDescriptionToSupabase(jobAddress: string, description: string, descCid: string | null, descHash: string, provider?: 'lighthouse' | 'pinata'): Promise<void> {
     console.log(`[IPFS-SAVE] desc start addr=${jobAddress.slice(0, 12)} cid=${descCid ?? 'null'} hash=${descHash.slice(0, 12)}`);
     if (!descCid) {
         console.log('[IPFS-SAVE] desc skipped: no CID (Lighthouse not used or failed)');
@@ -363,7 +369,7 @@ async function saveDescriptionToSupabase(jobAddress: string, description: string
         console.log('[IPFS-SAVE] desc skipped: no Supabase client');
         return;
     }
-    const ipfsUrl = `${PINATA_GW}/${descCid}`;
+    const ipfsUrl = `${gatewayFor(provider)}/${descCid}`;
     const payload = { description_text: description, description_ipfs_url: ipfsUrl, desc_hash: descHash };
     // Retry up to 12s — indexer race window. Stops on first success.
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -383,7 +389,7 @@ async function saveDescriptionToSupabase(jobAddress: string, description: string
     console.warn(`[IPFS-SAVE] desc gave up after 8 retries — indexer never created row for ${jobAddress.slice(0, 12)}`);
 }
 
-async function saveResultToSupabase(jobAddress: string, resultText: string, resultCid: string | null, resultHash: string): Promise<void> {
+async function saveResultToSupabase(jobAddress: string, resultText: string, resultCid: string | null, resultHash: string, provider?: 'lighthouse' | 'pinata'): Promise<void> {
     console.log(`[IPFS-SAVE] result start addr=${jobAddress.slice(0, 12)} cid=${resultCid ?? 'null'} hash=${resultHash.slice(0, 12)}`);
     if (!resultCid) {
         console.log('[IPFS-SAVE] result skipped: no CID');
@@ -394,7 +400,7 @@ async function saveResultToSupabase(jobAddress: string, resultText: string, resu
         console.log('[IPFS-SAVE] result skipped: no Supabase client');
         return;
     }
-    const ipfsUrl = `${PINATA_GW}/${resultCid}`;
+    const ipfsUrl = `${gatewayFor(provider)}/${resultCid}`;
     const payload = { result_text: resultText, result_ipfs_url: ipfsUrl, result_hash: resultHash };
     for (let attempt = 0; attempt < 8; attempt++) {
         try {
@@ -414,7 +420,7 @@ async function saveResultToSupabase(jobAddress: string, resultText: string, resu
 }
 
 /** Upload file buffer to Pinata IPFS */
-async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: string; hashBig: bigint; cid: string }> {
+async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ hash: string; hashBig: bigint; cid: string; provider: 'lighthouse' | 'pinata' }> {
     const { createHash } = await import('crypto');
     const hash = createHash('sha256').update(buffer).digest('hex');
     const ext = filename.split('.').pop()?.toLowerCase() || '';
@@ -425,7 +431,7 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
     if (process.env.LIGHTHOUSE_API_KEY) {
         try {
             const cid = await uploadToLighthouse(buffer, filename, mimeType);
-            if (cid) return { hash, hashBig: BigInt('0x' + hash), cid };
+            if (cid) return { hash, hashBig: BigInt('0x' + hash), cid, provider: 'lighthouse' };
         } catch (e) {
             console.warn('[IPFS] Lighthouse file failed, falling back to Pinata:', e);
         }
@@ -469,7 +475,12 @@ async function uploadFileToIPFS(buffer: Buffer, filename: string): Promise<{ has
         cid = v3Data.data?.cid || v3Data.IpfsHash || '';
         if (!cid) throw new Error('No CID in upload response');
     }
-    return { hash, hashBig: BigInt('0x' + hash), cid };
+    return { hash, hashBig: BigInt('0x' + hash), cid, provider: 'pinata' };
+}
+
+/** Pick the right gateway for a CID based on which provider produced it. */
+function gatewayFor(provider?: 'lighthouse' | 'pinata'): string {
+    return provider === 'lighthouse' ? LH_GW : PINATA_GW;
 }
 
 /** Resolve file reference from IPFS JSON (if any) */
@@ -1215,7 +1226,7 @@ bot.command('create', async (ctx) => {
             const predictedJobAddr = addrResult.stack.readAddress();
             // Persist the IPFS CID alongside the predicted job row so
             // the indexer / explorer don't need a separate metadata lookup.
-            saveDescriptionToSupabase(predictedJobAddr.toString(), description, upload.cid, upload.hash);
+            saveDescriptionToSupabase(predictedJobAddr.toString(), description, upload.cid, upload.hash, upload.provider);
 
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
 
@@ -1272,7 +1283,7 @@ bot.command('create', async (ctx) => {
         const jobAddr = addrResult.stack.readAddress();
         // Persist IPFS CID for indexer / explorer (Lighthouse has no
         // search-by-hash API, so the bot has to write this directly).
-        saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash);
+        saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash, upload.provider);
 
         // Step 2: Auto-fund + verify via indexer
         let funded = false;
@@ -1401,7 +1412,7 @@ bot.command('createjetton', async (ctx) => {
             const predAddrRes = await client.runMethod(Address.parse(JETTON_FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(predictedId) }]);
             const predictedAddr = predAddrRes.stack.readAddress();
             // Persist IPFS CID for the indexer / explorer.
-            saveDescriptionToSupabase(predictedAddr.toString(), description, upload.cid, upload.hash);
+            saveDescriptionToSupabase(predictedAddr.toString(), description, upload.cid, upload.hash, upload.provider);
 
             // Step 2: Set USDT wallet deeplink
             const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
@@ -1477,7 +1488,7 @@ bot.command('createjetton', async (ctx) => {
         const jobId = jobCount - 1;
         const jobAddr = await getJobAddress(client, JETTON_FACTORY_ADDRESS, jobId);
         // Persist IPFS CID for indexer / explorer.
-        saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash);
+        saveDescriptionToSupabase(jobAddr.toString(), description, upload.cid, upload.hash, upload.provider);
 
         // Auto set USDT jetton wallet
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
@@ -1622,6 +1633,7 @@ bot.command('submit', async (ctx) => {
 
         let resultCid: string | null = null;
         let resultHashHex: string = '';
+        let resultProvider: 'lighthouse' | 'pinata' | undefined;
         if (photo || doc) {
             const fileId = photo ? photo[photo.length - 1].file_id : doc!.file_id;
             const fileName = doc?.file_name || 'photo.jpg';
@@ -1630,23 +1642,25 @@ bot.command('submit', async (ctx) => {
             const fileRes = await fetch(fileUrl_);
             const buffer = Buffer.from(await fileRes.arrayBuffer());
             const fileUploaded = await uploadFileToIPFS(buffer, fileName);
-            fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
+            fileUrl = `${gatewayFor(fileUploaded.provider)}/${fileUploaded.cid}`;
             // Store JSON hash in contract (contains text + file reference)
             const jsonUploaded = await uploadToIPFS({ type: 'job_result', result: resultText, file: { cid: fileUploaded.cid, filename: fileName, ipfsUrl: fileUrl }, submittedAt: new Date().toISOString() });
             resultHash = jsonUploaded.hashBig;
             resultCid = jsonUploaded.cid;
             resultHashHex = jsonUploaded.hash;
+            resultProvider = jsonUploaded.provider;
         } else {
             const uploaded = await uploadToIPFS({ type: 'job_result', result: resultText, submittedAt: new Date().toISOString() });
             resultHash = uploaded.hashBig;
             resultCid = uploaded.cid;
             resultHashHex = uploaded.hash;
+            resultProvider = uploaded.provider;
         }
 
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         // Persist IPFS CID for the indexer / explorer.
-        saveResultToSupabase(jobAddr.toString(), resultText, resultCid, resultHashHex);
+        saveResultToSupabase(jobAddr.toString(), resultText, resultCid, resultHashHex, resultProvider);
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
             .storeUint(resultHash, 256)
@@ -2892,23 +2906,26 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         let descHash: bigint;
         let descCid: string | null = null;
         let descHashHex: string = '';
+        let descProvider: 'lighthouse' | 'pinata' | undefined;
         let fileUrl = '';
         if (fileData) {
             console.log(`[FILE] Uploading ${fileData.filename} (${fileData.buffer.length} bytes)...`);
             const fileUploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
             console.log(`[FILE] Uploaded, CID: ${fileUploaded.cid}`);
-            fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
+            fileUrl = `${gatewayFor(fileUploaded.provider)}/${fileUploaded.cid}`;
             console.log(`[FILE] Creating JSON wrapper...`);
             const descUploaded = await uploadToIPFS({ type: 'job_description', description, file: { cid: fileUploaded.cid, filename: fileData.filename, ipfsUrl: fileUrl }, createdAt: new Date().toISOString() });
             console.log(`[FILE] JSON uploaded, hash: ${descUploaded.hash.slice(0, 16)}...`);
             descHash = descUploaded.hashBig;
             descCid = descUploaded.cid;
             descHashHex = descUploaded.hash;
+            descProvider = descUploaded.provider;
         } else {
             const uploaded = await uploadToIPFS({ type: 'job_description', description, createdAt: new Date().toISOString() });
             descHash = uploaded.hashBig;
             descCid = uploaded.cid;
             descHashHex = uploaded.hash;
+            descProvider = uploaded.provider;
         }
 
         const factoryAddr = isJetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS;
@@ -2933,7 +2950,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
                 const predictedJobId = nextIdRes.stack.readNumber();
                 const predAddrRes = await client.runMethod(Address.parse(factoryAddr), 'get_job_address', [{ type: 'int', value: BigInt(predictedJobId) }]);
                 const predictedAddr = predAddrRes.stack.readAddress();
-                saveDescriptionToSupabase(predictedAddr.toString(), description, descCid, descHashHex);
+                saveDescriptionToSupabase(predictedAddr.toString(), description, descCid, descHashHex, descProvider);
             } catch (e) {
                 console.warn('[FILE] Could not predict job address for IPFS save:', e);
             }
@@ -2979,7 +2996,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         }
         if (!jobAddr) throw new Error('Job creation not confirmed');
         // Persist IPFS CID for indexer / explorer.
-        saveDescriptionToSupabase(jobAddr.toString(), description, descCid, descHashHex);
+        saveDescriptionToSupabase(jobAddr.toString(), description, descCid, descHashHex, descProvider);
         if (!isJetton) {
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
             await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
@@ -3026,7 +3043,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         if (!fileData) return ctx.reply(`${e('❌')} No file found`, { parse_mode: 'HTML' });
 
         const fileUploaded = await uploadFileToIPFS(fileData.buffer, fileData.filename);
-        const fileUrl = `${PINATA_GW}/${fileUploaded.cid}`;
+        const fileUrl = `${gatewayFor(fileUploaded.provider)}/${fileUploaded.cid}`;
         // Store result JSON hash in contract so explorer can resolve text + file
         const resultUploaded = await uploadToIPFS({ type: 'job_result', result: resultText, file: { cid: fileUploaded.cid, filename: fileData.filename, ipfsUrl: fileUrl }, submittedAt: new Date().toISOString() });
         const resultHash = resultUploaded.hashBig;
@@ -3034,7 +3051,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         const client = await createClient();
         const jobAddr = await getJobAddress(client, factory, jobId);
         // Persist IPFS CID for indexer / explorer.
-        saveResultToSupabase(jobAddr.toString(), resultText, resultUploaded.cid, resultUploaded.hash);
+        saveResultToSupabase(jobAddr.toString(), resultText, resultUploaded.cid, resultUploaded.hash, resultUploaded.provider);
         const body = beginCell()
             .storeUint(JobOpcodes.submitResult, 32)
             .storeUint(resultHash, 256)

@@ -10,6 +10,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 [![Tests](https://github.com/ENACT-protocol/enact-protocol/actions/workflows/test.yml/badge.svg)](https://github.com/ENACT-protocol/enact-protocol/actions)
 [![npm](https://img.shields.io/npm/v/@enact-protocol/sdk)](https://www.npmjs.com/package/@enact-protocol/sdk)
+[![PyPI](https://img.shields.io/pypi/v/enact-protocol)](https://pypi.org/project/enact-protocol/)
 [![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
 [![MCP](https://img.shields.io/badge/MCP-19%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
@@ -20,7 +21,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 ---
 
-Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk), drop into [Claude Code / Cursor as an Agent Skill](https://skills.sh/ENACT-protocol/enact-protocol) with `npx skills add ENACT-protocol/enact-protocol`, lock keys in [OWS](https://enact.info/docs/ows), or sign through a [TON Tech Agentic Wallet](https://enact.info/docs/agentic-wallets) so the owner can revoke the operator at any time.
+Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk) or [Python SDK](https://pypi.org/project/enact-protocol/), drop into [Claude Code / Cursor as an Agent Skill](https://skills.sh/ENACT-protocol/enact-protocol) with `npx skills add ENACT-protocol/enact-protocol`, lock keys in [OWS](https://enact.info/docs/ows), or sign through a [TON Tech Agentic Wallet](https://enact.info/docs/agentic-wallets) so the owner can revoke the operator at any time.
 
 ## Quick Start
 
@@ -63,6 +64,18 @@ const job = await writer.createJob({
   evaluator: "UQ...",
 })
 await writer.fundJob(job)
+```
+
+```bash
+pip install enact-protocol
+```
+```python
+from enact_protocol import EnactClient, CreateJobParams
+async with EnactClient(mnemonic="your 24 words") as client:
+    job_addr = await client.create_job(CreateJobParams(
+        description="Translate to French", budget="0.1", evaluator="UQ...",
+    ))
+    await client.fund_job(job_addr)
 ```
 
 **Development (build & test):**
@@ -119,8 +132,8 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 │  │ (19 tools)  │  │ (buttons UI) │  │(16 ag. tools)│  │(signer)│  │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  └───┬────┘  │
 ├─────────┴──────────────────┴───────────────────┴───────┴─────────┤
-│                  TypeScript SDK / Wrappers                         │
-│                  JobFactory.ts · Job.ts · JettonJob.ts             │
+│                  TypeScript & Python SDKs / Wrappers               │
+│                  JobFactory · Job · JettonJob (TS + Py parity)     │
 ├───────────────────────────────────────────────────────────────────┤
 │                TON Smart Contracts (Tolk 1.2)                      │
 │                                                                    │
@@ -298,6 +311,8 @@ enact-protocol/
 ├── bot/                 # Telegram bot (inline keyboards)
 ├── plugins/             # Teleton agent plugin
 ├── sdk/                 # @enact-protocol/sdk (npm package)
+├── python/              # Python SDK
+│   └── enact-protocol/  # enact-protocol (PyPI package)
 ├── scripts/             # Deploy & evaluator agent
 └── site/                # Next.js documentation site
 ```
@@ -357,7 +372,7 @@ Use `--dry-run` to preview decisions without sending transactions.
 | Layer | Technology |
 |-------|------------|
 | Smart Contracts | Tolk 1.2 (TON) |
-| SDK | TypeScript, @ton/core, @ton/ton |
+| SDK | TypeScript (@ton/core, @ton/ton) · Python (tonutils, pytoniq-core) |
 | Testing | Jest, @ton/sandbox (56 tests) |
 | Build | Blueprint, Tolk compiler |
 | MCP Server | @modelcontextprotocol/sdk (stdio + HTTP) |

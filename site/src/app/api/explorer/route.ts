@@ -9,7 +9,14 @@ const API_KEY = process.env.TONCENTER_API_KEY || '';
 // gateway.lighthouse.storage is paywalled (402), ipfs.io is unreliable for fresh
 // Lighthouse pins. Keep ipfs.io as the human-facing default (works once the CID
 // propagates to public gateways) and use a race-fetch helper for our own reads.
+// Public-facing gateway for content stored on Pinata (DHT-friendly, served
+// reliably by the public ipfs.io). Lighthouse-only pins go through the
+// per-account subdomain because Lighthouse doesn't always announce CIDs
+// to the public DHT promptly.
 const PINATA_GW = 'https://ipfs.io/ipfs';
+const LH_GW = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
+  ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
+  : 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 
 // Race a CID across multiple IPFS gateways. The first 2xx response wins.
@@ -94,38 +101,45 @@ async function resolveFromList(hash: string, list: Array<{ cid: string; fileName
   // and the AI evaluator writes rejection reasons as `enact-reason-<tag>.json`.
   const match = list.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
   if (!match || !match.fileName.endsWith('.json')) return { text: null, ipfsUrl: null };
+  const ipfsUrl = `${LH_GW}/${match.cid}`;
   const d = await fetchIpfsJson(match.cid);
-  if (!d) return { text: null, ipfsUrl: `${PINATA_GW}/${match.cid}` };
-  if (d.type === 'job_result_encrypted') return { text: null, ipfsUrl: `${PINATA_GW}/${match.cid}` };
+  if (!d) return { text: null, ipfsUrl };
+  if (d.type === 'job_result_encrypted') return { text: null, ipfsUrl };
   const text = d.description ?? d.result ?? d.reason ?? null;
-  return { text, ipfsUrl: `${PINATA_GW}/${match.cid}` };
+  return { text, ipfsUrl };
 }
 
-// Rewrite a stored ipfsUrl to the current public gateway — fixes legacy rows
-// that point at ipfs.io (which 504s on fresh Lighthouse pins) when we now
-// have a Lighthouse subdomain configured.
-function rewriteIpfsUrl(stored: string | null | undefined): string | null {
+// Pick the right public gateway per CID:
+//   - Lighthouse pins (in our account list) → per-account lighthouseweb3.xyz
+//     subdomain (Lighthouse doesn't always announce CIDs to the public DHT).
+//   - Pinata pins → ipfs.io (Pinata announces reliably).
+function gatewayForCid(cid: string, lhCids: Set<string>): string {
+  return lhCids.has(cid) ? LH_GW : PINATA_GW;
+}
+
+function rewriteIpfsUrl(stored: string | null | undefined, lhCids: Set<string>): string | null {
   if (!stored) return null;
   const m = stored.match(/\/ipfs\/([^/?#]+)/);
   if (!m) return stored;
-  const cid = m[1];
-  return `${PINATA_GW}/${cid}`;
+  return `${gatewayForCid(m[1], lhCids)}/${m[1]}`;
 }
 
 // After Supabase transform, fill in any text==null for jobs that have a non-zero
 // hash. Writes results back to Supabase so subsequent requests skip the work.
 async function backfillMissingContent(jobs: any[], sb: any) {
   const list = await getLighthouseList();
+  const lhCids = new Set(list.map(f => f.cid));
 
   await Promise.all(jobs.map(async (j) => {
     const tasks: Promise<void>[] = [];
     const updates: Record<string, any> = {};
 
-    // Rewrite stale ipfs.io URLs in already-resolved rows to the current PINATA_GW.
+    // Rewrite stored URLs so each CID points to the right gateway: Lighthouse
+    // CIDs go through the per-account subdomain, Pinata CIDs through ipfs.io.
     for (const key of ['description', 'resultContent', 'reasonContent'] as const) {
       const c: any = j[key];
       if (!c?.ipfsUrl) continue;
-      const fresh = rewriteIpfsUrl(c.ipfsUrl);
+      const fresh = rewriteIpfsUrl(c.ipfsUrl, lhCids);
       if (fresh && fresh !== c.ipfsUrl) {
         c.ipfsUrl = fresh;
         const col = key === 'description' ? 'description_ipfs_url' : key === 'resultContent' ? 'result_ipfs_url' : 'reason_ipfs_url';
@@ -133,11 +147,11 @@ async function backfillMissingContent(jobs: any[], sb: any) {
       }
     }
     if (j.description?.file?.ipfsUrl) {
-      const fresh = rewriteIpfsUrl(j.description.file.ipfsUrl);
+      const fresh = rewriteIpfsUrl(j.description.file.ipfsUrl, lhCids);
       if (fresh) j.description.file.ipfsUrl = fresh;
     }
     if (j.resultContent?.file?.ipfsUrl) {
-      const fresh = rewriteIpfsUrl(j.resultContent.file.ipfsUrl);
+      const fresh = rewriteIpfsUrl(j.resultContent.file.ipfsUrl, lhCids);
       if (fresh) j.resultContent.file.ipfsUrl = fresh;
     }
 
@@ -318,7 +332,7 @@ async function tryLighthouse(hash: string): Promise<{ text: string | null; sourc
     const tag = hash.slice(0, 8);
     const match = data.fileList.find(f => f.fileName?.startsWith(`enact-${tag}`) || f.fileName?.startsWith(`enact-file-${tag}`) || f.fileName?.startsWith(`enact-reason-${tag}`));
     if (!match) return null;
-    const ipfsUrl = `${PINATA_GW}/${match.cid}`;
+    const ipfsUrl = `${LH_GW}/${match.cid}`;
     const isJson = match.fileName.endsWith('.json');
     if (isJson) {
       const d = await fetchIpfsJson(match.cid);
@@ -326,7 +340,7 @@ async function tryLighthouse(hash: string): Promise<{ text: string | null; sourc
         if (d.type === 'job_result_encrypted') return { text: null, source: 'ipfs', ipfsUrl, encrypted: true };
         const text = d.description ?? d.result ?? d.reason ?? JSON.stringify(d);
         if (d.file?.cid) {
-          const fUrl = d.file.ipfsUrl || `${PINATA_GW}/${d.file.cid}`;
+          const fUrl = d.file.ipfsUrl || `${LH_GW}/${d.file.cid}`;
           return { text, source: 'ipfs', ipfsUrl: fUrl, file: { filename: d.file.filename || 'file', mimeType: d.file.mimeType || 'application/octet-stream', size: d.file.size || 0 } };
         }
         return { text, source: 'ipfs', ipfsUrl };
@@ -542,7 +556,7 @@ export async function GET() {
         'X-Enact-Lighthouse': process.env.LIGHTHOUSE_API_KEY ? 'on' : 'off',
         'X-Enact-LhSubdomain': process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN ? 'on' : 'off',
         'X-Enact-Pinata': process.env.PINATA_JWT ? 'on' : 'off',
-        'X-Enact-Build': 'gateway-race-v3',
+        'X-Enact-Build': 'per-provider-gw-v4',
       },
     });
   } catch (err: unknown) {
