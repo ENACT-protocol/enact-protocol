@@ -93,44 +93,38 @@ public key; the operator (this SDK) signs every outgoing transaction.
 
 ```python
 import asyncio
+import os
 from enact_protocol import (
     EnactClient,
     AgenticWalletProvider,
     generate_agent_keypair,
 )
+from tonutils.client import ToncenterV2Client
 
 async def main():
-    # 1. Generate an operator keypair (open the deeplink and mint the wallet,
-    #    then fund it before continuing).
-    kp = generate_agent_keypair("my-agent")
-    print("Mint your wallet here:", kp["create_deeplink"])
+    # 1. (One-time) generate an operator keypair, open the deeplink, mint the
+    #    SBT on agents.ton.org, then fund the wallet. Store the secret key in
+    #    your secrets manager — never log it, never commit it.
+    if "AGENTIC_OPERATOR_SECRET" not in os.environ:
+        kp = generate_agent_keypair("my-agent")
+        print("Mint here:", kp["create_deeplink"])
+        print("Save secret_key_hex to AGENTIC_OPERATOR_SECRET, then re-run.")
+        return
 
-    # 2. After minting, plug the operator key + agentic wallet address in.
-    async with EnactClient(api_key="YOUR_TONCENTER_KEY") as client:
-        client._agentic_wallet = AgenticWalletProvider(
-            operator_secret_key=bytes.fromhex(kp["secret_key_hex"]),
-            agentic_wallet_address="EQ...",  # from agents.ton.org after mint
-            client=client._client,
-        )
-
+    # 2. Wire the agentic wallet into the EnactClient constructor.
+    api_key = os.environ["TONCENTER_API_KEY"]
+    rpc = ToncenterV2Client(api_key=api_key, is_testnet=False)
+    agentic = AgenticWalletProvider(
+        operator_secret_key=bytes.fromhex(os.environ["AGENTIC_OPERATOR_SECRET"]),
+        agentic_wallet_address=os.environ["AGENTIC_WALLET_ADDRESS"],
+        client=rpc,
+    )
+    async with EnactClient(api_key=api_key, agentic_wallet=agentic) as client:
         # 3. Use the SDK normally — every write signs through the operator key.
         job = await client.create_job(...)
         await client.fund_job(job)
 
 asyncio.run(main())
-```
-
-Or pass it on the constructor:
-
-```python
-agentic = AgenticWalletProvider(
-    operator_secret_key=bytes.fromhex(secret_hex),
-    agentic_wallet_address="EQ...",
-    client=existing_toncenter_client,  # or pass any ToncenterV2Client
-)
-
-async with EnactClient(api_key="...", agentic_wallet=agentic) as client:
-    ...
 ```
 
 You can also probe an arbitrary address to verify it is an agentic wallet:
