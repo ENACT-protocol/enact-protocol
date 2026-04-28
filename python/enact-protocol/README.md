@@ -84,6 +84,66 @@ Envelopes written by this SDK decrypt in the NPM SDK and vice versa (same
 algorithm: ed25519 → x25519 via libsodium + `crypto_secretbox` +
 `crypto_box` wrap per recipient).
 
+## Agentic Wallet (no mnemonic in the agent)
+
+Sign every write through a [TON Tech Agentic Wallet](https://github.com/the-ton-tech/agentic-wallet-contract)
+— owner-revocable, deposit-capped, no mnemonic in the agent process. The owner
+mints the wallet on [agents.ton.org](https://agents.ton.org) with the operator
+public key; the operator (this SDK) signs every outgoing transaction.
+
+```python
+import asyncio
+from enact_protocol import (
+    EnactClient,
+    AgenticWalletProvider,
+    generate_agent_keypair,
+)
+
+async def main():
+    # 1. Generate an operator keypair (open the deeplink and mint the wallet,
+    #    then fund it before continuing).
+    kp = generate_agent_keypair("my-agent")
+    print("Mint your wallet here:", kp["create_deeplink"])
+
+    # 2. After minting, plug the operator key + agentic wallet address in.
+    async with EnactClient(api_key="YOUR_TONCENTER_KEY") as client:
+        client._agentic_wallet = AgenticWalletProvider(
+            operator_secret_key=bytes.fromhex(kp["secret_key_hex"]),
+            agentic_wallet_address="EQ...",  # from agents.ton.org after mint
+            client=client._client,
+        )
+
+        # 3. Use the SDK normally — every write signs through the operator key.
+        job = await client.create_job(...)
+        await client.fund_job(job)
+
+asyncio.run(main())
+```
+
+Or pass it on the constructor:
+
+```python
+agentic = AgenticWalletProvider(
+    operator_secret_key=bytes.fromhex(secret_hex),
+    agentic_wallet_address="EQ...",
+    client=existing_toncenter_client,  # or pass any ToncenterV2Client
+)
+
+async with EnactClient(api_key="...", agentic_wallet=agentic) as client:
+    ...
+```
+
+You can also probe an arbitrary address to verify it is an agentic wallet:
+
+```python
+from enact_protocol import detect_agentic_wallet
+
+info = await detect_agentic_wallet(client._client, "EQ...")
+if info.is_agentic_wallet:
+    print("operator pubkey:", info.operator_public_key.hex())
+    print("revoked?", info.is_revoked)
+```
+
 ## LangChain integration
 
 Use [`enact-langchain`](https://pypi.org/project/enact-langchain/) to drop

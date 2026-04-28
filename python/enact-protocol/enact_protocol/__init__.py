@@ -13,8 +13,16 @@ Quick start::
 """
 from __future__ import annotations
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
+from .agentic_wallet import (
+    EXTERNAL_SIGNED_REQUEST_OPCODE,
+    INTERNAL_SIGNED_REQUEST_OPCODE,
+    AgenticWalletInfo,
+    AgenticWalletProvider,
+    detect_agentic_wallet,
+    generate_agent_keypair,
+)
 from .client import EnactClient
 from .constants import (
     FACTORY_ADDRESS,
@@ -61,4 +69,11 @@ __all__ = [
     "PinataClient",
     "PinnedFile",
     "compute_uint256_hash",
+    # agentic wallet
+    "AgenticWalletProvider",
+    "AgenticWalletInfo",
+    "detect_agentic_wallet",
+    "generate_agent_keypair",
+    "EXTERNAL_SIGNED_REQUEST_OPCODE",
+    "INTERNAL_SIGNED_REQUEST_OPCODE",
 ]
