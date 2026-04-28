@@ -1,14 +1,4 @@
-// Public-facing gateway used in stored ipfsUrl (rendered as a clickable link
-// in the UI). gateway.lighthouse.storage is paywalled (402); ipfs.io often
-// returns "no providers found" for fresh Lighthouse pins. Prefer the
-// per-account Lighthouse subdomain (set via LIGHTHOUSE_GATEWAY_SUBDOMAIN);
-// fall back to ipfs.io. Reads happen via fetchIpfsJson which races multiple
-// gateways regardless.
-const IPFS_GW = process.env.IPFS_GATEWAY
-    || process.env.PINATA_GATEWAY
-    || (process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
-        ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
-        : 'https://ipfs.io/ipfs');
+const IPFS_GW = process.env.IPFS_GATEWAY || process.env.PINATA_GATEWAY || 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 
 export interface ResolvedContent {

@@ -9,16 +9,7 @@ const API_KEY = process.env.TONCENTER_API_KEY || '';
 // gateway.lighthouse.storage is paywalled (402), ipfs.io is unreliable for fresh
 // Lighthouse pins. Keep ipfs.io as the human-facing default (works once the CID
 // propagates to public gateways) and use a race-fetch helper for our own reads.
-// Public-facing gateway used in stored ipfsUrl values (rendered as clickable
-// links in the UI). gateway.lighthouse.storage is paywalled (402); ipfs.io
-// frequently returns 504 / "no providers found" for fresh Lighthouse pins
-// because they haven't propagated to the public DHT yet. The Lighthouse
-// per-account subdomain (set via LIGHTHOUSE_GATEWAY_SUBDOMAIN env) resolves
-// instantly. Internal reads still go through fetchIpfsJson which races
-// multiple gateways; this constant only affects the human-clickable link.
-const PINATA_GW = process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN
-  ? `https://${process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN}.lighthouseweb3.xyz/ipfs`
-  : 'https://ipfs.io/ipfs';
+const PINATA_GW = 'https://ipfs.io/ipfs';
 const ZERO_HASH = '0'.repeat(64);
 
 // Race a CID across multiple IPFS gateways. The first 2xx response wins.
@@ -551,7 +542,7 @@ export async function GET() {
         'X-Enact-Lighthouse': process.env.LIGHTHOUSE_API_KEY ? 'on' : 'off',
         'X-Enact-LhSubdomain': process.env.LIGHTHOUSE_GATEWAY_SUBDOMAIN ? 'on' : 'off',
         'X-Enact-Pinata': process.env.PINATA_JWT ? 'on' : 'off',
-        'X-Enact-Build': 'gateway-race-v2',
+        'X-Enact-Build': 'gateway-race-v3',
       },
     });
   } catch (err: unknown) {
