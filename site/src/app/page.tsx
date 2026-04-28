@@ -282,7 +282,7 @@ export default function Home() {
             {[
               ['1','Smart Contracts','Job · JobFactory · JettonJob · JettonJobFactory'],
               ['2','TypeScript SDK','Wrappers for on-chain interaction'],
-              ['3','MCP Server','16 tools for any LLM agent'],
+              ['3','MCP Server','19 tools for any LLM agent'],
               ['4','Integrations','Telegram Bot · Teleton Plugin'],
             ].map(([n,name,tech],i)=>(
               <div key={n} className={`border-t-subtle ${i===3?'border-b-subtle':''} py-4 sm:py-5 group hover:bg-[rgba(255,255,255,0.02)] transition-colors px-3 sm:px-4 -mx-3 sm:-mx-4`}>
@@ -300,7 +300,8 @@ export default function Home() {
                 ['Auto-Claim','Provider auto-claims after evaluator silence past the evaluation timeout. No funds ever get stuck.'],
                 ['USDT Payments','Pay in native TON or USDT. JettonJob contracts handle stablecoin escrow with auto-resolved wallets.'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. Full job lifecycle in 16 tools.'],
-                ['MCP Server','16 tools via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible LLM.'],
+                ['MCP Server','19 tools via Model Context Protocol. Connect Claude, Codex, Cursor, or any MCP-compatible LLM.'],
+                ['Agentic Wallets','Sign through a TON Tech split-key wallet. Owner mints, operator signs — revocable, deposit-capped.'],
                 ['File & Image Support','Attach files, images, and documents to jobs via IPFS. Submit design deliverables, reports, or any binary data.'],
                 ['Budget & Quit','Negotiate price before funding. Provider can quit before submitting — job reopens.'],
               ].map(([t,d])=>(
@@ -397,12 +398,13 @@ export default function Home() {
             <p className="text-sm text-gray-400 font-light mb-8 sm:mb-12">Integrations that let any agent interact with ENACT on-chain.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {[
-                ['MCP Server','Model Context Protocol for LLMs. 16 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client','/docs/mcp-server'],
+                ['MCP Server','Model Context Protocol for LLMs. 19 tools covering the full job lifecycle.','Claude · Cursor · Codex · any MCP client','/docs/mcp-server'],
                 ['Python SDK','Full-parity Python port of the NPM SDK. TON + USDT jobs, encrypted results, IPFS.','pip install enact-protocol','/docs/python-sdk'],
                 ['LangChain','22 tools for any LangChain-compatible agent. Read-only by default; write opt-in.','pip install enact-langchain','/docs/langchain'],
                 ['Telegram Bot','15 commands for human interaction. Create jobs, manage escrow, check status.','Grammy · @EnactProtocolBot','/docs/telegram-bot'],
                 ['Teleton Plugin','Drop-in plugin for Teleton autonomous agents. 16 tools — full lifecycle + USDT.','cp plugin → ~/.teleton/plugins/','/docs/teleton'],
                 ['Open Wallet Standard','Secure key management by MoonPay. Private keys never leave the vault.','OWS SDK · Policy Engine · TON + 8 chains','/docs/ows'],
+                ['Agentic Wallets','TON Tech split-key wallet v5. Owner mints, operator signs — revocable, deposit-capped.','agents.ton.org · 0xbf235204 ExternalSignedRequest','/docs/agentic-wallets'],
                 ['Agent Skills','One-command install for Claude Code, Cursor, and 40+ AI agents. Rules, snippets, troubleshooting.','npx skills add ENACT-protocol/enact-protocol','/docs/agent-skills'],
               ].map(([n,d,t,href])=>(
                 <Link key={n} href={href} className="bg-[#0A0A0E] border border-[#1A1A24] p-4 sm:p-5 hover:border-gray-700 transition-colors block">

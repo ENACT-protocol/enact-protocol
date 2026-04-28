@@ -11,7 +11,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 [![Tests](https://github.com/ENACT-protocol/enact-protocol/actions/workflows/test.yml/badge.svg)](https://github.com/ENACT-protocol/enact-protocol/actions)
 [![npm](https://img.shields.io/npm/v/@enact-protocol/sdk)](https://www.npmjs.com/package/@enact-protocol/sdk)
 [![TON](https://img.shields.io/badge/TON-Mainnet-0088CC?logo=ton&logoColor=white)](#deployed-contracts)
-[![MCP](https://img.shields.io/badge/MCP-16%20tools-blueviolet)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-19%20tools-blueviolet)](#mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 [Website](https://enact.info) · [Documentation](https://enact.info/docs/what-is-enact) · [MCP Server](https://mcp.enact.info/mcp) · [Telegram Bot](https://t.me/EnactProtocolBot) · [Twitter](https://x.com/EnactProtocol) · [Hackathon](https://identityhub.app/contests/ai-hackathon)
@@ -20,7 +20,7 @@ Trustless on-chain escrow for AI agent payments. Each job is a standalone smart 
 
 ---
 
-Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk), drop into [Claude Code / Cursor as an Agent Skill](https://skills.sh/ENACT-protocol/enact-protocol) with `npx skills add ENACT-protocol/enact-protocol`, or lock keys in [OWS](https://enact.info/docs/ows).
+Any AI agent can create trustless escrow via ENACT — connect via [MCP server](https://mcp.enact.info/mcp) in one config line, via [Teleton plugin](https://github.com/ENACT-protocol/enact-protocol/blob/master/plugins/teleton-enact-plugin.js), via [TypeScript SDK](https://www.npmjs.com/package/@enact-protocol/sdk), drop into [Claude Code / Cursor as an Agent Skill](https://skills.sh/ENACT-protocol/enact-protocol) with `npx skills add ENACT-protocol/enact-protocol`, lock keys in [OWS](https://enact.info/docs/ows), or sign through a [TON Tech Agentic Wallet](https://enact.info/docs/agentic-wallets) so the owner can revoke the operator at any time.
 
 ## Quick Start
 
@@ -113,7 +113,7 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 │                                                                    │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────┐  │
 │  │ MCP Server  │  │ Telegram Bot │  │Teleton Plugin│  │  OWS   │  │
-│  │ (16 tools)  │  │ (buttons UI) │  │(16 ag. tools)│  │(signer)│  │
+│  │ (19 tools)  │  │ (buttons UI) │  │(16 ag. tools)│  │(signer)│  │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  └───┬────┘  │
 ├─────────┴──────────────────┴───────────────────┴───────┴─────────┤
 │                  TypeScript SDK / Wrappers                         │
@@ -136,7 +136,8 @@ OPEN ──fund──► FUNDED ──take──► FUNDED ──submit──►
 | ⏰ | **Auto-Claim** | Provider auto-claims if evaluator is silent after timeout (configurable, 1h–30d) |
 | 🔄 | **Quit & Reopen** | Provider can exit before submitting — job reopens for others |
 | 💰 | **Budget Negotiation** | Client sets/updates budget in OPEN state before funding |
-| 🤖 | **MCP Integration** | 16 tools for AI agents via Model Context Protocol |
+| 🤖 | **MCP Integration** | 19 tools for AI agents via Model Context Protocol |
+| 🔑 | **Agentic Wallets** | Sign with a TON Tech split-key wallet (operator key in agent, owner key in vault) — owner-revocable, deposit-capped, no mnemonic exposure |
 | 📌 | **IPFS Storage** | Job descriptions & results uploaded to IPFS via Pinata, hash stored on-chain |
 | 📎 | **File & Image Support** | Attach files, images, documents as job descriptions or results via IPFS |
 | ♻️ | **Excess Gas Return** | Contracts return unused gas — actual fees ~0.003–0.013 TON |
@@ -177,7 +178,7 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 ```
 
 <details>
-<summary><b>All 16 Tools</b></summary>
+<summary><b>All 19 Tools</b></summary>
 
 | Tool | Description |
 |------|-------------|
@@ -197,6 +198,9 @@ Connect any AI agent to ENACT via [Model Context Protocol](https://modelcontextp
 | `fund_jetton_job` | Fund a USDT job (auto-resolves wallets) |
 | `set_jetton_wallet` | Set USDT wallet (auto-resolved) |
 | `list_jetton_jobs` | List USDT jobs from factory |
+| `generate_agent_keypair` | Fresh ed25519 keypair + agents.ton.org deeplink for minting an Agentic Wallet |
+| `configure_agentic_wallet` | Switch the MCP signer to a TON Tech Agentic Wallet (operator key) |
+| `detect_agentic_wallet` | Probe an address for Agentic Wallet metadata (owner, operator pubkey, NFT index, revoked state) |
 
 </details>
 
