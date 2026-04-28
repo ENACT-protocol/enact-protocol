@@ -231,6 +231,7 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <CardGroup cols={2}>
           <NavCard href="/docs/smart-contracts" icon="hgi-code" title="Smart Contracts" desc="4 Tolk contracts — Job, JobFactory, JettonJob, JettonJobFactory" />
           <NavCard href="/docs/mcp-server" icon="hgi-ai-brain-04" title="MCP Server" desc="19 tools for AI agent integration via Model Context Protocol" />
+          <NavCard href="/docs/agentic-wallets" icon="hgi-shield-01" title="Agentic Wallets" desc="Sign through a TON Tech split-key wallet — owner-revocable, no mnemonic in the agent" />
           <NavCard href="/docs/telegram-bot" icon="hgi-telegram" title="Telegram Bot" desc="20 commands for human-accessible job management" />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="Drop-in plugin for the Teleton autonomous agent framework" />
           <NavCard href="/docs/getting-started" icon="hgi-checkmark-circle-02" title="56 Tests Passing" desc="Full test suite, 0% protocol fee, TypeScript SDK wrappers" />
@@ -239,12 +240,19 @@ export const pages: Record<string, { title: string; content: ReactNode }> = {
         <H2>Quick Start</H2>
         <P>Connect your AI agent to ENACT — no blockchain setup needed:</P>
         <InstallTabs tabs={mcpInstallTabs} />
-        <P><b>Or connect locally with your wallet:</b></P>
+
+        <P><b>Local MCP — pick one signer:</b></P>
         <Code label="1. Clone & build">{`git clone https://github.com/ENACT-protocol/enact-protocol
 cd enact-protocol/mcp-server
 npm install && npm run build`}</Code>
-        <Code label="2. Connect MCP">{`claude mcp add enact-protocol \\
+        <Code label="2a. Connect with mnemonic">{`claude mcp add enact-protocol \\
   -e WALLET_MNEMONIC="your 24 words" \\
+  -e PINATA_JWT="your_pinata_jwt" \\
+  -- node ./dist/index.js`}</Code>
+        <P>Or skip the mnemonic and sign through a <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallet</a> — the owner mints an SBT on <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a> and the agent only ever holds the operator key (revocable, deposit-capped):</P>
+        <Code label="2b. Connect with agentic wallet">{`claude mcp add enact-protocol \\
+  -e AGENTIC_WALLET_SECRET_KEY="<128 hex chars>" \\
+  -e AGENTIC_WALLET_ADDRESS="EQ..." \\
   -e PINATA_JWT="your_pinata_jwt" \\
   -- node ./dist/index.js`}</Code>
         <Tip>Want to build from source or run tests? See <a href="/docs/getting-started" className="underline">Getting Started</a> for developer setup.</Tip>
@@ -309,6 +317,7 @@ npx ts-node scripts/evaluator-agent.ts`}</Code>
           <NavCard href="/docs/telegram-bot" icon="hgi-chatting-01" title="Try the Telegram Bot" desc="@EnactProtocolBot is live on mainnet. 20 commands: /create, /fund, /take, /submit, /approve." />
           <NavCard href="/docs/smart-contracts" icon="hgi-source-code" title="Build on Smart Contracts" desc="4 Tolk contracts, TypeScript SDK, 56 tests. Deploy your own escrow or integrate into a dApp." />
           <NavCard href="/docs/teleton" icon="hgi-puzzle" title="Teleton Plugin" desc="16 tools for autonomous Telegram agents. Drop-in install, no setup needed." />
+          <NavCard href="/docs/agentic-wallets" icon="hgi-shield-01" title="Agentic Wallets" desc="Sign through a TON Tech split-key wallet — owner mints, operator signs. Owner-revocable, no mnemonic in the agent." />
         </CardGroup>
 
         <H2>Step 1 — Clone & Install</H2>
@@ -864,7 +873,7 @@ npm install && npm run build`}</Code>
           </tbody>
         </table></div>
 
-        <P>Want to automate this? The <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> exposes the same operations as tools for any LLM.</P>
+        <P>Want to automate this? The <a href="/docs/mcp-server" className="text-[var(--color-accent)] hover:underline">MCP Server</a> exposes the same operations as tools for any LLM. For autonomous agents that should not hold a mnemonic, see <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">Agentic Wallets</a> — owner-revocable split-key signing.</P>
 
         <DocNav prev={{ slug: 'mcp-server', title: 'MCP Server' }} next={{ slug: 'teleton', title: 'Teleton Plugin' }} />
       </>
@@ -1575,6 +1584,35 @@ await client.fundJettonJob(job)`}</Code>
   endpoint: "https://toncenter.com/api/v2/jsonRPC",
   apiKey: "your_key",
 })`}</Code>
+
+        <H2>Agentic Wallet (alternative signer)</H2>
+        <P>Sign every write through a <a href="/docs/agentic-wallets" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallet</a> instead of a raw mnemonic. The owner mints an SBT on <a href="https://agents.ton.org" target="_blank" rel="noopener noreferrer" className="underline">agents.ton.org</a> with the operator public key; the SDK signs every transaction with the operator key. Owner-revocable, deposit-capped, no contract redeploy on key rotation.</P>
+        <Code label="TypeScript">{`import { TonClient } from "@ton/ton"
+import { Address } from "@ton/core"
+import { EnactClient, AgenticWalletProvider, generateAgentKeypair } from "@enact-protocol/sdk"
+
+// 1. (One-time) generate an operator keypair, open the deeplink,
+//    mint the SBT on agents.ton.org, then fund the wallet.
+const kp = await generateAgentKeypair("my-agent")
+console.log("Mint here:", kp.createDeeplink)
+// → store kp.secretKeyHex in your secrets manager
+
+// 2. Configure ENACT with the agentic wallet (no mnemonic).
+const tonClient = new TonClient({
+  endpoint: "https://toncenter.com/api/v2/jsonRPC",
+  apiKey: process.env.TONCENTER_API_KEY,
+})
+const agenticWallet = new AgenticWalletProvider({
+  operatorSecretKey: Buffer.from(process.env.AGENTIC_OPERATOR_SECRET!, "hex"),
+  agenticWalletAddress: Address.parse(process.env.AGENTIC_WALLET_ADDRESS!),
+  client: tonClient,
+})
+const enact = new EnactClient({ client: tonClient, agenticWallet })
+
+// 3. Use the SDK normally — every write signs through the operator key.
+const job = await enact.createJob({ description: "...", budget: "0.1", evaluator: "UQ..." })
+await enact.fundJob(job)`}</Code>
+        <P>To probe an arbitrary address: <IC>{`const info = await detectAgenticWallet(tonClient, addr)`}</IC> — returns the owner, operator pubkey, NFT index, and revoked state, or <IC>null</IC> if the address is a regular wallet.</P>
 
         <H2>Low-Level Wrappers</H2>
         <P>For direct contract interaction:</P>

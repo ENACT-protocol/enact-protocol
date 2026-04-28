@@ -44,7 +44,7 @@ export default function Home() {
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>4 contracts</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
-          <span>16 MCP tools</span>
+          <span>19 MCP tools</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
           <span>0% fee</span>
           <span className="w-1 h-1 rounded-full bg-[#52525B]" />
@@ -283,7 +283,7 @@ export default function Home() {
               ['1','Smart Contracts','Job · JobFactory · JettonJob · JettonJobFactory'],
               ['2','TypeScript SDK','Wrappers for on-chain interaction'],
               ['3','MCP Server','19 tools for any LLM agent'],
-              ['4','Integrations','Telegram Bot · Teleton Plugin'],
+              ['4','Integrations','Telegram Bot · Teleton · Agentic Wallets'],
             ].map(([n,name,tech],i)=>(
               <div key={n} className={`border-t-subtle ${i===3?'border-b-subtle':''} py-4 sm:py-5 group hover:bg-[rgba(255,255,255,0.02)] transition-colors px-3 sm:px-4 -mx-3 sm:-mx-4`}>
                 <div className="mono-label text-gray-500 mb-1">Layer {n}</div>
