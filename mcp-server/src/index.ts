@@ -1160,35 +1160,36 @@ async function main() {
         app.use(express.json());
         app.use(express.static('public'));
 
-        // sessionId -> transport. Active sessions only; cleaned up on close.
+        // sessionId -> transport. Populated after a client completes the
+        // MCP `initialize` handshake (StreamableHTTP session protocol).
         const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+        const isInitializeBody = (body: any) => {
+            const items = Array.isArray(body) ? body : [body];
+            return items.some(b => b && typeof b === 'object' && b.method === 'initialize');
+        };
 
         app.post('/mcp', async (req, res) => {
             try {
                 const sessionId = req.headers['mcp-session-id'] as string | undefined;
-                let transport: StreamableHTTPServerTransport;
 
+                // 1. Existing session — reuse its server + AgenticState.
                 if (sessionId && transports[sessionId]) {
-                    transport = transports[sessionId];
-                } else {
-                    // Either a brand-new session (no header yet) or a stale
-                    // ID. Always allow init: spin up a fresh per-session
-                    // server with its own AgenticState. The transport's
-                    // sessionIdGenerator stamps an Mcp-Session-Id header on
-                    // the response and the client will echo it on every
-                    // subsequent call.
+                    await transports[sessionId].handleRequest(req, res, req.body);
+                    return;
+                }
+
+                // 2. Initialize handshake — start a stateful session and
+                //    register an Mcp-Session-Id with the client.
+                if (!sessionId && isInitializeBody(req.body)) {
                     const agenticState: AgenticState = {};
                     const server = createServer();
                     registerTools(server, agenticState);
-                    transport = new StreamableHTTPServerTransport({
+                    const transport = new StreamableHTTPServerTransport({
                         sessionIdGenerator: () => randomUUID(),
-                        onsessioninitialized: (newSid) => {
-                            transports[newSid] = transport;
-                        },
+                        onsessioninitialized: (newSid) => { transports[newSid] = transport; },
                     });
                     transport.onclose = () => {
-                        // Session ended — drop the transport reference and
-                        // wipe the operator secret out of memory ASAP.
                         if (transport.sessionId) delete transports[transport.sessionId];
                         agenticState.operatorSecretKey?.fill(0);
                         agenticState.operatorSecretKey = undefined;
@@ -1197,9 +1198,31 @@ async function main() {
                         server.close().catch(() => {});
                     };
                     await server.connect(transport);
+                    await transport.handleRequest(req, res, req.body);
+                    return;
                 }
+
+                // 3. Stateless one-off (clients that skip `initialize` and
+                //    fire tools/list / tools/call directly, e.g. Claude.ai's
+                //    remote MCP client). Build a fresh server with its own
+                //    AgenticState, run the request, dispose. configure_agentic_wallet
+                //    has no effect across stateless calls because each is a
+                //    new server — callers that need persistent agentic
+                //    signing should follow the initialize handshake above.
+                const agenticState: AgenticState = {};
+                const server = createServer();
+                registerTools(server, agenticState);
+                const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+                res.on('close', () => {
+                    agenticState.operatorSecretKey?.fill(0);
+                    agenticState.operatorSecretKey = undefined;
+                    transport.close();
+                    server.close().catch(() => {});
+                });
+                await server.connect(transport);
                 await transport.handleRequest(req, res, req.body);
             } catch (error) {
+                console.error('[MCP] /mcp handler:', error);
                 if (!res.headersSent) {
                     res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
                 }
@@ -1207,9 +1230,9 @@ async function main() {
         });
 
         // GET / DELETE on /mcp drive the SSE / disconnect side of the
-        // streamable transport — route them to the existing per-session
-        // transport so client-initiated disconnects close the session
-        // (and wipe its agentic state) immediately.
+        // streamable transport for stateful sessions — route them through
+        // the existing per-session transport so client-initiated disconnects
+        // close the session (and wipe its agentic state) immediately.
         const handleSessionRoutedRequest = async (req: express.Request, res: express.Response) => {
             const sessionId = req.headers['mcp-session-id'] as string | undefined;
             if (!sessionId || !transports[sessionId]) {
@@ -1226,7 +1249,7 @@ async function main() {
         });
 
         app.listen(Number(port), '0.0.0.0', () => {
-            console.log(`ENACT MCP server running on http://0.0.0.0:${port}/mcp`);
+            console.log(`ENACT MCP server listening on port ${port}`);
         });
     } else {
         // Stdio mode — single-user local server (Claude Code, Cursor, etc.).
