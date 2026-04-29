@@ -1149,6 +1149,14 @@ async function main() {
         // is closed-over per session, so configure_agentic_wallet only
         // affects the calling client and is GC'd when the session closes.
         const app = express();
+        // Force HTTPS for the lifetime of the Mcp-Session-Id cookie/header
+        // so a downgrade attack on a public Wi-Fi can't strip TLS and
+        // hijack an active session id. Browsers and well-behaved MCP
+        // clients pin the host to HTTPS for a year after their first hit.
+        app.use((_req, res, next) => {
+            res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            next();
+        });
         app.use(express.json());
         app.use(express.static('public'));
 
@@ -1182,9 +1190,7 @@ async function main() {
                         // Session ended — drop the transport reference and
                         // wipe the operator secret out of memory ASAP.
                         if (transport.sessionId) delete transports[transport.sessionId];
-                        if (agenticState.operatorSecretKey) {
-                            agenticState.operatorSecretKey.fill(0);
-                        }
+                        agenticState.operatorSecretKey?.fill(0);
                         agenticState.operatorSecretKey = undefined;
                         agenticState.walletAddress = undefined;
                         agenticState.nftIndex = undefined;
