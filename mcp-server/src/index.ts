@@ -124,13 +124,30 @@ async function sendTransaction(to: Address, value: bigint, body: Cell) {
     // server stays self-contained and the SDK npm package is not a
     // hard runtime dependency.
     if (agenticOperatorSecretKey && agenticWalletAddress) {
+        const startSeqno = await fetchAgenticSeqno(agenticWalletAddress);
         await sendAgenticExternal(agenticWalletAddress, agenticOperatorSecretKey, [
             { to, value, body, bounce: true },
         ]);
+        // Wait for the wallet to actually accept the external — seqno only
+        // advances on a successful compute_ph + action_ph. Catches the
+        // historic SEND_MODE bug (exit code 137) and any future signature /
+        // validUntil mismatch instead of returning a misleading "executed".
+        let confirmed = false;
+        for (let i = 0; i < 12; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+                const cur = await fetchAgenticSeqno(agenticWalletAddress);
+                if (cur > startSeqno) { confirmed = true; break; }
+            } catch {}
+        }
+        if (!confirmed) {
+            throw new Error('Agentic wallet did not advance seqno within 12s — the external was rejected (likely SEND_MODE / signature / nft_index / validUntil mismatch). The factory message was NOT delivered.');
+        }
         return {
             status: 'executed' as const,
             mode: 'agentic-wallet' as const,
             walletAddress: agenticWalletAddress.toString(),
+            seqnoAfter: startSeqno + 1,
         };
     }
     if (wallet && keyPair) {
@@ -183,7 +200,14 @@ async function sendAgenticExternal(
 
     const actions = messages.map((m) => ({
         type: 'sendMsg' as const,
-        mode: SendMode.PAY_GAS_SEPARATELY,
+        // PAY_GAS_SEPARATELY (1) | IGNORE_ERRORS (2) = 3. The agentic wallet
+        // contract's c5-register-validation rejects sendMsg actions whose
+        // mode lacks IGNORE_ERRORS — wallet processes the external (seqno
+        // bumps), action phase throws exit code 137, and out_msgs stays
+        // empty. The factory never sees the createJob message even though
+        // the operator key signed correctly. Same flag pair is used by the
+        // SDK's AgenticWalletProvider.
+        mode: SendMode.PAY_GAS_SEPARATELY | SendMode.IGNORE_ERRORS,
         outMsg: internal({ to: m.to, value: m.value, body: m.body, bounce: m.bounce ?? true }),
     }));
     const outActions = beginCell().store(storeOutList(actions as any)).endCell();
