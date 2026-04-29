@@ -483,12 +483,48 @@ function gatewayFor(provider?: 'lighthouse' | 'pinata'): string {
     return provider === 'lighthouse' ? LH_GW : PINATA_GW;
 }
 
+/**
+ * At display time we only have a CID (from Supabase / job state) and don't
+ * know who pinned it. Lighthouse pins don't propagate to the public DHT
+ * promptly, so an ipfs.io link returns "no providers found" — we need to
+ * route Lighthouse CIDs through the per-account subdomain. List the
+ * Lighthouse account's files once, cache for 30s, and look the CID up.
+ */
+let _lhCidCache: { ts: number; cids: Set<string> } | null = null;
+async function getLighthouseCids(): Promise<Set<string>> {
+    if (!process.env.LIGHTHOUSE_API_KEY) return new Set();
+    const now = Date.now();
+    if (_lhCidCache && now - _lhCidCache.ts < 30_000) return _lhCidCache.cids;
+    try {
+        const res = await fetch('https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null', {
+            headers: { Authorization: `Bearer ${process.env.LIGHTHOUSE_API_KEY!}` },
+            signal: AbortSignal.timeout(5000),
+        });
+        if (!res.ok) return _lhCidCache?.cids ?? new Set();
+        const data = await res.json() as { fileList?: Array<{ cid: string }> };
+        const cids = new Set((data.fileList ?? []).map(f => f.cid));
+        _lhCidCache = { ts: now, cids };
+        return cids;
+    } catch {
+        return _lhCidCache?.cids ?? new Set();
+    }
+}
+
+/** Public IPFS link for a CID; routes Lighthouse pins through the per-account subdomain. */
+async function ipfsUrlForCid(cid: string): Promise<string> {
+    if (!cid) return `${PINATA_GW}/${cid}`;
+    if (LH_GW === PINATA_GW) return `${PINATA_GW}/${cid}`;
+    const lhCids = await getLighthouseCids();
+    return `${lhCids.has(cid) ? LH_GW : PINATA_GW}/${cid}`;
+}
+
 /** Resolve file reference from IPFS JSON (if any) */
 async function resolveFileFromCID(cid: string | null): Promise<{ url: string; filename: string } | null> {
     if (!cid) return null;
     const data = await fetchIpfsJson(cid);
     if (data?.file?.cid) {
-        return { url: data.file.ipfsUrl || `${PINATA_GW}/${data.file.cid}`, filename: data.file.filename || 'file' };
+        const fallback = await ipfsUrlForCid(data.file.cid);
+        return { url: data.file.ipfsUrl || fallback, filename: data.file.filename || 'file' };
     }
     return null;
 }
@@ -2076,13 +2112,15 @@ async function handleStatus(ctx: any, jobId: number) {
         const resCid = resultText ? await findCID(s.resultHash) : null;
         const descFile = await resolveFileFromCID(descCid);
         const resFile = await resolveFileFromCID(resCid);
+        const descUrl = descCid ? await ipfsUrlForCid(descCid) : '';
+        const resUrl = resCid ? await ipfsUrlForCid(resCid) : '';
         let text =
             `${icon} <b>Job #${s.jobId}</b>\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('🪙')} Budget: ${ton(fmtTon(s.budget))}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${descUrl}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
             (descFile ? `${e('📎')} <b>File:</b> <a href="${descFile.url}">${escapeHtml(descFile.filename)}</a>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${resUrl}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
             (resFile ? `${e('📎')} <b>File:</b> <a href="${resFile.url}">${escapeHtml(resFile.filename)}</a>\n` : '') +
             (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
             `\n` +
@@ -2554,13 +2592,15 @@ async function handleJettonStatus(ctx: any, jobId: number) {
         const resCid = resultText ? await findCID(s.resultHash) : null;
         const descFile = await resolveFileFromCID(descCid);
         const resFile = await resolveFileFromCID(resCid);
+        const descUrl = descCid ? await ipfsUrlForCid(descCid) : '';
+        const resUrl = resCid ? await ipfsUrlForCid(resCid) : '';
         let text =
             `${icon} <b>Jetton Job #${s.jobId}</b> ${e('💵')}\n\n` +
             `${e('📊')} State: <b>${s.stateName}</b>\n` +
             `${e('💵')} Budget: <b>${fmtUsdt(s.budget)}</b> ${e('💵')}\n` +
-            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${PINATA_GW}/${descCid}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (desc ? `\n${e('📄')} <b>Description:</b>\n<blockquote>${descCid ? `<a href="${descUrl}">` : ''}${desc.length > 120 ? desc.slice(0, 120) + '...' : desc}${descCid ? '</a>' : ''}</blockquote>\n` : '') +
             (descFile ? `${e('📎')} <b>File:</b> <a href="${descFile.url}">${escapeHtml(descFile.filename)}</a>\n` : '') +
-            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${PINATA_GW}/${resCid}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
+            (resultText ? `${e('📨')} <b>Result:</b>\n<blockquote>${resCid ? `<a href="${resUrl}">` : ''}${resultText.length > 120 ? resultText.slice(0, 120) + '...' : resultText}${resCid ? '</a>' : ''}</blockquote>\n` : '') +
             (resFile ? `${e('📎')} <b>File:</b> <a href="${resFile.url}">${escapeHtml(resFile.filename)}</a>\n` : '') +
             (reasonText ? `${e('⚖️')} <b>Reason:</b> <i>${reasonText.length > 80 ? reasonText.slice(0, 80) + '...' : reasonText}</i>\n` : '') +
             `\n` +
