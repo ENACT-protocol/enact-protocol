@@ -729,8 +729,8 @@ export function AgentWalletPanel({ address, label }: { address: string; label?: 
   if (!info) return null;
   const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
   return (
-    <div className="py-1 space-y-1">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+    <div className="py-1 space-y-1.5 text-[11px]">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5">
           <Bot size={11} strokeWidth={2.2} style={{ color: accent }} />
           <span className="text-[#71717A]">{label ? `${label} ` : ''}Agent</span>
@@ -745,23 +745,25 @@ export function AgentWalletPanel({ address, label }: { address: string; label?: 
           href="https://github.com/the-ton-tech/agentic-wallet-contract"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[10px] text-[#3F3F46] hover:text-[#71717A] transition-colors shrink-0 whitespace-nowrap ml-auto"
+          className="text-[10px] text-[#3F3F46] hover:text-[#71717A] transition-colors shrink-0 whitespace-nowrap"
         >
-          about ↗
+          Learn about TON Tech Agentic Wallets →
         </a>
       </div>
-      <div className="min-w-0">
-        <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">Owner</div>
-        <div className="text-[11px] text-[#71717A] font-mono break-all inline-flex items-center gap-1">
-          <span>{info.ownerAddress}</span>
-          <CopyHash hash={info.ownerAddress} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 min-w-0">
+        <div className="min-w-0">
+          <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">Owner</div>
+          <div className="text-[#71717A] font-mono break-all inline-flex items-baseline gap-1">
+            <span>{info.ownerAddress}</span>
+            <CopyHash hash={info.ownerAddress} />
+          </div>
         </div>
-      </div>
-      <div className="min-w-0">
-        <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">Operator key</div>
-        <div className="text-[11px] text-[#71717A] font-mono break-all inline-flex items-center gap-1">
-          <span>{info.operatorPublicKey}</span>
-          <CopyHash hash={info.operatorPublicKey} />
+        <div className="min-w-0">
+          <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">Operator key</div>
+          <div className="text-[#71717A] font-mono break-all inline-flex items-baseline gap-1">
+            <span>{info.operatorPublicKey}</span>
+            <CopyHash hash={info.operatorPublicKey} />
+          </div>
         </div>
       </div>
     </div>

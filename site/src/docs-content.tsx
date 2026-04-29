@@ -1139,6 +1139,17 @@ ows policy create --file enact-policy.json`}</Code>
 
         <H2>Quick Start</H2>
 
+        <Info><strong className="text-white">Order matters.</strong> The owner cannot mint an Agentic Wallet without an operator public key, so generation happens before minting:
+        <br /><br />
+        <span className="font-mono text-[12px] leading-relaxed">
+          1. Generate operator keypair (SDK / MCP)<br />
+          2. Mint the wallet on agents.ton.org with that public key<br />
+          3. Fund the wallet<br />
+          4. Configure ENACT (SDK / MCP / Teleton) with the operator secret + wallet address<br />
+          5. Create your first job — every transaction signs through the operator key
+        </span>
+        </Info>
+
         <H3>Step 1 — Generate an operator keypair</H3>
         <P>Via the SDK:</P>
         <Code label="TypeScript">{`import { generateAgentKeypair } from '@enact-protocol/sdk';
