@@ -1113,7 +1113,7 @@ ows policy create --file enact-policy.json`}</Code>
 
         <P>
           <a href="https://github.com/the-ton-tech/agentic-wallet-contract" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">TON Tech Agentic Wallets</a> are
-          modified <IC>wallet v5</IC> contracts deployed as SBT NFTs in a shared collection. Each wallet has two keys:
+          modified <IC>wallet v5</IC> contracts deployed as SBTs (Soul-Bound Tokens — non-transferable NFTs that stay bound to the owner&apos;s wallet) in a shared collection. Each wallet has two keys:
           an <strong className="text-white">owner</strong> (controls the SBT, can rotate or revoke the operator) and an{' '}
           <strong className="text-white">operator</strong> (signs every outgoing message). ENACT transactions go through the operator path,
           so the agent code never sees the owner&apos;s mnemonic and the owner can pull the plug at any time from{' '}

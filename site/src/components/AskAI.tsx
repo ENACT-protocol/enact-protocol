@@ -14,6 +14,10 @@ const pageMap: Record<string, string> = {
   'Environment Variables': 'env-vars', 'Mainnet Deployments': 'mainnet',
   'NPM SDK': 'npm-sdk', 'Tech Stack': 'tech-stack', 'Overview': 'what-is-enact',
   'Smart Contracts': 'smart-contracts', 'TypeScript SDK': 'sdk-job',
+  'OWS': 'ows', 'Open Wallet Standard': 'ows',
+  'Agentic Wallets': 'agentic-wallets', 'Agentic Wallet': 'agentic-wallets',
+  'Agent Skills': 'agent-skills', 'Encrypted Results': 'encrypted-results',
+  'Python SDK': 'python-sdk', 'LangChain': 'langchain',
 };
 
 
