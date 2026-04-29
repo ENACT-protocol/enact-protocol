@@ -17,23 +17,42 @@ const pageMap: Record<string, string> = {
 };
 
 
+// Split on existing markdown constructs ([...](...) links and `code` spans) and
+// only run substitutions on the plain-text segments. Without this guard the
+// LLM's `[agents.ton.org](https://agents.ton.org)` output gets re-wrapped on
+// every pass and renders as `[[agents.ton.org](https://agents.ton.org](https://agents.ton.org)`.
 function preprocessText(text: string): string {
-  let result = text;
-  // Convert plain URLs to markdown links (skip already markdown-linked)
-  result = result.replace(/(?<!\])\(?(https?:\/\/[^\s,)]+)\)?/g, (match, url) => {
-    // Skip if already inside []() markdown
-    const before = result.slice(0, result.indexOf(match));
-    if (before.endsWith('](') || before.endsWith('](')) return match;
-    const label = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    return `[${label}](${url})`;
-  });
-  // Convert page names to markdown links (only if not already inside []() or backticks)
-  const sorted = Object.entries(pageMap).sort((a, b) => b[0].length - a[0].length);
-  for (const [name, slug] of sorted) {
-    // Match page name NOT inside backticks or markdown links
-    const regex = new RegExp(`(?<!\`|\\[)\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?!\`|\\])`, 'g');
-    result = result.replace(regex, `[${name}](/docs/${slug})`);
+  const protectedRe = /(\[[^\]]+\]\([^)]+\))|(`[^`]+`)/g;
+  const sortedPages = Object.entries(pageMap).sort((a, b) => b[0].length - a[0].length);
+
+  const transformPlain = (segment: string): string => {
+    let out = segment;
+    // Plain URLs (not already inside a markdown link — protected segments are
+    // skipped entirely below, so any URL we see here is unbracketed).
+    out = out.replace(/\bhttps?:\/\/[^\s)<>"']+/g, (url) => {
+      const trimmed = url.replace(/[.,;:!?]+$/, '');
+      const trailing = url.slice(trimmed.length);
+      const label = trimmed.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      return `[${label}](${trimmed})${trailing}`;
+    });
+    // Page names → /docs/<slug>
+    for (const [name, slug] of sortedPages) {
+      const regex = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      out = out.replace(regex, `[${name}](/docs/${slug})`);
+    }
+    return out;
+  };
+
+  // Walk the string, leaving protected segments untouched.
+  let result = '';
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = protectedRe.exec(text)) !== null) {
+    result += transformPlain(text.slice(lastIndex, match.index));
+    result += match[0];
+    lastIndex = match.index + match[0].length;
   }
+  result += transformPlain(text.slice(lastIndex));
   return result;
 }
 

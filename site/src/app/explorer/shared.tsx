@@ -647,6 +647,7 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
         className="inline-flex align-middle"
         onMouseEnter={() => { cancelClose(); updatePos(); }}
         onMouseLeave={scheduleClose}
+        onClick={(e) => e.stopPropagation()}
       >
         <span
           className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors cursor-default ${
@@ -677,6 +678,7 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
           }}
           onMouseEnter={() => { cancelClose(); updatePos(); }}
           onMouseLeave={scheduleClose}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-[rgba(255,255,255,0.06)]">
             <Bot size={12} strokeWidth={2.2} style={{ color: accent }} />
@@ -694,20 +696,17 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
           <div className="space-y-1.5">
             <div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Owner</div>
-              <a
-                href={tonscanUrl(info.ownerAddress)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-[#A1A1AA] hover:text-white text-[10.5px] inline-flex items-center gap-1"
-                title="View on TONScan"
-              >
-                {truncAddr(info.ownerAddress)}
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path fill="currentColor" d="M4.14 6.881c0 .199.483.684.84.676.358-.007.88-.452.88-.676 0-.223-.523-.257-.839-.257s-.88.059-.88.257M2.677 5.679c.517.201 1.04.09 1.168-.247s-.189-.774-.706-.976-.958-.225-1.086.113c-.127.337.107.908.624 1.11M6.158 5.432c.128.338.66.425 1.15.188.488-.236.717-.713.59-1.051-.128-.338-.517-.315-1.035-.113s-.833.639-.705.976"/><path fill="currentColor" fillRule="evenodd" d="M1.814.343c.435.267.995.698 1.677 1.284Q4.4 1.469 5 1.468q.597.001 1.494.159C7.18 1.053 7.742.628 8.175.362c.227-.14.437-.247.62-.304.163-.05.414-.097.626.05a.7.7 0 0 1 .249.35q.066.19.093.443c.037.336.035.801-.012 1.414q-.045.581-.157 1.22c.404.768.503 1.627.314 2.557-.186.912-.784 1.726-1.672 2.468C7.368 9.285 6.292 10 4.99 10c-1.29 0-2.57-.733-3.338-1.454C.9 7.84.395 7.143.16 6.342-.114 5.416-.033 4.48.386 3.55q-.121-.67-.156-1.24C.188 1.59.177 1.13.21.824.225.67.254.531.31.411A.75.75 0 0 1 .544.118c.209-.16.462-.127.637-.077.19.054.403.16.633.302M.982.738.96.732A1 1 0 0 0 .93.9c-.025.237-.02.64.024 1.368q.032.56.165 1.262l.022.116-.051.107C.697 4.574.626 5.363.854 6.138c.186.632.595 1.222 1.295 1.88.686.644 1.798 1.257 2.842 1.257 1.033 0 1.938-.567 2.78-1.27.82-.687 1.286-1.368 1.426-2.057.169-.829.063-1.545-.297-2.171l-.066-.116.024-.131q.125-.675.17-1.27c.046-.594.044-1.009.014-1.28a1.5 1.5 0 0 0-.039-.227c-.1.032-.247.103-.45.227-.412.253-.984.686-1.721 1.31L6.7 2.4l-.169-.03C5.88 2.25 5.372 2.193 5 2.193q-.555-.001-1.552.177l-.17.03-.132-.113C2.414 1.65 1.846 1.212 1.435.96A2 2 0 0 0 .982.738" clipRule="evenodd"/></svg>
-              </a>
+              <div className="font-mono text-[#A1A1AA] text-[10.5px] inline-flex items-center gap-1.5">
+                <span>{truncAddr(info.ownerAddress)}</span>
+                <CopyHash hash={info.ownerAddress} />
+              </div>
             </div>
             <div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#52525B] mb-0.5">Operator key</div>
-              <OperatorKeyCopy publicKey={info.operatorPublicKey} />
+              <div className="font-mono text-[#A1A1AA] text-[10.5px] inline-flex items-center gap-1.5">
+                <span>{info.operatorPublicKey.slice(0, 12)}…{info.operatorPublicKey.slice(-6)}</span>
+                <CopyHash hash={info.operatorPublicKey} />
+              </div>
             </div>
           </div>
           <a
@@ -725,55 +724,46 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
   );
 }
 
-function AgentPanelAddr({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  const onCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <span
-      role="button"
-      tabIndex={0}
-      onClick={onCopy}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onCopy(e as unknown as React.MouseEvent); }}
-      title={copied ? 'Copied!' : 'Click to copy'}
-      className="font-mono text-[#71717A] hover:text-[#A1A1AA] cursor-pointer break-all transition-colors"
-    >
-      {copied ? 'Copied!' : value}
-    </span>
-  );
-}
-
 export function AgentWalletPanel({ address, label }: { address: string; label?: string }) {
   const info = useAgenticWallet(address);
   if (!info) return null;
   const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
   return (
-    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1.5 py-1 text-[11px]">
-      <span className="inline-flex items-center gap-1.5">
-        <Bot size={11} strokeWidth={2.2} style={{ color: accent }} />
-        <span className="text-[#71717A]">{label ? `${label} ` : ''}Agent</span>
+    <div className="py-1 space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+        <span className="inline-flex items-center gap-1.5">
+          <Bot size={11} strokeWidth={2.2} style={{ color: accent }} />
+          <span className="text-[#71717A]">{label ? `${label} ` : ''}Agent</span>
+        </span>
         <span
-          className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded"
+          className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded shrink-0"
           style={{ color: accent, background: `${accent}14`, border: `1px solid ${accent}33` }}
         >
           {info.isRevoked ? 'Revoked' : 'Active'}
         </span>
-      </span>
-      <span className="inline-flex items-baseline gap-1.5 min-w-0">
-        <span className="text-[#3F3F46] text-[9px] uppercase tracking-wider shrink-0">Owner</span>
-        <AgentPanelAddr value={info.ownerAddress} />
-        <TonscanLink addr={info.ownerAddress} size={10} />
-      </span>
-      <span className="inline-flex items-baseline gap-1.5 min-w-0">
-        <span className="text-[#3F3F46] text-[9px] uppercase tracking-wider shrink-0">Operator key</span>
-        <AgentPanelAddr value={info.operatorPublicKey} />
-      </span>
-      <a href="https://github.com/the-ton-tech/agentic-wallet-contract" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#3F3F46] hover:text-[#71717A] transition-colors">about ↗</a>
+        <a
+          href="https://github.com/the-ton-tech/agentic-wallet-contract"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-[#3F3F46] hover:text-[#71717A] transition-colors shrink-0 whitespace-nowrap ml-auto"
+        >
+          about ↗
+        </a>
+      </div>
+      <div className="min-w-0">
+        <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">Owner</div>
+        <div className="text-[11px] text-[#71717A] font-mono break-all inline-flex items-center gap-1">
+          <span>{info.ownerAddress}</span>
+          <CopyHash hash={info.ownerAddress} />
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="text-[#3F3F46] text-[9px] uppercase tracking-wider mb-0.5">Operator key</div>
+        <div className="text-[11px] text-[#71717A] font-mono break-all inline-flex items-center gap-1">
+          <span>{info.operatorPublicKey}</span>
+          <CopyHash hash={info.operatorPublicKey} />
+        </div>
+      </div>
     </div>
   );
 }
