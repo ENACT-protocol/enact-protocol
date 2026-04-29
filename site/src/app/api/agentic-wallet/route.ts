@@ -46,6 +46,30 @@ export async function GET(req: Request) {
     }
 
     try {
+        // v3 endpoint reports a real exit_code when a get-method doesn't exist
+        // on the contract. v2 sometimes returns an empty stack with exit_code 0,
+        // which we'd then parse as zeroed AgenticWalletInfo and mislabel a
+        // regular v5 wallet as "revoked agentic". Probe up-front against v3 and
+        // reject any address whose nft_data / public_key / origin_public_key
+        // get-methods aren't actually implemented.
+        const probe = await fetch(`https://toncenter.com/api/v3/runGetMethod${API_KEY ? `?api_key=${API_KEY}` : ''}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: addressStr, method: 'get_nft_data', stack: [] }),
+            signal: AbortSignal.timeout(5000),
+        });
+        if (!probe.ok) {
+            return NextResponse.json({ isAgenticWallet: false }, {
+                headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
+            });
+        }
+        const probeData = await probe.json() as { exit_code?: number };
+        if (probeData.exit_code !== 0) {
+            return NextResponse.json({ isAgenticWallet: false }, {
+                headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' },
+            });
+        }
+
         const client = getClient();
         const [pkRes, originRes, nftRes, authRes, revokedRes] = await Promise.all([
             client.runMethod(addr, 'get_public_key'),

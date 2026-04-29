@@ -70,6 +70,23 @@ cd mcp-server && npm install && npm run build
 node dist/index.js
 ```
 
+## `detect_agentic_wallet` returns `isAgenticWallet: false` after I minted on agents.ton.org
+The address you passed is not the Agentic Wallet. Common confusion:
+- After minting on https://agents.ton.org you have **two** addresses: your **owner** wallet (your regular v5 / Tonkeeper wallet that signed the SBT mint) and the **agentic wallet** (the new contract that holds the operator key). Only the latter responds to `get_public_key` / `get_origin_public_key` / `get_nft_data`.
+- The agents.ton.org UI shows the agentic wallet address on the wallet page after the mint tx is confirmed — copy that one.
+- Verify on https://tonviewer.com/<addr> that the contract code hash matches the TON Tech Agentic Wallet (not "Wallet V5R1").
+
+If you also see exit_code 11 ("method not implemented") for any of the five get-methods, it's definitely a regular wallet — not agentic.
+
+## `configure_agentic_wallet` returns "agentic wallet is revoked"
+The owner already called `revoke()` on the wallet (or rotated to a new operator). The agent can no longer sign.
+- **Fix:** mint a fresh keypair (`generate_agent_keypair`), have the owner mint a new wallet on https://agents.ton.org with the new public key, fund it, and re-configure.
+
+## Agentic Wallet tx confirmed but seqno didn't bump
+The wallet broadcast accepted the external message but the contract rejected it.
+- **Cause:** operator key mismatch (the secret you configured doesn't match the on-chain `get_public_key`), or the wallet's deposit cap was exceeded.
+- **Fix:** call `detect_agentic_wallet` and confirm `operatorPublicKey` matches what `generate_agent_keypair` produced. For the deposit cap, top up the wallet from the owner.
+
 ## State machine confusion
 Quick mental model: **OPEN → FUNDED → SUBMITTED → (COMPLETED or DISPUTED)**.
 - `cancel_job` moves **OPEN → CANCELLED** at any time, or **FUNDED → CANCELLED** only after the creation timeout. A SUBMITTED job cannot be cancelled — use `evaluate_job` (reject) or `claim_job` (timeout) to resolve it.

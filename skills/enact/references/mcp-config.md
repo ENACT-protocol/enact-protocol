@@ -61,6 +61,9 @@ Cline reads `cline_mcp_settings.json`. Same shape.
 | `PINATA_JWT` | _(none)_ | **Required** — MCP throws without it on any tool that uploads to IPFS. Get one at https://app.pinata.cloud/developers/api-keys. |
 | `FACTORY_ADDRESS` | `EQAFHo...sdxPECjX` | Override only if pointing at a non-mainnet fork. |
 | `JETTON_FACTORY_ADDRESS` | `EQCgYm...6VTj` | Same. |
+| `LIGHTHOUSE_API_KEY` | _(none)_ | Optional Lighthouse.storage IPFS provider (free 2 GB). Falls back to Pinata if both are set. |
+| `AGENTIC_OPERATOR_SECRET` | _(none)_ | Hex ed25519 secret of an Agentic Wallet operator. When set together with `AGENTIC_WALLET_ADDRESS`, every write signs through the agentic wallet instead of `WALLET_MNEMONIC` — no mnemonic needs to live in the agent process. |
+| `AGENTIC_WALLET_ADDRESS` | _(none)_ | Address of the deployed Agentic Wallet (minted on https://agents.ton.org). Required alongside `AGENTIC_OPERATOR_SECRET`. |
 
 ## Quick sanity check
 
