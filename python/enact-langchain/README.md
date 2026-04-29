@@ -77,17 +77,47 @@ Put a human-in-the-loop check in front of any write tool in production.
 **Write USDT (3):**
 `enact_create_jetton_job`, `enact_set_jetton_wallet`, `enact_fund_jetton_job`.
 
-## Agentic Wallets
+## Agentic Wallets — sign every write through an operator key
 
-`enact_generate_agent_keypair` returns a fresh ed25519 keypair plus a
-`agents.ton.org/create` deeplink so the user can mint a TON Tech Agentic
-Wallet on top of the operator key — no mnemonic ever touches the agent.
-`enact_detect_agentic_wallet` probes any TON address for the agentic-wallet
-get-methods and returns the owner, operator pubkey, NFT index, and revoked
-state. After the wallet is minted and funded, configure
-`enact_protocol.AgenticWalletProvider` directly on the underlying
-`EnactClient` to route every write through the operator key. See the
-[Agentic Wallets docs](https://enact.info/docs/agentic-wallets).
+ENACT-LangChain has full support for [TON Tech Agentic Wallets](https://enact.info/docs/agentic-wallets):
+the agent never holds a mnemonic, the wallet owner can revoke or rotate the
+operator at any time, and risk is capped by the wallet balance.
+
+Read-only tools are wired at toolkit construction:
+
+- `enact_generate_agent_keypair` — returns a fresh ed25519 keypair plus an
+  `agents.ton.org/create` deeplink the user opens to mint the SBT.
+- `enact_detect_agentic_wallet` — probes any TON address and returns owner,
+  operator public key, NFT index, and revoked state. Treats a regular v5
+  wallet as `is_agentic_wallet=False`.
+
+Writes route through `AgenticWalletProvider` configured on the underlying
+`EnactClient` — every `enact_create_job` / `enact_fund_job` /
+`enact_submit_result` / etc. tool call signs through the operator key:
+
+```python
+import os
+from enact_protocol import EnactClient, AgenticWalletProvider
+from enact_langchain import get_enact_tools
+from tonutils.client import ToncenterV2Client
+
+rpc = ToncenterV2Client(api_key=os.environ["TONCENTER_API_KEY"], is_testnet=False)
+
+agentic = AgenticWalletProvider(
+    operator_secret_key=bytes.fromhex(os.environ["AGENTIC_OPERATOR_SECRET"]),
+    agentic_wallet_address=os.environ["AGENTIC_WALLET_ADDRESS"],
+    client=rpc,
+)
+
+async with EnactClient(
+    api_key=os.environ["TONCENTER_API_KEY"],
+    agentic_wallet=agentic,
+    lighthouse_api_key=os.environ.get("LIGHTHOUSE_API_KEY"),
+) as client:
+    tools = get_enact_tools(client, include_write=True)
+    # Every write tool the agent calls is signed by the operator key.
+    # No mnemonic in this process — owner can revoke on agents.ton.org at any time.
+```
 
 ## Links
 
