@@ -233,6 +233,18 @@ detect_agentic_wallet address="EQ..."
 ```
 After `configure_agentic_wallet`, every transaction tool (create_job, take_job, submit_result, …) routes through the operator key. Pass `null` for both args to revert to the mnemonic signer.
 
+### MCP — stateless clients (claude.ai remote MCP)
+
+claude.ai's remote MCP integration fires `tools/call` directly without echoing `Mcp-Session-Id`, so `configure_agentic_wallet` does not persist between calls. For these clients, pass the operator credentials inline on every transaction tool — they build a one-shot signer that overrides any session state for that single call:
+
+```
+create_job description="..." budget_ton="0.1" evaluator_address="UQ..."
+  agentic_secret_key="<128 hex chars>"
+  agentic_wallet_address="EQ..."
+```
+
+Both `agentic_secret_key` and `agentic_wallet_address` are optional on every transaction tool: `create_job`, `fund_job`, `take_job`, `submit_result`, `evaluate_job`, `cancel_job`, `claim_job`, `quit_job`, `set_budget`, `create_jetton_job`, `set_jetton_wallet`, `fund_jetton_job`. Stateful clients (Claude Desktop, Cursor — they follow the MCP `initialize` handshake) can ignore the params and rely on `configure_agentic_wallet` alone.
+
 ### Python SDK
 ```python
 from enact_protocol import EnactClient, AgenticWalletProvider, generate_agent_keypair
