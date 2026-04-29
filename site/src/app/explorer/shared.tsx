@@ -611,9 +611,11 @@ export function useAgenticWallet(address: string | null | undefined): AgenticWal
 export function AgentBadge({ address }: { address: string | null | undefined }) {
   const info = useAgenticWallet(address);
   const anchorRef = useRef<HTMLSpanElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number; placement: 'below' | 'above' } | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
   if (!info) return null;
   const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
 
@@ -629,17 +631,22 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
     if (left + POPUP_W + 12 > vw) left = Math.max(8, vw - POPUP_W - 8);
     const spaceBelow = vh - r.bottom;
     const placement: 'below' | 'above' = spaceBelow > POPUP_H_EST + 16 ? 'below' : 'above';
-    const top = placement === 'below' ? r.bottom + 6 : r.top - 6;
+    // No vertical gap — the popup sits flush against the badge so the cursor
+    // can move from anchor → popup without crossing dead space (which would
+    // fire mouseleave and dismiss it).
+    const top = placement === 'below' ? r.bottom : r.top;
     setPos({ top, left, placement });
   };
+  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setPos(null), 150); };
 
   return (
     <>
       <span
         ref={anchorRef}
         className="inline-flex align-middle"
-        onMouseEnter={() => updatePos()}
-        onMouseLeave={() => setPos(null)}
+        onMouseEnter={() => { cancelClose(); updatePos(); }}
+        onMouseLeave={scheduleClose}
       >
         <span
           className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border align-middle transition-colors cursor-default ${
@@ -668,8 +675,8 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
             borderColor: 'rgba(255,255,255,0.08)',
             pointerEvents: 'auto',
           }}
-          onMouseEnter={() => updatePos()}
-          onMouseLeave={() => setPos(null)}
+          onMouseEnter={() => { cancelClose(); updatePos(); }}
+          onMouseLeave={scheduleClose}
         >
           <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-[rgba(255,255,255,0.06)]">
             <Bot size={12} strokeWidth={2.2} style={{ color: accent }} />
@@ -718,15 +725,38 @@ export function AgentBadge({ address }: { address: string | null | undefined }) 
   );
 }
 
+function AgentPanelAddr({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={onCopy}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onCopy(e as unknown as React.MouseEvent); }}
+      title={copied ? 'Copied!' : 'Click to copy'}
+      className="font-mono text-[#71717A] hover:text-[#A1A1AA] cursor-pointer break-all transition-colors"
+    >
+      {copied ? 'Copied!' : value}
+    </span>
+  );
+}
+
 export function AgentWalletPanel({ address, label }: { address: string; label?: string }) {
   const info = useAgenticWallet(address);
   if (!info) return null;
   const accent = info.isRevoked ? '#9CA3AF' : '#34D399';
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-1 text-xs">
+    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1.5 py-1 text-[11px]">
       <span className="inline-flex items-center gap-1.5">
         <Bot size={11} strokeWidth={2.2} style={{ color: accent }} />
-        <span className="text-[#A1A1AA]">{label ? `${label} ` : ''}Agent</span>
+        <span className="text-[#71717A]">{label ? `${label} ` : ''}Agent</span>
         <span
           className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-px rounded"
           style={{ color: accent, background: `${accent}14`, border: `1px solid ${accent}33` }}
@@ -734,17 +764,16 @@ export function AgentWalletPanel({ address, label }: { address: string; label?: 
           {info.isRevoked ? 'Revoked' : 'Active'}
         </span>
       </span>
-      <span className="inline-flex items-center gap-1 text-[#52525B]">
-        <span className="text-[10px]">owner</span>
-        <a href={tonscanUrl(info.ownerAddress)} target="_blank" rel="noopener noreferrer" className="font-mono text-[#A1A1AA] hover:text-white">
-          {truncAddr(info.ownerAddress)}
-        </a>
+      <span className="inline-flex items-baseline gap-1.5 min-w-0">
+        <span className="text-[#3F3F46] text-[9px] uppercase tracking-wider shrink-0">Owner</span>
+        <AgentPanelAddr value={info.ownerAddress} />
+        <TonscanLink addr={info.ownerAddress} size={10} />
       </span>
-      <span className="inline-flex items-center gap-1 text-[#52525B]">
-        <span className="text-[10px]">key</span>
-        <span className="font-mono text-[#A1A1AA]">{info.operatorPublicKey.slice(0, 8)}…{info.operatorPublicKey.slice(-4)}</span>
+      <span className="inline-flex items-baseline gap-1.5 min-w-0">
+        <span className="text-[#3F3F46] text-[9px] uppercase tracking-wider shrink-0">Operator key</span>
+        <AgentPanelAddr value={info.operatorPublicKey} />
       </span>
-      <a href="https://github.com/the-ton-tech/agentic-wallet-contract" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#52525B] hover:text-white">about ↗</a>
+      <a href="https://github.com/the-ton-tech/agentic-wallet-contract" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#3F3F46] hover:text-[#71717A] transition-colors">about ↗</a>
     </div>
   );
 }
