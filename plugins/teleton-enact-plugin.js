@@ -83,7 +83,14 @@ async function sendAgenticExternal(client, walletAddr, secretKey, to, value, bod
     const validUntil = Math.floor(Date.now() / 1000) + 60;
     const actions = [{
         type: 'sendMsg',
-        mode: SendMode.PAY_GAS_SEPARATELY,
+        // PAY_GAS_SEPARATELY (1) | IGNORE_ERRORS (2) = 3. The agentic wallet
+        // contract enforces IGNORE_ERRORS on every external sendMsg action
+        // (c5-register-validation throws TVM exit code 137 otherwise).
+        // Without this flag the wallet processes the external (seqno bumps),
+        // action phase fails, out_msgs stays empty, and the factory never
+        // sees the createJob/fund/etc. message — caller misreads "executed".
+        // Same flag pair as the SDK's AgenticWalletProvider.
+        mode: SendMode.PAY_GAS_SEPARATELY | SendMode.IGNORE_ERRORS,
         outMsg: internal({ to, value, body, bounce: true }),
     }];
     const outActions = beginCell().store(storeOutList(actions)).endCell();
