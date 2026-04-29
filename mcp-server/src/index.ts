@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { createHash } from 'crypto';
 import { Address, beginCell, Cell, toNano, TonClient, WalletContractV5R1, internal, SendMode, storeOutList } from '@ton/ton';
 import { keyPairFromSeed, mnemonicToPrivateKey, sign } from '@ton/crypto';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { config } from './config.js';
 import nacl from 'tweetnacl';
 import ed2curve from 'ed2curve';
@@ -85,14 +85,18 @@ let wallet: WalletContractV5R1 | undefined;
 let keyPair: { publicKey: Buffer; secretKey: Buffer } | undefined;
 
 /**
- * Optional Agentic Wallet signer. Activated by the
+ * Per-session Agentic Wallet signer state. Activated by the
  * `configure_agentic_wallet` tool; once set every subsequent
- * transaction tool routes through this signer instead of the
- * mnemonic wallet. Cleared on process restart.
+ * transaction tool in the SAME MCP session routes through this
+ * signer instead of the mnemonic wallet. Each MCP HTTP session and
+ * each stdio connection gets its own fresh AgenticState — operator
+ * secrets never leak between users on the multi-tenant remote MCP.
  */
-let agenticOperatorSecretKey: Buffer | undefined;
-let agenticWalletAddress: Address | undefined;
-let agenticWalletNftIndex: bigint | undefined;
+interface AgenticState {
+    operatorSecretKey?: Buffer;
+    walletAddress?: Address;
+    nftIndex?: bigint;
+}
 
 async function init() {
     client = new TonClient({ endpoint: config.endpoint, apiKey: config.apiKey });
@@ -117,15 +121,15 @@ function prepareTransaction(to: Address, value: bigint, body: Cell) {
     };
 }
 
-async function sendTransaction(to: Address, value: bigint, body: Cell) {
+async function sendTransaction(agentic: AgenticState, to: Address, value: bigint, body: Cell) {
     // Agentic Wallet path takes precedence: signed external request
     // with operator key, no mnemonic involved. The provider is
     // inlined here (rather than imported from sdk/) so the MCP
     // server stays self-contained and the SDK npm package is not a
     // hard runtime dependency.
-    if (agenticOperatorSecretKey && agenticWalletAddress) {
-        const startSeqno = await fetchAgenticSeqno(agenticWalletAddress);
-        await sendAgenticExternal(agenticWalletAddress, agenticOperatorSecretKey, [
+    if (agentic.operatorSecretKey && agentic.walletAddress) {
+        const startSeqno = await fetchAgenticSeqno(agentic.walletAddress);
+        await sendAgenticExternal(agentic, [
             { to, value, body, bounce: true },
         ]);
         // Wait for the wallet to actually accept the external — seqno only
@@ -136,7 +140,7 @@ async function sendTransaction(to: Address, value: bigint, body: Cell) {
         for (let i = 0; i < 12; i++) {
             await new Promise(r => setTimeout(r, 1000));
             try {
-                const cur = await fetchAgenticSeqno(agenticWalletAddress);
+                const cur = await fetchAgenticSeqno(agentic.walletAddress);
                 if (cur > startSeqno) { confirmed = true; break; }
             } catch {}
         }
@@ -146,7 +150,7 @@ async function sendTransaction(to: Address, value: bigint, body: Cell) {
         return {
             status: 'executed' as const,
             mode: 'agentic-wallet' as const,
-            walletAddress: agenticWalletAddress.toString(),
+            walletAddress: agentic.walletAddress.toString(),
             seqnoAfter: startSeqno + 1,
         };
     }
@@ -186,16 +190,20 @@ async function fetchAgenticNftIndex(addr: Address): Promise<bigint> {
 }
 
 async function sendAgenticExternal(
-    walletAddress: Address,
-    operatorSecretKey: Buffer,
+    agentic: AgenticState,
     messages: { to: Address; value: bigint; body?: Cell; bounce?: boolean }[],
 ): Promise<void> {
-    if (operatorSecretKey.length !== 64) {
+    if (!agentic.operatorSecretKey || !agentic.walletAddress) {
+        throw new Error('Agentic wallet not configured for this session.');
+    }
+    if (agentic.operatorSecretKey.length !== 64) {
         throw new Error('operatorSecretKey must be the 64-byte ed25519 secret key');
     }
+    const walletAddress = agentic.walletAddress;
+    const operatorSecretKey = agentic.operatorSecretKey;
     const seqno = await fetchAgenticSeqno(walletAddress);
-    const nftIndex = agenticWalletNftIndex ?? (await fetchAgenticNftIndex(walletAddress));
-    if (agenticWalletNftIndex === undefined) agenticWalletNftIndex = nftIndex;
+    const nftIndex = agentic.nftIndex ?? (await fetchAgenticNftIndex(walletAddress));
+    if (agentic.nftIndex === undefined) agentic.nftIndex = nftIndex;
     const validUntil = Math.floor(Date.now() / 1000) + 60;
 
     const actions = messages.map((m) => ({
@@ -489,7 +497,7 @@ function createServer() {
     });
 }
 
-function registerTools(server: McpServer) {
+function registerTools(server: McpServer, agentic: AgenticState) {
 
 // ===== TOOLS =====
 
@@ -530,7 +538,7 @@ server.tool(
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(config.factoryAddress, toNano('0.03'), body);
+        const result = await sendTransaction(agentic, config.factoryAddress, toNano('0.03'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, description_hash: hash, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
@@ -545,7 +553,7 @@ server.tool(
     async ({ job_address, amount_ton }) => {
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
         const total = toNano(amount_ton) + toNano('0.01');
-        const result = await sendTransaction(Address.parse(job_address), total, body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), total, body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -558,7 +566,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -616,7 +624,7 @@ server.tool(
             .storeUint(BigInt('0x' + hash), 256)
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash, encrypted, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
@@ -637,7 +645,7 @@ server.tool(
             .storeUint(reasonInt, 256)
             .endCell();
         // 0.06 TON needed for USDT payout gas. For TON jobs excess returns immediately.
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -650,7 +658,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -663,7 +671,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -676,7 +684,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -735,7 +743,7 @@ server.tool(
             .storeUint(JobOpcodes.setBudget, 32)
             .storeCoins(toNano(budget_ton))
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -940,7 +948,7 @@ server.tool(
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(config.jettonFactoryAddress, toNano('0.03'), body);
+        const result = await sendTransaction(agentic, config.jettonFactoryAddress, toNano('0.03'), body);
 
         // In local mode: auto-set USDT wallet after job creation
         let jettonWallet = '';
@@ -960,7 +968,7 @@ server.tool(
                 jettonWallet = jw.toString();
 
                 const setBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jw).endCell();
-                await sendTransaction(jobAddr, toNano('0.01'), setBody);
+                await sendTransaction(agentic, jobAddr, toNano('0.01'), setBody);
             } catch (e: any) {
                 console.error('Auto set_jetton_wallet failed:', e.message);
             }
@@ -988,7 +996,7 @@ server.tool(
             .storeUint(JobOpcodes.setJettonWallet, 32)
             .storeAddress(jettonWalletAddr)
             .endCell();
-        const result = await sendTransaction(jobAddr, toNano('0.01'), body);
+        const result = await sendTransaction(agentic, jobAddr, toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, jetton_wallet: jettonWalletAddr.toString() }) }] };
     }
 );
@@ -1029,7 +1037,7 @@ server.tool(
             .storeBit(false)            // no forward_payload
             .endCell();
 
-        const result = await sendTransaction(senderJettonWallet, toNano('0.1'), jettonBody);
+        const result = await sendTransaction(agentic, senderJettonWallet, toNano('0.1'), jettonBody);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, usdt_amount: amount_usdt, sender_jetton_wallet: senderJettonWallet.toString() }) }] };
     }
 );
@@ -1075,23 +1083,23 @@ server.tool(
     },
     async ({ operator_secret_key, agentic_wallet_address }) => {
         if (operator_secret_key == null || agentic_wallet_address == null) {
-            agenticOperatorSecretKey = undefined;
-            agenticWalletAddress = undefined;
-            agenticWalletNftIndex = undefined;
+            agentic.operatorSecretKey = undefined;
+            agentic.walletAddress = undefined;
+            agentic.nftIndex = undefined;
             return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: true, mode: 'mnemonic', message: 'Agentic wallet cleared — falling back to configured mnemonic.' }) }] };
         }
         const sk = Buffer.from(operator_secret_key.trim(), 'hex');
         if (sk.length !== 64) {
             return { content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: 'operator_secret_key must be 64 bytes (128 hex chars)' }) }] };
         }
-        agenticOperatorSecretKey = sk;
-        agenticWalletAddress = Address.parse(agentic_wallet_address);
-        agenticWalletNftIndex = undefined; // re-fetch on next send
+        agentic.operatorSecretKey = sk;
+        agentic.walletAddress = Address.parse(agentic_wallet_address);
+        agentic.nftIndex = undefined; // re-fetch on next send
         return { content: [{ type: 'text' as const, text: JSON.stringify({
             ok: true,
             mode: 'agentic-wallet',
-            walletAddress: agenticWalletAddress.toString(),
-            note: 'All subsequent transaction tools will sign with the operator key. Use configure_agentic_wallet with null arguments to switch back to the mnemonic.',
+            walletAddress: agentic.walletAddress.toString(),
+            note: 'All subsequent transaction tools in THIS session sign with the operator key. State is per-MCP-session: it does not leak to other users on the remote MCP and is wiped when this session closes. Use configure_agentic_wallet with null arguments to switch back to the mnemonic.',
         }) }] };
     }
 );
@@ -1136,19 +1144,55 @@ async function main() {
     const port = process.env.PORT;
 
     if (port) {
-        // HTTP mode — for remote deployment (Railway, etc.)
+        // HTTP mode — multi-tenant remote deployment (Railway, etc.).
+        // Each MCP client gets its own session ID; the agentic-wallet state
+        // is closed-over per session, so configure_agentic_wallet only
+        // affects the calling client and is GC'd when the session closes.
         const app = express();
         app.use(express.json());
         app.use(express.static('public'));
 
+        // sessionId -> transport. Active sessions only; cleaned up on close.
+        const transports: Record<string, StreamableHTTPServerTransport> = {};
+
         app.post('/mcp', async (req, res) => {
-            const server = createServer();
-            registerTools(server);
             try {
-                const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-                await server.connect(transport);
+                const sessionId = req.headers['mcp-session-id'] as string | undefined;
+                let transport: StreamableHTTPServerTransport;
+
+                if (sessionId && transports[sessionId]) {
+                    transport = transports[sessionId];
+                } else {
+                    // Either a brand-new session (no header yet) or a stale
+                    // ID. Always allow init: spin up a fresh per-session
+                    // server with its own AgenticState. The transport's
+                    // sessionIdGenerator stamps an Mcp-Session-Id header on
+                    // the response and the client will echo it on every
+                    // subsequent call.
+                    const agenticState: AgenticState = {};
+                    const server = createServer();
+                    registerTools(server, agenticState);
+                    transport = new StreamableHTTPServerTransport({
+                        sessionIdGenerator: () => randomUUID(),
+                        onsessioninitialized: (newSid) => {
+                            transports[newSid] = transport;
+                        },
+                    });
+                    transport.onclose = () => {
+                        // Session ended — drop the transport reference and
+                        // wipe the operator secret out of memory ASAP.
+                        if (transport.sessionId) delete transports[transport.sessionId];
+                        if (agenticState.operatorSecretKey) {
+                            agenticState.operatorSecretKey.fill(0);
+                        }
+                        agenticState.operatorSecretKey = undefined;
+                        agenticState.walletAddress = undefined;
+                        agenticState.nftIndex = undefined;
+                        server.close().catch(() => {});
+                    };
+                    await server.connect(transport);
+                }
                 await transport.handleRequest(req, res, req.body);
-                res.on('close', () => { transport.close(); server.close(); });
             } catch (error) {
                 if (!res.headersSent) {
                     res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
@@ -1156,13 +1200,20 @@ async function main() {
             }
         });
 
-        app.get('/mcp', (_req, res) => {
-            res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });
-        });
-
-        app.delete('/mcp', (_req, res) => {
-            res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });
-        });
+        // GET / DELETE on /mcp drive the SSE / disconnect side of the
+        // streamable transport — route them to the existing per-session
+        // transport so client-initiated disconnects close the session
+        // (and wipe its agentic state) immediately.
+        const handleSessionRoutedRequest = async (req: express.Request, res: express.Response) => {
+            const sessionId = req.headers['mcp-session-id'] as string | undefined;
+            if (!sessionId || !transports[sessionId]) {
+                res.status(400).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Invalid or missing session ID' }, id: null });
+                return;
+            }
+            await transports[sessionId].handleRequest(req, res);
+        };
+        app.get('/mcp', handleSessionRoutedRequest);
+        app.delete('/mcp', handleSessionRoutedRequest);
 
         app.get('/', (_req, res) => {
             res.json({ name: 'enact-protocol', version: '2.0.0', endpoint: '/mcp' });
@@ -1172,9 +1223,11 @@ async function main() {
             console.log(`ENACT MCP server running on http://0.0.0.0:${port}/mcp`);
         });
     } else {
-        // Stdio mode — for local usage (Claude Code, Cursor, etc.)
+        // Stdio mode — single-user local server (Claude Code, Cursor, etc.).
+        // One AgenticState for the lifetime of the process; restart wipes it.
         const server = createServer();
-        registerTools(server);
+        const agenticState: AgenticState = {};
+        registerTools(server, agenticState);
         const transport = new StdioServerTransport();
         await server.connect(transport);
     }
