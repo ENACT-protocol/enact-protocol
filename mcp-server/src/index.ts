@@ -497,6 +497,28 @@ function createServer() {
     });
 }
 
+/**
+ * For stateless MCP clients (claude.ai's remote MCP integration fires
+ * tools/call directly without echoing Mcp-Session-Id, so configure_agentic_wallet
+ * cannot persist across calls). Each transaction tool also accepts the
+ * operator credentials inline; when both are present we build a one-shot
+ * AgenticState that overrides the session-bound one for THIS call only.
+ * Stateful clients (any MCP client that follows the initialize handshake)
+ * can still call configure_agentic_wallet once and omit these params.
+ */
+const AGENTIC_INLINE_SCHEMA = {
+    agentic_secret_key: z.string().nullable().optional().describe('Optional. Hex 64-byte ed25519 operator secret key. Pass alongside agentic_wallet_address to sign this single call through the agentic wallet — useful for stateless MCP clients (e.g. claude.ai remote MCP) where configure_agentic_wallet does not persist between calls. If omitted, falls back to the wallet configured for this session.'),
+    agentic_wallet_address: z.string().nullable().optional().describe('Optional. Agentic wallet address — required when agentic_secret_key is provided.'),
+};
+function buildInlineAgentic(args: { agentic_secret_key?: string | null; agentic_wallet_address?: string | null }, fallback: AgenticState): AgenticState {
+    if (args.agentic_secret_key && args.agentic_wallet_address) {
+        const sk = Buffer.from(args.agentic_secret_key.trim(), 'hex');
+        if (sk.length !== 64) throw new Error('agentic_secret_key must be 64 bytes (128 hex chars)');
+        return { operatorSecretKey: sk, walletAddress: Address.parse(args.agentic_wallet_address) };
+    }
+    return fallback;
+}
+
 function registerTools(server: McpServer, agentic: AgenticState) {
 
 // ===== TOOLS =====
@@ -511,8 +533,10 @@ server.tool(
         file_path: z.string().optional().describe('Optional: path to a file to attach to the job description'),
         timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h, range 1h–30d)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout for auto-claim (default 24h)'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ evaluator_address, budget_ton, description, file_path, timeout_seconds, evaluation_timeout_seconds }) => {
+    async ({ evaluator_address, budget_ton, description, file_path, timeout_seconds, evaluation_timeout_seconds, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         if (!config.factoryAddress) throw new Error('FACTORY_ADDRESS not set');
 
         let cid: string, hash: string;
@@ -538,7 +562,7 @@ server.tool(
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(agentic, config.factoryAddress, toNano('0.03'), body);
+        const result = await sendTransaction(eff, config.factoryAddress, toNano('0.03'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, description_hash: hash, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
@@ -549,11 +573,13 @@ server.tool(
     {
         job_address: z.string().describe('Job contract address'),
         amount_ton: z.string().describe('Amount in TON to send as payment'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address, amount_ton }) => {
+    async ({ job_address, amount_ton, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
         const total = toNano(amount_ton) + toNano('0.01');
-        const result = await sendTransaction(agentic, Address.parse(job_address), total, body);
+        const result = await sendTransaction(eff, Address.parse(job_address), total, body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -563,10 +589,12 @@ server.tool(
     'Take a job as a provider. Registers your wallet as the job provider.',
     {
         job_address: z.string().describe('Job contract address'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address }) => {
+    async ({ job_address, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -579,8 +607,10 @@ server.tool(
         result_text: z.string().describe('Full result text. Will be uploaded to IPFS.'),
         file_path: z.string().optional().describe('Optional: path to a file to submit as result (image, document, etc.)'),
         encrypted: z.boolean().default(false).describe('If true, encrypt the result so only client and evaluator can read it'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address, result_text, file_path, encrypted }) => {
+    async ({ job_address, result_text, file_path, encrypted, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         let cid: string, hash: string;
         let fileInfo: any = null;
 
@@ -624,7 +654,7 @@ server.tool(
             .storeUint(BigInt('0x' + hash), 256)
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash, encrypted, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
@@ -636,8 +666,10 @@ server.tool(
         job_address: z.string().describe('Job contract address'),
         approved: z.boolean().describe('true to approve (pay provider), false to reject (refund client)'),
         reason: z.string().optional().describe('Optional reason hash (hex, 64 chars)'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address, approved, reason }) => {
+    async ({ job_address, approved, reason, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const reasonInt = reason ? BigInt('0x' + reason) : 0n;
         const body = beginCell()
             .storeUint(JobOpcodes.evaluate, 32)
@@ -645,7 +677,7 @@ server.tool(
             .storeUint(reasonInt, 256)
             .endCell();
         // 0.06 TON needed for USDT payout gas. For TON jobs excess returns immediately.
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -655,10 +687,12 @@ server.tool(
     'Cancel a funded job after timeout expires. Refunds client.',
     {
         job_address: z.string().describe('Job contract address'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address }) => {
+    async ({ job_address, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -668,10 +702,12 @@ server.tool(
     'Provider claims funds after evaluation timeout expires. Use when evaluator is silent.',
     {
         job_address: z.string().describe('Job contract address'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address }) => {
+    async ({ job_address, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.06'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -681,10 +717,12 @@ server.tool(
     'Provider quits a job before submitting result. Job returns to open for another provider.',
     {
         job_address: z.string().describe('Job contract address'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address }) => {
+    async ({ job_address, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -737,13 +775,15 @@ server.tool(
     {
         job_address: z.string().describe('Job contract address'),
         budget_ton: z.string().describe('Budget in TON'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address, budget_ton }) => {
+    async ({ job_address, budget_ton, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const body = beginCell()
             .storeUint(JobOpcodes.setBudget, 32)
             .storeCoins(toNano(budget_ton))
             .endCell();
-        const result = await sendTransaction(agentic, Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(eff, Address.parse(job_address), toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -933,8 +973,10 @@ server.tool(
         description: z.string().describe('Full job description text. Will be uploaded to IPFS.'),
         timeout_seconds: z.number().default(86400).describe('Timeout in seconds (default 24h, range 1h–30d)'),
         evaluation_timeout_seconds: z.number().default(86400).describe('Evaluation timeout (default 24h)'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ evaluator_address, budget_usdt, description, timeout_seconds, evaluation_timeout_seconds }) => {
+    async ({ evaluator_address, budget_usdt, description, timeout_seconds, evaluation_timeout_seconds, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
         const { cid, hash } = await uploadToIPFS({ type: 'jetton_job_description', description, createdAt: new Date().toISOString() });
         cidMap.set(hash, cid);
@@ -948,7 +990,7 @@ server.tool(
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(agentic, config.jettonFactoryAddress, toNano('0.03'), body);
+        const result = await sendTransaction(eff, config.jettonFactoryAddress, toNano('0.03'), body);
 
         // In local mode: auto-set USDT wallet after job creation
         let jettonWallet = '';
@@ -968,7 +1010,7 @@ server.tool(
                 jettonWallet = jw.toString();
 
                 const setBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jw).endCell();
-                await sendTransaction(agentic, jobAddr, toNano('0.01'), setBody);
+                await sendTransaction(eff, jobAddr, toNano('0.01'), setBody);
             } catch (e: any) {
                 console.error('Auto set_jetton_wallet failed:', e.message);
             }
@@ -983,8 +1025,10 @@ server.tool(
     'Set the USDT Jetton wallet for a Jetton job. Resolves automatically. Must be called before funding.',
     {
         job_address: z.string().describe('Jetton job contract address'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address }) => {
+    async ({ job_address, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
         const jobAddr = Address.parse(job_address);
         const walletRes = await client.runMethod(Address.parse(USDT_MASTER), 'get_wallet_address', [
@@ -996,7 +1040,7 @@ server.tool(
             .storeUint(JobOpcodes.setJettonWallet, 32)
             .storeAddress(jettonWalletAddr)
             .endCell();
-        const result = await sendTransaction(agentic, jobAddr, toNano('0.01'), body);
+        const result = await sendTransaction(eff, jobAddr, toNano('0.01'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, jetton_wallet: jettonWalletAddr.toString() }) }] };
     }
 );
@@ -1007,8 +1051,10 @@ server.tool(
     {
         job_address: z.string().describe('Jetton job contract address'),
         amount_usdt: z.string().describe('Amount in USDT (e.g. "10" for 10 USDT)'),
+        ...AGENTIC_INLINE_SCHEMA,
     },
-    async ({ job_address, amount_usdt }) => {
+    async ({ job_address, amount_usdt, agentic_secret_key, agentic_wallet_address }) => {
+        const eff = buildInlineAgentic({ agentic_secret_key, agentic_wallet_address }, agentic);
         const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
         const jobAddr = Address.parse(job_address);
         const usdtAmount = BigInt(Math.round(parseFloat(amount_usdt) * 1e6));
@@ -1037,7 +1083,7 @@ server.tool(
             .storeBit(false)            // no forward_payload
             .endCell();
 
-        const result = await sendTransaction(agentic, senderJettonWallet, toNano('0.1'), jettonBody);
+        const result = await sendTransaction(eff, senderJettonWallet, toNano('0.1'), jettonBody);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, usdt_amount: amount_usdt, sender_jetton_wallet: senderJettonWallet.toString() }) }] };
     }
 );
