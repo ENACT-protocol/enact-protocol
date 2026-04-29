@@ -300,7 +300,14 @@ async function indexJob(c: TonClient, factory: string, jobId: number, type: 'ton
         const needResult = !existingContent?.result_text && !existingContent?.result_encrypted && resultHashHex !== ZERO_HASH;
         const needReason = !existingContent?.reason_text && reasonHashHex !== ZERO_HASH && state >= 3;
 
-        const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
+        // The contract `createdAt` is 0 until fund_job lands; if we caught the
+        // job via the factory WS event before its first REST tx came back, txs
+        // is empty too. Fall back to "now" so the row still has a non-zero
+        // sort key — the next indexJob pass will replace it with the real
+        // on-chain timestamp once the contract fields populate.
+        const effectiveCreatedAt = createdAt
+            || (txs.length > 0 ? txs[txs.length - 1].utime : 0)
+            || Math.floor(Date.now() / 1000);
         const clientStr = clientAddr.toString(uf);
         const providerStr = providerAddr?.toString(uf) ?? null;
         const evaluatorStr = evaluatorAddr.toString(uf);

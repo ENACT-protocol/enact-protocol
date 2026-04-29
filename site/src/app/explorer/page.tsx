@@ -101,7 +101,11 @@ function ExplorerInner() {
     }
     return [...jobs].sort((a, b) => {
       let cmp = 0;
-      if (sortBy === 'id') cmp = (a.createdAt || 0) - (b.createdAt || 0);
+      // Sort by the actual job id, not createdAt — the indexer leaves
+      // createdAt=0 on jobs caught via WS before their first REST tx
+      // landed, which would otherwise sink them to the bottom of the
+      // descending view (the user sees the panel as "missing").
+      if (sortBy === 'id') cmp = a.jobId - b.jobId;
       else if (sortBy === 'status') cmp = a.state - b.state;
       else if (sortBy === 'budget') cmp = Number(BigInt(a.budget) - BigInt(b.budget));
       return sortDir === 'desc' ? -cmp : cmp;

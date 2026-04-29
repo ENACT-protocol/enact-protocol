@@ -78,8 +78,12 @@ async function indexJob(client: TonClient, factory: string, jobId: number, type:
       from: tx.in_msg?.source || null,
     }));
 
-    // Use first tx utime as createdAt for OPEN jobs
-    const effectiveCreatedAt = createdAt || (txs.length > 0 ? txs[txs.length - 1].utime : 0);
+    // Use first tx utime as createdAt for OPEN jobs. Final fallback: wall
+    // clock — keeps OPEN jobs visible in the descending-by-time view when
+    // the factory WS event arrived before REST indexed the deploy tx.
+    const effectiveCreatedAt = createdAt
+      || (txs.length > 0 ? txs[txs.length - 1].utime : 0)
+      || Math.floor(Date.now() / 1000);
 
     // Upsert job
     await upsertJob({
