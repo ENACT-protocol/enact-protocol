@@ -226,15 +226,39 @@ interface AgenticDetectionResult {
 }
 
 async function detectAgenticWalletMcp(addressStr: string): Promise<AgenticDetectionResult> {
+    // Five sequential calls with per-call retry on 429. Running them in
+    // parallel reliably trips toncenter's free-tier rate limit and the catch
+    // labels real agentic wallets as "regular v5". One call at a time + 4
+    // retries with linear backoff keeps detection accurate even on a busy
+    // factory.
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const runWithRetry = async <T>(fn: () => Promise<T>, attempts = 4): Promise<T | null> => {
+        for (let i = 0; i < attempts; i++) {
+            try { return await fn(); }
+            catch (e: any) {
+                const msg = e?.message || String(e);
+                if (i === attempts - 1) return null;
+                if (msg.includes('429') || msg.toLowerCase().includes('too many') || msg.includes('Ratelimit')) {
+                    await sleep(700 * (i + 1));
+                    continue;
+                }
+                return null;
+            }
+        }
+        return null;
+    };
+
     try {
         const addr = Address.parse(addressStr);
-        const [pkRes, originRes, nftRes, authRes, revokedRes] = await Promise.all([
-            client.runMethod(addr, 'get_public_key'),
-            client.runMethod(addr, 'get_origin_public_key'),
-            client.runMethod(addr, 'get_nft_data'),
-            client.runMethod(addr, 'get_authority_address'),
-            client.runMethod(addr, 'get_revoked_time'),
-        ]);
+        const pkRes = await runWithRetry(() => client.runMethod(addr, 'get_public_key'));
+        if (!pkRes) return { isAgenticWallet: false };
+        const originRes = await runWithRetry(() => client.runMethod(addr, 'get_origin_public_key'));
+        if (!originRes) return { isAgenticWallet: false };
+        const nftRes = await runWithRetry(() => client.runMethod(addr, 'get_nft_data'));
+        if (!nftRes) return { isAgenticWallet: false };
+        const authRes = await runWithRetry(() => client.runMethod(addr, 'get_authority_address'));
+        const revokedRes = await runWithRetry(() => client.runMethod(addr, 'get_revoked_time'));
+
         const operatorPubBig = pkRes.stack.readBigNumber();
         const originPubBig = originRes.stack.readBigNumber();
         nftRes.stack.readNumber();
@@ -242,8 +266,12 @@ async function detectAgenticWalletMcp(addressStr: string): Promise<AgenticDetect
         const collectionFromNft = nftRes.stack.readAddress();
         const ownerAddress = nftRes.stack.readAddress();
         nftRes.stack.skip(1);
-        const collectionAddress = authRes.stack.readAddress() ?? collectionFromNft;
-        const revokedAt = revokedRes.stack.readBigNumber();
+        let collectionAddress = collectionFromNft;
+        if (authRes) {
+            try { collectionAddress = authRes.stack.readAddress() ?? collectionFromNft; }
+            catch { collectionAddress = collectionFromNft; }
+        }
+        const revokedAt = revokedRes ? revokedRes.stack.readBigNumber() : 0n;
         const toHex = (n: bigint) => n.toString(16).padStart(64, '0');
         return {
             isAgenticWallet: true,
