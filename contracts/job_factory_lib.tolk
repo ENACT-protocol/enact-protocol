@@ -87,11 +87,12 @@ type AllowedMessage =
 // ===================== CHILD ADDRESS CALCULATION =====================
 
 fun calcJobStateInit(storage: FactoryStorage, jobId: int): AutoDeployAddress {
-    // Empty v2Cell: MODE_FIXED (0), applicationDeadline 0, no hook (false bit).
+    // Empty v2Cell: MODE_FIXED (0), applicationDeadline 0, no hook (false bit), hookGas 0.
     val emptyV2 = beginCell()
         .storeUint(0, 8)     // mode = MODE_FIXED (placeholder)
         .storeUint(0, 32)    // applicationDeadline
         .storeBool(false)    // no hookAddress
+        .storeCoins(0)       // hookGas (0 = use DEFAULT_HOOK_GAS in child)
         .endCell();
 
     val emptyExt = beginCell()

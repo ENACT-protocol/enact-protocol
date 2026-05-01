@@ -50,9 +50,11 @@ const MIN_STORAGE: int = 300000;   // 0.0003 TON — MTONGA-step-2 + due_payment
 // v2Cell:
 //   mode:uint8,                     // MODE_FIXED or MODE_APPLICATION
 //   applicationDeadline:uint32,     // absolute ts; 0 for FIXED
-//   hookAddress:address             // addr_none if no hook configured
+//   hookAddress:Maybe address       // null if no hook configured
+//   hookGas:coins                   // TON attached to fireAfterEvaluate
+//                                   // (0 = use default DEFAULT_HOOK_GAS)
 
-fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, int, int, address?) {
+fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, int, int, address?, int) {
     var ds = detailsCell.beginParse();
     val evaluator = ds.loadAddress();
     val budget = ds.loadCoins();
@@ -77,14 +79,16 @@ fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int,
     if (hasHook) {
         hookAddress = v2s.loadAddress();
     }
+    val hookGas = v2s.loadCoins();
 
-    return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, mode, applicationDeadline, hookAddress);
+    return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, mode, applicationDeadline, hookAddress, hookGas);
 }
 
 fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash: int,
                      timeout: int, createdAt: int, evalTimeout: int, submittedAt: int,
                      resultType: int, reason: int,
-                     mode: int, applicationDeadline: int, hookAddress: address?): cell {
+                     mode: int, applicationDeadline: int, hookAddress: address?,
+                     hookGas: int): cell {
     val extCell = beginCell()
         .storeUint(timeout, 32)
         .storeUint(createdAt, 32)
@@ -102,6 +106,7 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
     } else {
         v2b.storeBool(false);
     }
+    v2b.storeCoins(hookGas);
     val v2Cell = v2b.endCell();
 
     return beginCell()
@@ -146,7 +151,7 @@ fun loadTimeoutFields(detailsCell: cell): (int, int) {
     return (timeout, createdAt);
 }
 
-fun loadClaimFields(detailsCell: cell): (int, int, address?) {
+fun loadClaimFields(detailsCell: cell): (int, int, address?, int) {
     var ds = detailsCell.beginParse();
     ds.loadAddress();
     ds.loadCoins();
@@ -169,7 +174,8 @@ fun loadClaimFields(detailsCell: cell): (int, int, address?) {
     if (hasHook) {
         hookAddress = v2s.loadAddress();
     }
-    return (evalTimeout, submittedAt, hookAddress);
+    val hookGas = v2s.loadCoins();
+    return (evalTimeout, submittedAt, hookAddress, hookGas);
 }
 
 fun loadBudgetOnly(detailsCell: cell): int {
@@ -300,6 +306,7 @@ fun rebuildWithDeadline(detailsCell: cell, newDeadline: int): cell {
     if (hasHook) {
         hookAddress = v2s.loadAddress();
     }
+    val hookGas = v2s.loadCoins();
 
     var v2b = beginCell()
         .storeUint(mode, 8)
@@ -309,6 +316,7 @@ fun rebuildWithDeadline(detailsCell: cell, newDeadline: int): cell {
     } else {
         v2b.storeBool(false);
     }
+    v2b.storeCoins(hookGas);
     val newV2 = v2b.endCell();
 
     return beginCell()
@@ -331,7 +339,7 @@ fun rebuildWithDeadline(detailsCell: cell, newDeadline: int): cell {
 // 0x6f0e4a7c = CRC32("notify::after_evaluate")
 const OP_AFTER_EVALUATE: int = 0x6f0e4a7c;
 
-fun fireAfterEvaluate(hookAddress: address?, jobId: int, approved: int, providerAddr: address?) {
+fun fireAfterEvaluate(hookAddress: address?, hookGas: int, jobId: int, approved: int, providerAddr: address?) {
     if (hookAddress == null) {
         return;
     }
@@ -344,13 +352,16 @@ fun fireAfterEvaluate(hookAddress: address?, jobId: int, approved: int, provider
     } else {
         b.storeBool(false);
     }
-    // Nominal 0.01 TON attached to the hook message. If the contract's
+    // Hook gas is per-job (set at CreateJob); 0 means "use the default
+    // floor". A heavyweight reputation aggregator can request a higher
+    // budget without changing core contract code. If the contract's
     // balance is short the send silently no-ops (IGNORE_ERRORS) — the
     // hook is best-effort, never load-bearing on settlement.
+    val gas = hookGas > 0 ? hookGas : DEFAULT_HOOK_GAS;
     createMessage({
         bounce: BounceMode.NoBounce,
         dest: hookAddress!,
-        value: 10000000,
+        value: gas,
         body: b.endCell(),
     }).send(SEND_MODE_IGNORE_ERRORS);
 }
@@ -466,7 +477,8 @@ fun onInternalMessage(in: InMessage) {
             assert(in.senderAddress == factory) throw ERR_ACCESS_DENIED;
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
 
-            // Parse v2 ref cell: mode(8) + applicationWindow(32) + Maybe address (hook).
+            // Parse v2 ref cell: mode(8) + applicationWindow(32)
+            // + Maybe address (hook) + hookGas(coins).
             var v2s = msg.v2Ref.beginParse();
             val mode = v2s.loadUint(8);
             val applicationWindow = v2s.loadUint(32);
@@ -475,6 +487,7 @@ fun onInternalMessage(in: InMessage) {
             if (hasHook) {
                 hookAddress = v2s.loadAddress();
             }
+            val hookGas = v2s.loadCoins();
             assert(mode == MODE_FIXED || mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
 
             // APPLICATION jobs seed the deadline at deploy time so
@@ -488,7 +501,7 @@ fun onInternalMessage(in: InMessage) {
             val det = buildDetailsCell(
                 msg.evaluatorAddress, msg.budget, msg.descriptionHash,
                 0, msg.timeout, 0, msg.evaluationTimeout, 0, 0, 0,
-                mode, deadline, hookAddress
+                mode, deadline, hookAddress, hookGas
             );
             saveData(msg.jobId, factory, msg.clientAddress, null, STATE_OPEN, det);
 
@@ -591,11 +604,11 @@ fun onInternalMessage(in: InMessage) {
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
 
-            val (evaluator, budget, descHash, resultHash, timeout, _, evalTimeout, submittedAt, resultType, reason, mode, appDeadline, hookAddr) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, _, evalTimeout, submittedAt, resultType, reason, mode, appDeadline, hookAddr, hookGas) = loadDetails(detCell);
             assert(budget > 0) throw ERR_BUDGET_NOT_SET;
             assert(in.valueCoins >= budget) throw ERR_INSUFFICIENT_FUNDS;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, mode, appDeadline, hookAddr);
+            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, mode, appDeadline, hookAddr, hookGas);
             saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
 
             // Keep budget + storage on contract, return excess to client
@@ -739,14 +752,14 @@ fun onInternalMessage(in: InMessage) {
 
             // O-4: reuse v2 ref + main fields, rebuild ext with new reason.
             val newDet = rebuildForEvaluate(detCell, msg.reason);
-            val (_, _, hookAddr) = loadClaimFields(detCell);
+            val (_, _, hookAddr, hookGas) = loadClaimFields(detCell);
 
             // afterEvaluate hook fires before the payout branch so the
             // hook message is scheduled from contract balance, not from
             // the CARRY_ALL_BALANCE payout. Hook is nominal-value
             // (0.01 TON), non-bouncing, IGNORE_ERRORS — settlement must
             // not depend on hook success.
-            fireAfterEvaluate(hookAddr, jobId, msg.approved, provider);
+            fireAfterEvaluate(hookAddr, hookGas, jobId, msg.approved, provider);
 
             // Two-phase settlement: enter SETTLING_* parking orbit. The
             // outbound payout is bounceable; if it succeeds the contract
@@ -780,13 +793,13 @@ fun onInternalMessage(in: InMessage) {
             assert(provider != null) throw ERR_NO_PROVIDER;
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
-            val (evalTimeout, submittedAt, hookAddr) = loadClaimFields(detCell);
+            val (evalTimeout, submittedAt, hookAddr, hookGas) = loadClaimFields(detCell);
             val evalDeadline = submittedAt + evalTimeout;
             assert(blockchain.now() >= evalDeadline) throw ERR_EVAL_TIMEOUT_NOT_EXPIRED;
 
             // Claim counts as an implicit approval — fire the hook with
             // approved=1 so reputation trackers see the provider got paid.
-            fireAfterEvaluate(hookAddr, jobId, 1, provider);
+            fireAfterEvaluate(hookAddr, hookGas, jobId, 1, provider);
 
             saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, detCell);
             reserveToncoinsOnBalance(MIN_STORAGE, RESERVE_MODE_AT_MOST);
@@ -925,7 +938,7 @@ fun onBouncedMessage(in: InMessageBounced) {
 
 get fun get_job_data(): (int, address, address?, address, int, int, int, int, int, int, int, int, int, int) {
     val (jobId, _, client, provider, state, detCell) = loadMainData();
-    val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, _, _, _) = loadDetails(detCell);
+    val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, _, _, _, _) = loadDetails(detCell);
     return (jobId, client, provider, evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, state);
 }
 
@@ -938,6 +951,6 @@ get fun get_state(): int {
 // application-tab UIs without needing a second contract variant.
 get fun get_v2_data(): (int, int, address?) {
     val (_, _, _, _, _, detCell) = loadMainData();
-    val (_, _, _, _, _, _, _, _, _, _, mode, applicationDeadline, hookAddress) = loadDetails(detCell);
+    val (_, _, _, _, _, _, _, _, _, _, mode, applicationDeadline, hookAddress, _) = loadDetails(detCell);
     return (mode, applicationDeadline, hookAddress);
 }

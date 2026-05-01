@@ -83,6 +83,7 @@ fun calcJobStateInit(storage: FactoryStorage, jobId: int): AutoDeployAddress {
         .storeBool(false)     // no hookAddress
         .storeBool(false)     // no jettonMaster
         .storeCoins(0)        // pendingBudget
+        .storeCoins(0)        // hookGas (0 = use DEFAULT_HOOK_GAS in child)
         .endCell();
 
     val emptyExt = beginCell()

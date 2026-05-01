@@ -28,7 +28,7 @@ const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 //   evaluatorAddr:address, budget:coins,
 //   descHash:uint256, resultHash:uint256
 //   ref1 → extCell (v1 fields + jettonWallet)
-//   ref2 → v2Cell (v2 fields + jettonMaster + pendingBudget)
+//   ref2 → v2Cell (v2 fields + jettonMaster + pendingBudget, hookGas)
 //
 // extCell:
 //   timeout:uint32, createdAt:uint32,
@@ -44,7 +44,7 @@ const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 //   pendingBudget:coins            // top-up target set by SetBudget in FUNDED;
 //                                  // 0 when no top-up is pending
 
-fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, address, int, int, address?, address?, int) {
+fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int, int, int, address, int, int, address?, address?, int, int) {
     var ds = detailsCell.beginParse();
     val evaluator = ds.loadAddress();
     val budget = ds.loadCoins();
@@ -76,15 +76,16 @@ fun loadDetails(detailsCell: cell): (address, int, int, int, int, int, int, int,
         jettonMaster = v2s.loadAddress();
     }
     val pendingBudget = v2s.loadCoins();
+    val hookGas = v2s.loadCoins();
 
-    return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget);
+    return (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget, hookGas);
 }
 
 fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash: int,
                      timeout: int, createdAt: int, evalTimeout: int, submittedAt: int,
                      resultType: int, reason: int, jettonWallet: address,
                      mode: int, applicationDeadline: int, hookAddress: address?,
-                     jettonMaster: address?, pendingBudget: int): cell {
+                     jettonMaster: address?, pendingBudget: int, hookGas: int): cell {
     val extCell = beginCell()
         .storeUint(timeout, 32)
         .storeUint(createdAt, 32)
@@ -109,6 +110,7 @@ fun buildDetailsCell(evaluator: address, budget: int, descHash: int, resultHash:
         v2b.storeBool(false);
     }
     v2b.storeCoins(pendingBudget);
+    v2b.storeCoins(hookGas);
     val v2Cell = v2b.endCell();
 
     return beginCell()
@@ -272,7 +274,7 @@ fun sendJettonPayout(jw: address, jettonAmount: int, recipient: address, returnE
 // 0x6f0e4a7c = CRC32("notify::after_evaluate")
 const OP_AFTER_EVALUATE: int = 0x6f0e4a7c;
 
-fun fireAfterEvaluate(hookAddress: address?, jobId: int, approved: int, providerAddr: address?) {
+fun fireAfterEvaluate(hookAddress: address?, hookGas: int, jobId: int, approved: int, providerAddr: address?) {
     if (hookAddress == null) {
         return;
     }
@@ -285,10 +287,11 @@ fun fireAfterEvaluate(hookAddress: address?, jobId: int, approved: int, provider
     } else {
         b.storeBool(false);
     }
+    val gas = hookGas > 0 ? hookGas : DEFAULT_HOOK_GAS;
     createMessage({
         bounce: BounceMode.NoBounce,
         dest: hookAddress!,
-        value: 10000000,
+        value: gas,
         body: b.endCell(),
     }).send(SEND_MODE_IGNORE_ERRORS);
 }
@@ -420,6 +423,7 @@ fun onInternalMessage(in: InMessage) {
             if (hasMaster) {
                 jettonMaster = v2s.loadAddress();
             }
+            val hookGas = v2s.loadCoins();
             assert(mode == MODE_FIXED || mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
 
             var deadline: int = 0;
@@ -430,7 +434,7 @@ fun onInternalMessage(in: InMessage) {
             val det = buildDetailsCell(
                 msg.evaluatorAddress, msg.budget, msg.descriptionHash,
                 0, msg.timeout, 0, msg.evaluationTimeout, 0, 0, 0, factory,
-                mode, deadline, hookAddress, jettonMaster, 0
+                mode, deadline, hookAddress, jettonMaster, 0, hookGas
             );
             saveData(msg.jobId, factory, msg.clientAddress, null, STATE_OPEN, det);
 
@@ -449,10 +453,10 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_OPEN) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, currentWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, currentWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget, hookGas) = loadDetails(detCell);
             assert(currentWallet == factory) throw ERR_INVALID_STATE;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, msg.jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
+            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, msg.jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget, hookGas);
             saveData(jobId, factory, client, provider, STATE_OPEN, newDet);
 
             createMessage({
@@ -475,16 +479,16 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, _) = loadDetails(detCell);
+            val (evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, _, hookGas) = loadDetails(detCell);
 
             if (state == STATE_FUNDED) {
                 assert(msg.budget > curBudget) throw ERR_BUDGET_DECREASE;
-                val newDet = buildDetailsCell(evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, msg.budget);
+                val newDet = buildDetailsCell(evaluator, curBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, msg.budget, hookGas);
                 saveData(jobId, factory, client, provider, state, newDet);
             } else {
                 // OPEN: no jettons have arrived; just update target budget.
                 // pendingBudget stays 0 — it is only meaningful in FUNDED.
-                val newDet = buildDetailsCell(evaluator, msg.budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, 0);
+                val newDet = buildDetailsCell(evaluator, msg.budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, 0, hookGas);
                 saveData(jobId, factory, client, provider, state, newDet);
             }
 
@@ -502,11 +506,11 @@ fun onInternalMessage(in: InMessage) {
             assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
             assert(in.senderAddress == client) throw ERR_ACCESS_DENIED;
 
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, curDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, curDeadline, hookAddr, jettonMaster, pendingBudget, hookGas) = loadDetails(detCell);
             assert(mode == MODE_APPLICATION) throw ERR_WRONG_MODE;
             assert(msg.newDeadline > curDeadline) throw ERR_APP_WINDOW_EXPIRED;
 
-            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, msg.newDeadline, hookAddr, jettonMaster, pendingBudget);
+            val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, msg.newDeadline, hookAddr, jettonMaster, pendingBudget, hookGas);
             saveData(jobId, factory, client, provider, state, newDet);
 
             createMessage({
@@ -536,7 +540,7 @@ fun onInternalMessage(in: InMessage) {
             // relies on.
             assert(state == STATE_OPEN || state == STATE_FUNDED) throw ERR_INVALID_STATE;
 
-            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget) = loadDetails(detCell);
+            val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget, hookGas) = loadDetails(detCell);
             assert(in.senderAddress == jettonWallet) throw ERR_ACCESS_DENIED;
             assert(jettonWallet != factory) throw ERR_JETTON_WALLET_NOT_SET;
             assert(msg.sender == client) throw ERR_ACCESS_DENIED;
@@ -545,7 +549,7 @@ fun onInternalMessage(in: InMessage) {
                 assert(budget > 0) throw ERR_BUDGET_NOT_SET;
                 assert(msg.amount == budget) throw ERR_INSUFFICIENT_FUNDS;
 
-                val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget);
+                val newDet = buildDetailsCell(evaluator, budget, descHash, resultHash, timeout, blockchain.now(), evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, pendingBudget, hookGas);
                 saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
             } else {
                 // FUNDED top-up: must match the pending delta exactly.
@@ -556,7 +560,7 @@ fun onInternalMessage(in: InMessage) {
                 assert(msg.amount == delta) throw ERR_INSUFFICIENT_FUNDS;
 
                 // Promote: budget = pendingBudget, clear pending.
-                val newDet = buildDetailsCell(evaluator, pendingBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, 0);
+                val newDet = buildDetailsCell(evaluator, pendingBudget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, mode, appDeadline, hookAddr, jettonMaster, 0, hookGas);
                 saveData(jobId, factory, client, provider, STATE_FUNDED, newDet);
             }
 
@@ -667,6 +671,15 @@ fun onInternalMessage(in: InMessage) {
             assert(provider != null) throw ERR_NO_PROVIDER;
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
+            // Race-guard: if a SetBudget+ top-up is pending in pendingBudget
+            // (jetton funds in flight from the client's wallet), submitting
+            // now would strand that delta on the contract's jetton wallet
+            // because Evaluate/Claim only pay out `budget`. Force the client
+            // to either drain the pending top-up or roll back before the
+            // provider submits.
+            val (_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, pendingNow, _) = loadDetails(detCell);
+            assert(pendingNow == 0) throw ERR_INVALID_STATE;
+
             // O-4: only resultHash (main) + submittedAt/resultType (ext)
             // change. v2 ref untouched.
             val newDet = rebuildForSubmit(detCell, msg.resultHash, blockchain.now(), msg.resultType);
@@ -691,12 +704,12 @@ fun onInternalMessage(in: InMessage) {
 
             // hookAddr still needs the fullish parse — reuse loadDetails
             // for that one field until a narrower helper lands.
-            val (_, _, _, _, _, _, _, _, _, _, _, _, _, hookAddr, _, _) = loadDetails(detCell);
+            val (_, _, _, _, _, _, _, _, _, _, _, _, _, hookAddr, _, _, hookGas) = loadDetails(detCell);
 
             // O-4: only ext.reason changes; v2 ref + main fields reused.
             val newDet = rebuildForEvaluate(detCell, msg.reason);
 
-            fireAfterEvaluate(hookAddr, jobId, msg.approved, provider);
+            fireAfterEvaluate(hookAddr, hookGas, jobId, msg.approved, provider);
 
             if (msg.approved != 0) {
                 saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, newDet);
@@ -714,11 +727,11 @@ fun onInternalMessage(in: InMessage) {
             assert(provider != null) throw ERR_NO_PROVIDER;
             assert(in.senderAddress == provider!) throw ERR_ACCESS_DENIED;
 
-            val (_, budget, _, _, _, _, evalTimeout, submittedAt, _, _, jettonWallet, _, _, hookAddr, _, _) = loadDetails(detCell);
+            val (_, budget, _, _, _, _, evalTimeout, submittedAt, _, _, jettonWallet, _, _, hookAddr, _, _, hookGas) = loadDetails(detCell);
             val evalDeadline = submittedAt + evalTimeout;
             assert(blockchain.now() >= evalDeadline) throw ERR_EVAL_TIMEOUT_NOT_EXPIRED;
 
-            fireAfterEvaluate(hookAddr, jobId, 1, provider);
+            fireAfterEvaluate(hookAddr, hookGas, jobId, 1, provider);
 
             saveData(jobId, factory, client, provider, STATE_SETTLING_COMPLETED, detCell);
             sendJettonPayout(jettonWallet, budget, provider!, provider!);
@@ -732,7 +745,7 @@ fun onInternalMessage(in: InMessage) {
 
             if (state == STATE_FUNDED) {
                 assert(in.valueCoins >= MIN_GAS_JETTON_PAYOUT) throw ERR_INSUFFICIENT_FUNDS;
-                val (_, budget, _, _, timeout, createdAt, _, _, _, _, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
+                val (_, budget, _, _, timeout, createdAt, _, _, _, _, jettonWallet, _, _, _, _, _, _) = loadDetails(detCell);
                 val deadline = createdAt + timeout;
                 assert(blockchain.now() >= deadline) throw ERR_TIMEOUT_NOT_EXPIRED;
 
@@ -758,7 +771,7 @@ fun onInternalMessage(in: InMessage) {
                 || state == STATE_SETTLING_CANCELLED
             ) throw ERR_INVALID_STATE;
 
-            val (_, budget, _, _, _, _, _, _, _, _, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
+            val (_, budget, _, _, _, _, _, _, _, _, jettonWallet, _, _, _, _, _, _) = loadDetails(detCell);
 
             var recipient: address = client;
             if (state == STATE_SETTLING_COMPLETED) {
@@ -812,7 +825,7 @@ fun onInternalMessage(in: InMessage) {
                 || state == STATE_SETTLING_CANCELLED
             ) throw ERR_INVALID_STATE;
 
-            val (_, budget, _, _, _, createdAt, _, _, _, _, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
+            val (_, budget, _, _, _, createdAt, _, _, _, _, jettonWallet, _, _, _, _, _, _) = loadDetails(detCell);
             assert(blockchain.now() >= createdAt + TIMEOUT_BYPASS) throw ERR_BYPASS_NOT_ALLOWED;
 
             saveData(jobId, factory, client, provider, STATE_DISPUTED, detCell);
@@ -835,7 +848,7 @@ fun onBouncedMessage(in: InMessageBounced) {
 
 get fun get_job_data(): (int, address, address?, address, int, int, int, int, int, int, int, int, int, int, address) {
     val (jobId, _, client, provider, state, detCell) = loadMainData();
-    val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, _, _, _, _, _) = loadDetails(detCell);
+    val (evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, jettonWallet, _, _, _, _, _, _) = loadDetails(detCell);
     return (jobId, client, provider, evaluator, budget, descHash, resultHash, timeout, createdAt, evalTimeout, submittedAt, resultType, reason, state, jettonWallet);
 }
 
@@ -847,6 +860,6 @@ get fun get_state(): int {
 // v2: mode + AppMode window + hook + jettonMaster + pendingBudget.
 get fun get_v2_data(): (int, int, address?, address?, int) {
     val (_, _, _, _, _, detCell) = loadMainData();
-    val (_, _, _, _, _, _, _, _, _, _, _, mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget) = loadDetails(detCell);
+    val (_, _, _, _, _, _, _, _, _, _, _, mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget, _) = loadDetails(detCell);
     return (mode, applicationDeadline, hookAddress, jettonMaster, pendingBudget);
 }

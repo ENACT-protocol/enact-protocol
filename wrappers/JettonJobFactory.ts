@@ -35,18 +35,21 @@ export function jettonJobFactoryConfigToCell(config: JettonJobFactoryConfig): Ce
 }
 
 // Build the jetton-variant v2 ref: mode + applicationWindow +
-// hookAddress? + jettonMaster?. Kept parallel to TON's buildV2InitParams;
-// the only extra is the trailing jettonMaster Maybe.
+// hookAddress? + jettonMaster? + hookGas. Kept parallel to TON's
+// buildV2InitParams; the trailing jettonMaster Maybe and the hookGas
+// coins are jetton-specific.
 export function buildJettonV2InitParams(params: {
     mode?: number;
     applicationWindow?: number;
     hookAddress?: Address | null;
     jettonMaster?: Address | null;
+    hookGas?: bigint;
 }): Cell {
     const mode = params.mode ?? JobMode.FIXED;
     const applicationWindow = params.applicationWindow ?? 0;
     const hook = params.hookAddress ?? null;
     const master = params.jettonMaster ?? null;
+    const hookGas = params.hookGas ?? 0n;
     const b = beginCell()
         .storeUint(mode, 8)
         .storeUint(applicationWindow, 32);
@@ -60,6 +63,7 @@ export function buildJettonV2InitParams(params: {
     } else {
         b.storeBit(false);
     }
+    b.storeCoins(hookGas);
     return b.endCell();
 }
 
@@ -100,6 +104,7 @@ export class JettonJobFactory implements Contract {
             applicationWindow?: number;
             hookAddress?: Address | null;
             jettonMaster?: Address | null;
+            hookGas?: bigint;
         }
     ) {
         const v2 = buildJettonV2InitParams({
@@ -107,6 +112,7 @@ export class JettonJobFactory implements Contract {
             applicationWindow: params.applicationWindow,
             hookAddress: params.hookAddress,
             jettonMaster: params.jettonMaster,
+            hookGas: params.hookGas,
         });
         await provider.internal(via, {
             value,

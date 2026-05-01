@@ -37,14 +37,20 @@ export function jobFactoryConfigToCell(config: JobFactoryConfig): Cell {
 
 // Helper: build the v2 ref cell used by CreateJob/InitJob. Kept exported
 // so SDK callers can reproduce the exact byte layout for signing flows.
+//
+// Layout (post-hook-gas-param): mode(8) + applicationWindow(32) +
+// Maybe(hookAddress) + hookGas(coins). Pass hookGas=0n to fall back on
+// the contract-side DEFAULT_HOOK_GAS (0.01 TON).
 export function buildV2InitParams(params: {
     mode?: number;
     applicationWindow?: number;
     hookAddress?: Address | null;
+    hookGas?: bigint;
 }): Cell {
     const mode = params.mode ?? JobMode.FIXED;
     const applicationWindow = params.applicationWindow ?? 0;
     const hook = params.hookAddress ?? null;
+    const hookGas = params.hookGas ?? 0n;
     const b = beginCell()
         .storeUint(mode, 8)
         .storeUint(applicationWindow, 32);
@@ -53,6 +59,7 @@ export function buildV2InitParams(params: {
     } else {
         b.storeBit(false);
     }
+    b.storeCoins(hookGas);
     return b.endCell();
 }
 
@@ -92,12 +99,14 @@ export class JobFactory implements Contract {
             mode?: number;
             applicationWindow?: number;
             hookAddress?: Address | null;
+            hookGas?: bigint;
         }
     ) {
         const v2 = buildV2InitParams({
             mode: params.mode,
             applicationWindow: params.applicationWindow,
             hookAddress: params.hookAddress,
+            hookGas: params.hookGas,
         });
         await provider.internal(via, {
             value,

@@ -70,6 +70,12 @@ const MIN_GAS_STATE_CHANGE: int = 5000000;    // 0.005 TON (was 0.03)
 const MIN_GAS_PAYOUT: int = 15000000;         // 0.015 TON (was 0.10)
 const MIN_GAS_JETTON_PAYOUT: int = 25000000;  // 0.025 TON (was 0.12)
 
+// Hook fire gas — the default attached to fireAfterEvaluate when the
+// per-job hookGas in v2 ref is 0. Heavyweight hooks (a reputation
+// aggregator scanning a tree of provider entries) override this at
+// CreateJob via the hookGas param.
+const DEFAULT_HOOK_GAS: int = 10000000;        // 0.01 TON
+
 // -------------------- Timeouts --------------------
 
 // Emergency escape hatch: after this duration in SETTLING the client
