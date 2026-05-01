@@ -937,7 +937,7 @@ bot.callbackQuery('check_created', async (ctx) => {
 
         // Build fund deeplink for TonConnect
         const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        const fundAmount = toNano(pending.budgetTon) + toNano('0.01');
+        const fundAmount = toNano(pending.budgetTon) + toNano('0.002');
         const fundLink = tonTransferLink(jobAddr.toString(), fundAmount, fundBody);
 
         const kb = new InlineKeyboard()
@@ -1203,8 +1203,8 @@ bot.command('create', async (ctx) => {
 
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
 
-            const createLink = tonTransferLink(FACTORY_ADDRESS, toNano('0.03'), createBody);
-            const fundLink = tonTransferLink(predictedJobAddr.toString(), toNano(budgetTon) + toNano('0.01'), fundBody);
+            const createLink = tonTransferLink(FACTORY_ADDRESS, toNano('0.006'), createBody);
+            const fundLink = tonTransferLink(predictedJobAddr.toString(), toNano(budgetTon) + toNano('0.002'), fundBody);
 
             pendingCreate.set(userId, { budgetTon, description });
             pendingChats.set(userId, ctx.chat!.id);
@@ -1249,7 +1249,7 @@ bot.command('create', async (ctx) => {
         // Get count BEFORE create — our job ID will be this number
         const countBeforeResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_next_job_id');
         const jobId = countBeforeResult.stack.readNumber(); // Our job gets this ID
-        await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.03'), createBody);
+        await sendTx(client, w, Address.parse(FACTORY_ADDRESS), toNano('0.006'), createBody);
 
         // Get job address from factory (deterministic — available immediately after sendTx)
         const addrResult = await client.runMethod(Address.parse(FACTORY_ADDRESS), 'get_job_address', [{ type: 'int', value: BigInt(jobId) }]);
@@ -1262,7 +1262,7 @@ bot.command('create', async (ctx) => {
         let funded = false;
         try {
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-            await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
+            await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.002'), fundBody);
             // Wait for indexer to confirm funding on-chain
             const confirmed = await waitForJobUpdate(jobAddr.toString(), r => r.state >= 1);
             funded = !!confirmed;
@@ -1376,7 +1376,7 @@ bot.command('createjetton', async (ctx) => {
                 .storeUint(86400, 32)
                 .endCell();
 
-            const createLink = tonTransferLink(JETTON_FACTORY_ADDRESS, toNano('0.03'), createBody);
+            const createLink = tonTransferLink(JETTON_FACTORY_ADDRESS, toNano('0.006'), createBody);
 
             // Pre-compute job address for fund deeplink
             const nextIdRes = await client.runMethod(Address.parse(JETTON_FACTORY_ADDRESS), 'get_next_job_id');
@@ -1395,7 +1395,7 @@ bot.command('createjetton', async (ctx) => {
             ]);
             const jobJw = jobJwRes.stack.readAddress();
             const setWalletBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jobJw).endCell();
-            const setWalletLink = tonTransferLink(predictedAddr.toString(), toNano('0.01'), setWalletBody);
+            const setWalletLink = tonTransferLink(predictedAddr.toString(), toNano('0.002'), setWalletBody);
 
             // Step 3: Fund USDT deeplink
             await new Promise(r => setTimeout(r, 1500));
@@ -1407,9 +1407,9 @@ bot.command('createjetton', async (ctx) => {
                 .storeUint(0x0f8a7ea5, 32).storeUint(0, 64)
                 .storeCoins(usdtBudget)
                 .storeAddress(predictedAddr).storeAddress(Address.parse(addr))
-                .storeBit(false).storeCoins(toNano('0.05')).storeBit(false)
+                .storeBit(false).storeCoins(toNano('0.01')).storeBit(false)
                 .endCell();
-            const fundLink = tonTransferLink(clientJw.toString(), toNano('0.1'), fundBody);
+            const fundLink = tonTransferLink(clientJw.toString(), toNano('0.02'), fundBody);
 
             pendingCreate.set(userId, { budgetTon, description });
             pendingChats.set(userId, ctx.chat!.id);
@@ -1454,7 +1454,7 @@ bot.command('createjetton', async (ctx) => {
             .storeUint(timeoutSec, 32)
             .endCell();
 
-        await sendTx(client, w, Address.parse(JETTON_FACTORY_ADDRESS), toNano('0.03'), createBody);
+        await sendTx(client, w, Address.parse(JETTON_FACTORY_ADDRESS), toNano('0.006'), createBody);
         await new Promise(r => setTimeout(r, 10000));
 
         const jobCount = await getFactoryJobCount(client, JETTON_FACTORY_ADDRESS);
@@ -1470,7 +1470,7 @@ bot.command('createjetton', async (ctx) => {
         ]);
         const jobUsdtWallet = jwRes.stack.readAddress();
         const setJwBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jobUsdtWallet).endCell();
-        await sendTx(client, w, jobAddr, toNano('0.01'), setJwBody);
+        await sendTx(client, w, jobAddr, toNano('0.002'), setJwBody);
         await new Promise(r => setTimeout(r, 5000));
 
         saveDescription(jobId + 100000, description);
@@ -1639,7 +1639,7 @@ bot.command('submit', async (ctx) => {
 
         const statusCb = parsed.jetton ? `jstatus_${jobId}` : `status_${jobId}`;
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.002'), body);
             const kb = new InlineKeyboard()
                 .url('👛 Submit in Tonkeeper', link).row()
                 .text('🔭 Status', statusCb)
@@ -1656,7 +1656,7 @@ bot.command('submit', async (ctx) => {
         const w = await requireWallet(ctx);
         if (!w) return;
         await ctx.reply(`${e('⏳')} Submitting result...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await sendTx(client, w, jobAddr, toNano('0.002'), body);
 
         const kb = new InlineKeyboard()
             .text('🔭 Status', statusCb)
@@ -1738,7 +1738,7 @@ bot.command('budget', async (ctx) => {
             .storeUint(JobOpcodes.setBudget, 32)
             .storeCoins(toNano(amountTon))
             .endCell();
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await sendTx(client, w, jobAddr, toNano('0.002'), body);
 
         const kb = new InlineKeyboard()
             .text('🪙 Fund Job', `fund_${jobId}`)
@@ -2137,7 +2137,7 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
             if (currentJw !== expectedJw.toString()) {
                 // jettonWallet not set — show setWallet deeplink
                 const setBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(expectedJw).endCell();
-                const setLink = tonTransferLink(jobAddr.toString(), toNano('0.01'), setBody);
+                const setLink = tonTransferLink(jobAddr.toString(), toNano('0.002'), setBody);
                 const kb = new InlineKeyboard()
                     .url('👛 Set USDT Wallet', setLink).row()
                     .text('🔭 Status', `jstatus_${jobId}`)
@@ -2163,9 +2163,9 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
                 .storeUint(0x0f8a7ea5, 32).storeUint(0, 64)
                 .storeCoins(status.budget)
                 .storeAddress(jobAddr).storeAddress(Address.parse(addr))
-                .storeBit(false).storeCoins(toNano('0.05')).storeBit(false)
+                .storeBit(false).storeCoins(toNano('0.01')).storeBit(false)
                 .endCell();
-            const link = tonTransferLink(clientJw.toString(), toNano('0.1'), fundBody);
+            const link = tonTransferLink(clientJw.toString(), toNano('0.02'), fundBody);
             const kb = new InlineKeyboard()
                 .url('👛 Fund USDT in Tonkeeper', link).row()
                 .text('🔭 Status', `jstatus_${jobId}`)
@@ -2182,7 +2182,7 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
 
         if (!isJetton && mode === 'tonconnect') {
             const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-            const amount = status.budget + toNano('0.01');
+            const amount = status.budget + toNano('0.002');
             const link = tonTransferLink(jobAddr.toString(), amount, body);
             const kb = new InlineKeyboard()
                 .url('👛 Approve in Tonkeeper', link).row()
@@ -2212,13 +2212,13 @@ async function handleFund(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
                 .storeUint(0x0f8a7ea5, 32).storeUint(0, 64)
                 .storeCoins(status.budget)
                 .storeAddress(jobAddr).storeAddress(w.wallet.address)
-                .storeBit(false).storeCoins(toNano('0.05')).storeBit(false)
+                .storeBit(false).storeCoins(toNano('0.01')).storeBit(false)
                 .endCell();
             await ctx.reply(`${e('⏳')} Funding USDT job #${jobId}...`, { parse_mode: 'HTML' });
-            await sendTx(client, w, clientJw, toNano('0.1'), jettonBody);
+            await sendTx(client, w, clientJw, toNano('0.02'), jettonBody);
         } else {
             const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-            const amount = status.budget + toNano('0.01');
+            const amount = status.budget + toNano('0.002');
             await ctx.reply(`${e('⏳')} Funding job #${jobId}...`, { parse_mode: 'HTML' });
             await sendTx(client, w, jobAddr, amount, body);
         }
@@ -2250,7 +2250,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
 
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.002'), body);
             const kb = new InlineKeyboard()
                 .url('👛 Approve in Tonkeeper', link).row()
                 .text('🔭 Status', `status_${jobId}`)
@@ -2286,7 +2286,7 @@ async function handleTake(ctx: any, jobId: number, factory = FACTORY_ADDRESS) {
         const w = await requireWallet(ctx);
         if (!w) return;
         await ctx.reply(`${e('⏳')} Taking job #${jobId}...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await sendTx(client, w, jobAddr, toNano('0.002'), body);
         const prefix = factory === JETTON_FACTORY_ADDRESS ? 'j' : '';
         const statusCb = factory === JETTON_FACTORY_ADDRESS ? `jstatus_${jobId}` : `status_${jobId}`;
         // Wait for indexer confirmation via Supabase Realtime (true on-chain verification)
@@ -2743,7 +2743,7 @@ async function onFactoryTransaction() {
             if (!chatId) continue;
 
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-            const fundAmount = toNano(pending.budgetTon) + toNano('0.01');
+            const fundAmount = toNano(pending.budgetTon) + toNano('0.002');
             const fundLink = tonTransferLink(jobAddr.toString(), fundAmount, fundBody);
 
             const kb = new InlineKeyboard()
@@ -2896,7 +2896,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         }
 
         const factoryAddr = isJetton ? JETTON_FACTORY_ADDRESS : FACTORY_ADDRESS;
-        const createGas = isJetton ? toNano('0.03') : toNano('0.03');
+        const createGas = isJetton ? toNano('0.006') : toNano('0.006');
         const budgetCoins = isJetton ? BigInt(Math.round(parseFloat(budgetTon) * 1e6)) : toNano(budgetTon);
 
         const client = await createClient();
@@ -2966,7 +2966,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         saveDescriptionToSupabase(jobAddr.toString(), description, descCid, descHashHex);
         if (!isJetton) {
             const fundBody = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-            await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.01'), fundBody);
+            await sendTx(client, w, jobAddr, toNano(budgetTon) + toNano('0.002'), fundBody);
         }
         saveDescription(jobId + (isJetton ? 100000 : 0), description);
         const prefix = isJetton ? 'J#' : '#';
@@ -3027,7 +3027,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
 
         const statusCb = parsed.jetton ? `jstatus_${jobId}` : `status_${jobId}`;
         if (mode === 'tonconnect') {
-            const link = tonTransferLink(jobAddr.toString(), toNano('0.01'), body);
+            const link = tonTransferLink(jobAddr.toString(), toNano('0.002'), body);
             const kb = new InlineKeyboard().url('👛 Submit in Tonkeeper', link).row().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
             await ctx.reply(`${e('📨')} <b>Submit File for Job #${jobId}</b>\n\n${e('📎')} <a href="${fileUrl}">View file</a>\nOpen Tonkeeper to approve.`, { parse_mode: 'HTML', reply_markup: kb });
             return;
@@ -3036,7 +3036,7 @@ bot.on(['message:photo', 'message:document'], async (ctx, next) => {
         const w = await requireWallet(ctx);
         if (!w) return;
         await ctx.reply(`${e('⏳')} Submitting file...`, { parse_mode: 'HTML' });
-        await sendTx(client, w, jobAddr, toNano('0.01'), body);
+        await sendTx(client, w, jobAddr, toNano('0.002'), body);
         const kb = new InlineKeyboard().text('🔭 Status', statusCb).text('🏠 Menu', 'menu_main');
         await ctx.reply(
             `${e('📨')} <b>File Submitted!</b>\n\n` +

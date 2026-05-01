@@ -478,7 +478,7 @@ server.tool(
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(config.factoryAddress, toNano('0.03'), body);
+        const result = await sendTransaction(config.factoryAddress, toNano('0.006'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, description_hash: hash, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
@@ -492,7 +492,7 @@ server.tool(
     },
     async ({ job_address, amount_ton }) => {
         const body = beginCell().storeUint(JobOpcodes.fund, 32).endCell();
-        const total = toNano(amount_ton) + toNano('0.01');
+        const total = toNano(amount_ton) + toNano('0.002');
         const result = await sendTransaction(Address.parse(job_address), total, body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
@@ -506,7 +506,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.takeJob, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.002'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -564,7 +564,7 @@ server.tool(
             .storeUint(BigInt('0x' + hash), 256)
             .storeUint(2, 8) // result_type = 2 (IPFS)
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.002'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, ipfs_cid: cid, result_hash: hash, encrypted, ...(fileInfo ? { file: fileInfo } : {}) }) }] };
     }
 );
@@ -585,7 +585,7 @@ server.tool(
             .storeUint(reasonInt, 256)
             .endCell();
         // 0.06 TON needed for USDT payout gas. For TON jobs excess returns immediately.
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.012'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -598,7 +598,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.012'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -611,7 +611,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.claim, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.06'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.012'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -624,7 +624,7 @@ server.tool(
     },
     async ({ job_address }) => {
         const body = beginCell().storeUint(JobOpcodes.quit, 32).endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.002'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -683,7 +683,7 @@ server.tool(
             .storeUint(JobOpcodes.setBudget, 32)
             .storeCoins(toNano(budget_ton))
             .endCell();
-        const result = await sendTransaction(Address.parse(job_address), toNano('0.01'), body);
+        const result = await sendTransaction(Address.parse(job_address), toNano('0.002'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
 );
@@ -888,7 +888,7 @@ server.tool(
             .storeUint(evaluation_timeout_seconds, 32)
             .endCell();
 
-        const result = await sendTransaction(config.jettonFactoryAddress, toNano('0.03'), body);
+        const result = await sendTransaction(config.jettonFactoryAddress, toNano('0.006'), body);
 
         // In local mode: auto-set USDT wallet after job creation
         let jettonWallet = '';
@@ -908,7 +908,7 @@ server.tool(
                 jettonWallet = jw.toString();
 
                 const setBody = beginCell().storeUint(JobOpcodes.setJettonWallet, 32).storeAddress(jw).endCell();
-                await sendTransaction(jobAddr, toNano('0.01'), setBody);
+                await sendTransaction(jobAddr, toNano('0.002'), setBody);
             } catch (e: any) {
                 console.error('Auto set_jetton_wallet failed:', e.message);
             }
@@ -936,7 +936,7 @@ server.tool(
             .storeUint(JobOpcodes.setJettonWallet, 32)
             .storeAddress(jettonWalletAddr)
             .endCell();
-        const result = await sendTransaction(jobAddr, toNano('0.01'), body);
+        const result = await sendTransaction(jobAddr, toNano('0.002'), body);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, jetton_wallet: jettonWalletAddr.toString() }) }] };
     }
 );
@@ -973,11 +973,11 @@ server.tool(
             .storeAddress(jobAddr)      // destination: job contract
             .storeAddress(senderAddr)   // response_destination
             .storeBit(false)            // no custom_payload
-            .storeCoins(toNano('0.05')) // forward_ton_amount
+            .storeCoins(toNano('0.01')) // forward_ton_amount
             .storeBit(false)            // no forward_payload
             .endCell();
 
-        const result = await sendTransaction(senderJettonWallet, toNano('0.1'), jettonBody);
+        const result = await sendTransaction(senderJettonWallet, toNano('0.02'), jettonBody);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ ...result, usdt_amount: amount_usdt, sender_jetton_wallet: senderJettonWallet.toString() }) }] };
     }
 );
