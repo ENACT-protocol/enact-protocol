@@ -14,11 +14,11 @@ import "lib/job_state.tolk"
 const ERR_JETTON_WALLET_NOT_SET: int = 108;
 
 // Jetton job storage is slightly more compact than TON job storage,
-// hence the tighter MIN_STORAGE.
-// v2-lib-lite: jetton payload stays small and library-backed, so the
-// buffer can shrink to 0.002 TON. Symmetric with job.tolk; see there
-// for the reasoning.
-const MIN_STORAGE: int = 2000000;   // 0.002 TON — v2-lib-lite
+// but we keep MIN_STORAGE symmetric with job.tolk because the jetton
+// path may need extra rent during retry windows on settlement.
+// MTONGA-step-2 cell_price_ps=135 makes 90 days of life cost ~0.0004 TON
+// — 0.001 TON is a 2.5× buffer.
+const MIN_STORAGE: int = 1000000;   // 0.001 TON — MTONGA-step-2 tariff
 
 const OP_JETTON_TRANSFER: int = 0x0f8a7ea5;
 
