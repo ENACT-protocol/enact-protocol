@@ -591,10 +591,11 @@ describe('JettonJob', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        // Jetton payouts require at least 0.15 TON. 0.1 TON is below the
-        // floor; without this guard the jetton_transfer would silently
-        // bounce for insufficient forward gas and lock the state terminal.
-        const r = await job.sendEvaluate(evaluator.getSender(), toNano('0.1'), true);
+        // Jetton payouts require at least 0.025 TON post-MTONGA. 0.02 TON
+        // is below the floor; without this guard the jetton_transfer would
+        // silently bounce for insufficient forward gas and lock the state
+        // terminal.
+        const r = await job.sendEvaluate(evaluator.getSender(), toNano('0.02'), true);
         expect(r.transactions).toHaveTransaction({
             from: evaluator.address,
             to: job.address,
@@ -607,7 +608,8 @@ describe('JettonJob', () => {
         const job = await setupJob();
         await fundJob(job);
 
-        const r = await job.sendTakeJob(provider.getSender(), toNano('0.01'));
+        // 0.003 TON is below the 0.005 TON state-change floor (post-MTONGA).
+        const r = await job.sendTakeJob(provider.getSender(), toNano('0.003'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,

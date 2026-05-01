@@ -289,7 +289,7 @@ class EnactClient:
         )
         await self._send(
             to=Address(self.factory_address),
-            value_nano=to_nano("0.006", TON_DECIMALS),
+            value_nano=to_nano("0.008", TON_DECIMALS),
             body=body,
         )
         count_after = await self._poll_for_count_increase(
@@ -302,13 +302,13 @@ class EnactClient:
         body = build_job_message("fund")
         await self._send(
             to=Address(job_address),
-            value_nano=status.budget + to_nano("0.002", TON_DECIMALS),
+            value_nano=status.budget + to_nano("0.006", TON_DECIMALS),
             body=body,
         )
 
     async def take_job(self, job_address: str) -> None:
         body = build_job_message("take_job")
-        await self._send(Address(job_address), to_nano("0.002", TON_DECIMALS), body)
+        await self._send(Address(job_address), to_nano("0.006", TON_DECIMALS), body)
 
     async def submit_result(
         self,
@@ -320,7 +320,7 @@ class EnactClient:
         body = build_job_message(
             "submit_result", result_hash=result_hash, result_type=RESULT_TYPE_PLAIN
         )
-        await self._send(Address(job_address), to_nano("0.002", TON_DECIMALS), body)
+        await self._send(Address(job_address), to_nano("0.006", TON_DECIMALS), body)
 
     async def submit_encrypted_result(
         self,
@@ -374,7 +374,7 @@ class EnactClient:
             result_hash=result_hash,
             result_type=RESULT_TYPE_ENCRYPTED,
         )
-        await self._send(Address(job_address), to_nano("0.002", TON_DECIMALS), body)
+        await self._send(Address(job_address), to_nano("0.006", TON_DECIMALS), body)
 
     async def decrypt_job_result(
         self, envelope: EncryptedEnvelope, role: Role
@@ -405,33 +405,33 @@ class EnactClient:
         body = build_job_message(
             "evaluate", approved=approved, reason_hash=reason_hash
         )
-        await self._send(Address(job_address), to_nano("0.002", TON_DECIMALS), body)
+        await self._send(Address(job_address), to_nano("0.006", TON_DECIMALS), body)
 
     async def cancel_job(self, job_address: str) -> None:
         await self._send(
             Address(job_address),
-            to_nano("0.002", TON_DECIMALS),
+            to_nano("0.006", TON_DECIMALS),
             build_job_message("cancel"),
         )
 
     async def claim_job(self, job_address: str) -> None:
         await self._send(
             Address(job_address),
-            to_nano("0.002", TON_DECIMALS),
+            to_nano("0.006", TON_DECIMALS),
             build_job_message("claim"),
         )
 
     async def quit_job(self, job_address: str) -> None:
         await self._send(
             Address(job_address),
-            to_nano("0.002", TON_DECIMALS),
+            to_nano("0.006", TON_DECIMALS),
             build_job_message("quit"),
         )
 
     async def set_budget(self, job_address: str, budget: str) -> None:
         budget_nano = to_nano(budget, TON_DECIMALS)
         body = build_job_message("set_budget", budget_nano=budget_nano)
-        await self._send(Address(job_address), to_nano("0.002", TON_DECIMALS), body)
+        await self._send(Address(job_address), to_nano("0.006", TON_DECIMALS), body)
 
     # ───────────────────────────── writes (USDT) ─────────────────────────────
 
@@ -449,7 +449,7 @@ class EnactClient:
         )
         await self._send(
             to=Address(self.jetton_factory_address),
-            value_nano=to_nano("0.006", TON_DECIMALS),
+            value_nano=to_nano("0.008", TON_DECIMALS),
             body=body,
         )
         count_after = await self._poll_for_count_increase(
@@ -468,7 +468,7 @@ class EnactClient:
         )
         jetton_wallet = _require_address_obj(stack[0], "get_wallet_address")
         body = build_set_jetton_wallet_message(jetton_wallet)
-        await self._send(Address(job_address), to_nano("0.002", TON_DECIMALS), body)
+        await self._send(Address(job_address), to_nano("0.006", TON_DECIMALS), body)
 
     async def fund_jetton_job(self, job_address: str) -> None:
         """Send a TEP-74 transfer from the sender's USDT wallet to the job."""
@@ -488,11 +488,11 @@ class EnactClient:
             amount_nano=status.budget,
             destination=Address(job_address),
             response_destination=wallet.address,
-            forward_ton_amount_nano=to_nano("0.01", TON_DECIMALS),
+            forward_ton_amount_nano=to_nano("0.005", TON_DECIMALS),
         )
         await self._send(
             to=sender_jetton_wallet,
-            value_nano=to_nano("0.02", TON_DECIMALS),
+            value_nano=to_nano("0.025", TON_DECIMALS),
             body=body,
         )
 

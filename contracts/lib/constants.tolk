@@ -60,9 +60,15 @@ const ERR_BUDGET_DECREASE: int = 115;      // SetBudget in FUNDED may only raise
 // against one of these floors before touching state. This keeps a
 // caller from underpaying and having the contract write terminal
 // state for a payout that then fails at the action phase.
-const MIN_GAS_STATE_CHANGE: int = 30000000;   // 0.03 TON
-const MIN_GAS_PAYOUT: int = 100000000;        // 0.10 TON (TON payouts)
-const MIN_GAS_JETTON_PAYOUT: int = 120000000; // 0.12 TON (jetton payouts: forward 0.02 + wallet gas)
+//
+// Sized for MTONGA-step-2 tariffs (active utime 1777500000): gas_price
+// 26214400→4369067 (÷6), fwd lump 400000→66667 (÷6). On testnet a
+// state-change op consumes ~0.0015 TON, a TON payout ~0.005 TON, a
+// jetton payout ~0.015 TON. Floors carry ~3× margin so the SDK / bot /
+// MCP can safely attach 0.005-0.025 TON depending on op.
+const MIN_GAS_STATE_CHANGE: int = 5000000;    // 0.005 TON (was 0.03)
+const MIN_GAS_PAYOUT: int = 15000000;         // 0.015 TON (was 0.10)
+const MIN_GAS_JETTON_PAYOUT: int = 25000000;  // 0.025 TON (was 0.12)
 
 // -------------------- Timeouts --------------------
 

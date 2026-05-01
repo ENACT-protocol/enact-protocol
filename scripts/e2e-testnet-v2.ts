@@ -365,10 +365,10 @@ async function scenarioMinGasFloor(
     );
     console.log(`  job: ${jobAddr.toString({ testOnly: TESTNET })}`);
 
-    // 0.01 TON is below MIN_GAS_STATE_CHANGE (0.03). Cancel must revert;
-    // state stays OPEN.
+    // 0.003 TON is below MIN_GAS_STATE_CHANGE (0.005 post-MTONGA).
+    // Cancel must revert; state stays OPEN.
     const cancel = beginCell().storeUint(JobOpcodes.cancel, 32).endCell();
-    const s = await sendMsg(wallet, kp, jobAddr, toNano('0.01'), cancel, s1);
+    const s = await sendMsg(wallet, kp, jobAddr, toNano('0.003'), cancel, s1);
     await sleep(8000);
     const stateAfter = await getJobState(client, jobAddr);
     if (stateAfter === 0) {

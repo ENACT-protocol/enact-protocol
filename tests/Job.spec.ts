@@ -740,8 +740,8 @@ describe('Job', () => {
         await job.sendTakeJob(provider.getSender(), toNano('0.05'));
         await job.sendSubmitResult(provider.getSender(), toNano('0.05'), RESULT_HASH);
 
-        // 0.05 TON is below the 0.1 TON floor for terminal payouts.
-        const r = await job.sendEvaluate(evaluator.getSender(), toNano('0.05'), true);
+        // 0.01 TON is below the 0.015 TON floor for terminal payouts (post-MTONGA).
+        const r = await job.sendEvaluate(evaluator.getSender(), toNano('0.01'), true);
         expect(r.transactions).toHaveTransaction({
             from: evaluator.address,
             to: job.address,
@@ -754,8 +754,8 @@ describe('Job', () => {
         const job = await deployFactoryAndCreateJob();
         await job.sendFund(client.getSender(), BUDGET + toNano('0.1'));
 
-        // 0.01 TON is below the 0.03 TON floor for state changes.
-        const r = await job.sendTakeJob(provider.getSender(), toNano('0.01'));
+        // 0.003 TON is below the 0.005 TON floor for state changes (post-MTONGA).
+        const r = await job.sendTakeJob(provider.getSender(), toNano('0.003'));
         expect(r.transactions).toHaveTransaction({
             from: provider.address,
             to: job.address,

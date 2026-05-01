@@ -1,21 +1,21 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-05-01T08:39:36.890Z",
+  "deployedAt": "2026-05-01T09:00:33.323Z",
   "wallet": "kQANJV0X3LdwQxfOSdM1cPjHbCMrXZEhZuL21LWhg0pot0zi",
   "factory": {
-    "address": "kQBaIDKFwDsk3H7P67yOV5AnWctyOsbnUTIsBlZlwA_OH6M2",
-    "rawAddress": "0:5a203285c03b24dc7ecfebbc8e57902759cb723ac6e751322c065665c00fce1f"
+    "address": "kQA1f0kBWEJjavmEc6DRrLZcP758a2-obJko7xrJut8wXVYf",
+    "rawAddress": "0:357f49015842636af98473a0d1acb65c3fbe7c6b6fa86c9928ef1ac9badf305d"
   },
   "jettonFactory": {
-    "address": "kQCxi2P0Q1Rk-E9wONPg4Dhm1mxbIcpqDENMmnSX8VvX4O3C",
-    "rawAddress": "0:b18b63f4435464f84f7038d3e0e03866d66c5b21ca6a0c434c9a7497f15bd7e0"
+    "address": "kQDCzQ7KwevZpQeG6G_smklpKEMJaFeHSu7O1hPeOD1QLuIs",
+    "rawAddress": "0:c2cd0ecac1ebd9a50786e86fec9a49692843096857874aeeced613de383d502e"
   },
   "versions": {
     "factory": 4,
     "jettonFactory": 4
   },
   "explorer": {
-    "factory": "https://testnet.tonviewer.com/kQBaIDKFwDsk3H7P67yOV5AnWctyOsbnUTIsBlZlwA_OH6M2",
-    "jettonFactory": "https://testnet.tonviewer.com/kQCxi2P0Q1Rk-E9wONPg4Dhm1mxbIcpqDENMmnSX8VvX4O3C"
+    "factory": "https://testnet.tonviewer.com/kQA1f0kBWEJjavmEc6DRrLZcP758a2-obJko7xrJut8wXVYf",
+    "jettonFactory": "https://testnet.tonviewer.com/kQDCzQ7KwevZpQeG6G_smklpKEMJaFeHSu7O1hPeOD1QLuIs"
   }
 }

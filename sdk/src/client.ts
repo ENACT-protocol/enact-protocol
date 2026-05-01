@@ -384,7 +384,7 @@ export class EnactClient {
             .storeUint(params.evalTimeout ?? params.timeout ?? 86400, 32)
             .endCell();
 
-        await this._send(Address.parse(this.factoryAddress), toNano('0.006'), body);
+        await this._send(Address.parse(this.factoryAddress), toNano('0.008'), body);
 
         // Verify job was created
         const countAfter = await this.getJobCount();
@@ -396,13 +396,13 @@ export class EnactClient {
     async fundJob(jobAddress: string): Promise<void> {
         const status = await this.getJobStatus(jobAddress);
         const body = beginCell().storeUint(JobOp.fund, 32).endCell();
-        await this._send(Address.parse(jobAddress), status.budget + toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), status.budget + toNano('0.006'), body);
     }
 
     /** Take a job as provider. */
     async takeJob(jobAddress: string): Promise<void> {
         const body = beginCell().storeUint(JobOp.takeJob, 32).endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /** Submit a result for a job. Optionally attach a file. */
@@ -426,7 +426,7 @@ export class EnactClient {
             .storeUint(resultHash, 256)
             .storeUint(0, 8) // resultType
             .endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /**
@@ -463,7 +463,7 @@ export class EnactClient {
             .storeUint(resultHash, 256)
             .storeUint(1, 8) // resultType = 1 (encrypted)
             .endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /**
@@ -506,25 +506,25 @@ export class EnactClient {
             .storeUint(approved ? 1 : 0, 8)
             .storeUint(reasonHash, 256)
             .endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /** Cancel a job after timeout. */
     async cancelJob(jobAddress: string): Promise<void> {
         const body = beginCell().storeUint(JobOp.cancel, 32).endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /** Claim payment after evaluation timeout. */
     async claimJob(jobAddress: string): Promise<void> {
         const body = beginCell().storeUint(JobOp.claim, 32).endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /** Quit a job before submitting. */
     async quitJob(jobAddress: string): Promise<void> {
         const body = beginCell().storeUint(JobOp.quit, 32).endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     // ─── Jetton (USDT) Write Operations ───
@@ -547,7 +547,7 @@ export class EnactClient {
             .storeUint(params.evalTimeout ?? params.timeout ?? 86400, 32)
             .endCell();
 
-        await this._send(Address.parse(this.jettonFactoryAddress), toNano('0.006'), body);
+        await this._send(Address.parse(this.jettonFactoryAddress), toNano('0.008'), body);
 
         const countAfter = await this.getJettonJobCount();
         if (countAfter <= countBefore) throw new Error('Jetton job creation not confirmed on-chain');
@@ -566,7 +566,7 @@ export class EnactClient {
             .storeUint(JobOp.setJettonWallet, 32)
             .storeAddress(jettonWallet)
             .endCell();
-        await this._send(Address.parse(jobAddress), toNano('0.002'), body);
+        await this._send(Address.parse(jobAddress), toNano('0.006'), body);
     }
 
     /** Fund a USDT job (sends Jetton transfer). */
@@ -588,12 +588,12 @@ export class EnactClient {
             .storeAddress(Address.parse(jobAddress))
             .storeAddress(w.contract.address)
             .storeBit(false)
-            .storeCoins(toNano('0.01'))
+            .storeCoins(toNano('0.005'))
             .storeBit(true)
             .storeRef(forwardPayload)
             .endCell();
 
-        await this._send(senderJettonWallet, toNano('0.02'), body);
+        await this._send(senderJettonWallet, toNano('0.025'), body);
     }
 
     // ─── Private ───

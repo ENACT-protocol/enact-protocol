@@ -14,10 +14,22 @@ import "lib/job_state.tolk"
 //
 // MTONGA-step-2 (active utime 1777500000) drops basechain storage prices
 // further: bit_price_ps 1 → 0 (bits free), cell_price_ps 500 → 135.
-// At ~25 cells of state, 90 days of life (max timeout + max eval-
-// timeout + max claim window) costs ~0.0004 TON. 0.001 TON is a 2.5×
-// buffer over that and a >700-day buffer over a typical 24h job.
-const MIN_STORAGE: int = 1000000;   // 0.001 TON — MTONGA-step-2 tariff
+// At ~25 cells of state the rent is ~0.0016 TON / year.
+//
+// Why we can go this low: per the TVM spec (see GlobalVersions.md),
+// unpaid storage fees accrue in the contract's `due_payment` field and
+// are settled lazily from incoming messages — contracts only freeze
+// when they sit idle long enough for the debt to compound. ENACT jobs
+// receive incoming messages on every state transition (fund / take /
+// submit / evaluate / settle), so the contract never depends on its
+// reserve to cover ongoing rent. The reserve only needs to cover the
+// outgoing settlement message's forward fees + a small safety buffer
+// for terminal-state RetryTransfer windows.
+//
+// 0.0003 TON ≈ 70 days of rent for the active job size, ~60× the
+// forward fee for a settlement message, and is the smallest value that
+// keeps RESERVE_MODE_AT_MOST intuitive across all v2 paths.
+const MIN_STORAGE: int = 300000;   // 0.0003 TON — MTONGA-step-2 + due_payment
 
 // ===================== STORAGE LAYOUT =====================
 // Main cell layout and loadMainData / saveData live in
