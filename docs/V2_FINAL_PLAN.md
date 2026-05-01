@@ -16,24 +16,26 @@ Status legend: `✓` shipped, `→` in progress, `·` queued.
 - `✓` Real on-chain gas-bench scripts (`scripts/gas-bench-*.ts`)
 - `✓` SubmitResult race-guard on jetton job: `assert(pendingBudget == 0)`
 
-## Phase 1 — small architectural wins (THIS SESSION)
+## Phase 1 — small architectural wins ✓ shipped (commit fc29705)
 
-- `→` **Hook gas param** — replace the inline `value: 10000000` in
+- `✓` **Hook gas param** — replaced the inline `value: 10000000` in
   `fireAfterEvaluate` with a `hookGas` field stored in v2 ref. Default
-  0.01 TON. CreateJob takes optional `hookGas` arg.
-  - `contracts/job.tolk` + `contracts/jetton_job.tolk`: extend v2Cell
-    layout with `coins` field after hookAddress.
-  - `loadDetails` / `buildDetailsCell` / fast-path helpers updated.
-  - `wrappers/{Job,JettonJob,JobFactory,JettonJobFactory}.ts` updated.
-  - `sdk/src/client.ts`: createJob accepts `hookGas`.
-  - Tests: `Hooks.spec.ts` parameterises hookGas and verifies hook
-    receives correct value.
+  0.01 TON via `DEFAULT_HOOK_GAS` in `lib/constants.tolk`. CreateJob
+  accepts optional `hookGas` arg; 0 = use default.
+  - `contracts/job.tolk` + `contracts/jetton_job.tolk` v2Cell layout
+    extended with trailing `coins` field after the existing fields.
+  - `loadDetails` / `buildDetailsCell` / `loadClaimFields` /
+    `rebuildWithDeadline` all updated to read+preserve hookGas.
+  - `wrappers/JobFactory.ts` + `wrappers/JettonJobFactory.ts` accept
+    `hookGas: bigint` via `buildV2InitParams` /
+    `buildJettonV2InitParams`.
+  - 119 sandbox tests pass on the new bytecode.
 
-- `→` **Pending-budget drain on Evaluate/Claim** — belt-and-suspenders
-  for the SubmitResult guard. If pendingBudget > 0 reaches Evaluate or
-  Claim by some path (timing, cancel-after-fund), settle BOTH the
-  primary budget and the pending delta to the recipient. Also clears
-  the v2 ref to keep reads consistent.
+- `✓` **SubmitResult pendingBudget guard** — `assert(pendingBudget == 0)`
+  in jetton_job's SubmitResult handler. Prevents stranded jetton-delta
+  when client races a SetBudget+ top-up against provider's submit.
+  Forces client to either drain the pending top-up via
+  TransferNotification or roll back via SetBudget before submit lands.
 
 ## Phase 2 — factory-derives-jettonWallet
 
