@@ -1,0 +1,89 @@
+{
+  "runAt": "2026-05-01T10:38:13.764Z",
+  "rows": [
+    {
+      "op": "AcceptProvider",
+      "v1n": 0,
+      "v1med": "0",
+      "v2n": 4,
+      "v2med": "696314"
+    },
+    {
+      "op": "Cancel",
+      "v1n": 6,
+      "v1med": "2935769",
+      "v2n": 0,
+      "v2med": "0"
+    },
+    {
+      "op": "CancelJob",
+      "v1n": 0,
+      "v1med": "0",
+      "v2n": 3,
+      "v2med": "442803"
+    },
+    {
+      "op": "CreateJob",
+      "v1n": 9,
+      "v1med": "5523308",
+      "v2n": 14,
+      "v2med": "1212740"
+    },
+    {
+      "op": "Evaluate",
+      "v1n": 9,
+      "v1med": "3381780",
+      "v2n": 0,
+      "v2med": "0"
+    },
+    {
+      "op": "ExtendWindow",
+      "v1n": 0,
+      "v1med": "0",
+      "v2n": 1,
+      "v2med": "585603"
+    },
+    {
+      "op": "Fund",
+      "v1n": 15,
+      "v1med": "3483735",
+      "v2n": 4,
+      "v2med": "679203"
+    },
+    {
+      "op": "InitJob",
+      "v1n": 0,
+      "v1med": "0",
+      "v2n": 7,
+      "v2med": "1761499"
+    },
+    {
+      "op": "QuitJob",
+      "v1n": 2,
+      "v1med": "2331028",
+      "v2n": 0,
+      "v2med": "0"
+    },
+    {
+      "op": "SetBudget",
+      "v1n": 0,
+      "v1med": "0",
+      "v2n": 1,
+      "v2med": "528002"
+    },
+    {
+      "op": "SubmitResult",
+      "v1n": 9,
+      "v1med": "3392139",
+      "v2n": 0,
+      "v2med": "0"
+    },
+    {
+      "op": "TakeJob",
+      "v1n": 12,
+      "v1med": "2241392",
+      "v2n": 1,
+      "v2med": "246470"
+    }
+  ]
+}
